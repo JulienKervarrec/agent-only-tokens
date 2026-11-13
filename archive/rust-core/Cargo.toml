@@ -1,0 +1,15 @@
+[package]
+name = "agent-only-core"
+version = "0.1.0"
+edition = "2021"
+description = "Specification executable du profil Agent-Only Tokens : intentions EIP-712, machine a etats, coffre"
+license = "CC0-1.0"
+
+[dependencies]
+alloy-primitives = { version = "1", default-features = false, features = ["std"] }
+alloy-sol-types = { version = "1", default-features = false, features = ["std"] }
+k256 = { version = "0.13", default-features = false, features = ["ecdsa", "std"] }
+
+# Les signatures ECDSA sont lentes sans optimisation.
+[profile.test]
+opt-level = 2
