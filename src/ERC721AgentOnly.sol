@@ -31,13 +31,21 @@ abstract contract ERC721AgentOnly is ERC721, IERC721AgentOnly {
 
     function _update(address to, uint256 tokenId, address auth) internal virtual override returns (address) {
         address caller = _msgSender();
-        bool venue = agentRegistry.isVenue(caller);
-        if (!venue && !agentRegistry.isAgent(caller)) revert NotAgent(caller);
+        // Rule 3 is met when the caller is the recipient (pull, or mint to self): one question
+        // to the registry then covers both the caller and the recipient.
+        bool pull = to == caller;
+        bool venue;
+        if (pull) {
+            if (!_allowed(caller)) revert NotAgent(caller);
+        } else {
+            venue = agentRegistry.isVenue(caller);
+            if (!venue && !agentRegistry.isAgent(caller)) revert NotAgent(caller);
+        }
         address from = _ownerOf(tokenId);
         if (from != address(0) && from != caller && !_allowed(from)) revert NotAgent(from);
-        if (to != address(0)) {
+        if (!pull && to != address(0)) {
             if (!_allowed(to)) revert NotAgent(to);
-            if (!venue && to != caller) revert NotPulledByRecipient();
+            if (!venue) revert NotPulledByRecipient();
         }
         return super._update(to, tokenId, auth);
     }

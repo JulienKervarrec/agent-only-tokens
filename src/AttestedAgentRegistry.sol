@@ -5,6 +5,7 @@ import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IAgentRegistry} from "./IAgentRegistry.sol";
+import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {AgentAccount, IAgentKeys} from "./AgentAccount.sol";
 
 /// @title Agent registry, version 1: enrollment signed by several attesters.
@@ -42,6 +43,7 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
     mapping(uint256 => Agent) private _agents;
     mapping(uint256 => address) public accountOf;
     mapping(address => uint256) public agentIdOf;
+    address public immutable accountImplementation; // every agent account is a clone of it
     mapping(address => bool) public isVenue;
     mapping(address => uint256) public venueNonce; // one signature set = one decision
 
@@ -79,6 +81,7 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
         threshold = threshold_;
         bond = bond_;
         keyTtl = keyTtl_;
+        accountImplementation = address(new AgentAccount());
         identityRegistry = identityRegistry_;
     }
 
@@ -140,7 +143,9 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
             a.sponsor = msg.sender;
             a.bondHeld = msg.value;
             // The agent's account: stable address, no human owner.
-            address account = address(new AgentAccount{salt: bytes32(agentId)}(agentId));
+            address account = Clones.cloneDeterministicWithImmutableArgs(
+                accountImplementation, abi.encode(address(this), agentId), bytes32(agentId)
+            );
             accountOf[agentId] = account;
             agentIdOf[account] = agentId;
         } else {

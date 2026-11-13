@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 
 interface IAgentKeys {
     function keyOf(uint256 agentId) external view returns (address);
@@ -11,7 +12,10 @@ interface IAgentKeys {
 /// @title An agent's account: a wallet with no human owner.
 /// @notice Unaudited draft. Only the session key the registry recognises for this agent
 /// can make it act. The key changes at each enrollment; the account and its assets stay.
-/// @dev Everything the key signs off-chain is EIP-712 typed data bound to this account:
+/// @dev Each agent's account is an ERC-1167 clone of one implementation, deployed by the registry
+/// with the registry's address and the agent id as immutable arguments. The implementation itself
+/// refuses every call, so it can never act on its own.
+/// Everything the key signs off-chain is EIP-712 typed data bound to this account:
 /// an `Execute` order, or an `AgentMessage` wrapping a hash for ERC-1271. A signature
 /// made for one purpose can therefore never be used for the other, nor on another account.
 contract AgentAccount is EIP712 {
@@ -25,23 +29,46 @@ contract AgentAccount is EIP712 {
         keccak256("Execute(address target,uint256 value,bytes data,uint256 nonce,uint64 deadline)");
     bytes32 private constant MESSAGE_TYPEHASH = keccak256("AgentMessage(bytes32 hash)");
 
-    IAgentKeys public immutable registry;
-    uint256 public immutable agentId;
+    address private immutable _implementation;
     uint256 public nonce;
 
     error NotKey();
     error Expired();
+    error NotAClone();
 
-    constructor(uint256 agentId_) EIP712("AgentAccount", "1") {
-        registry = IAgentKeys(msg.sender);
-        agentId = agentId_;
+    constructor() EIP712("AgentAccount", "1") {
+        _implementation = address(this);
     }
 
-    receive() external payable {}
+    /// The registry that recognises this account's session key.
+    function registry() public view returns (IAgentKeys) {
+        (address r,) = _args();
+        return IAgentKeys(r);
+    }
+
+    function agentId() public view returns (uint256) {
+        (, uint256 id) = _args();
+        return id;
+    }
+
+    function _args() private view returns (address r, uint256 id) {
+        if (address(this) == _implementation) revert NotAClone();
+        return abi.decode(Clones.fetchCloneArgs(address(this)), (address, uint256));
+    }
+
+    function _key() private view returns (address) {
+        (address r, uint256 id) = _args();
+        return IAgentKeys(r).keyOf(id);
+    }
+
+    /// A clone can hold ETH. The implementation refuses it: nothing could ever move it out.
+    receive() external payable {
+        if (address(this) == _implementation) revert NotAClone();
+    }
 
     /// Called by the session key, or by the account itself (relayed batch).
     modifier onlyKey() {
-        if (msg.sender != address(this) && msg.sender != registry.keyOf(agentId)) revert NotKey();
+        if (msg.sender != address(this) && msg.sender != _key()) revert NotKey();
         _;
     }
 
@@ -96,7 +123,7 @@ contract AgentAccount is EIP712 {
 
     function _isKey(bytes32 digest, bytes calldata sig) private view returns (bool) {
         (address signer, ECDSA.RecoverError err,) = ECDSA.tryRecover(digest, sig);
-        address key = registry.keyOf(agentId);
+        address key = _key();
         return err == ECDSA.RecoverError.NoError && key != address(0) && signer == key;
     }
 

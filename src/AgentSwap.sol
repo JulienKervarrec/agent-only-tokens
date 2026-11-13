@@ -43,6 +43,10 @@ contract AgentSwap is ReentrancyGuard {
         if (l.seller == address(0)) revert NotListed();
         if (l.buyer != address(0) && l.buyer != msg.sender) revert NotBuyer();
         if (l.currency != currency || l.price != price) revert TermsChanged();
+        // A listing only lives while this venue is the token's own approved address. That approval
+        // is cleared by any transfer, so a listing left behind dies when the token moves, and does
+        // not come back to life if the token returns to the seller. `setApprovalForAll` is not enough.
+        if (nft.getApproved(id) != address(this)) revert NotListed();
         delete listings[nft][id];
         if (l.price != 0) l.currency.safeTransferFrom(msg.sender, l.seller, l.price);
         nft.transferFrom(l.seller, msg.sender, id);

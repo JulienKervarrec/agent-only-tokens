@@ -40,8 +40,13 @@ contract AgentStaking is ReentrancyGuard {
     error NotStaker();
     error NotDistributor();
     error RateTooLow();
+    error BadConfig();
 
     constructor(IERC721 nft_, IERC20 rewardToken_, address distributor_, uint64 rewardsDuration_) {
+        if (
+            address(nft_) == address(0) || address(rewardToken_) == address(0) || distributor_ == address(0)
+                || rewardsDuration_ == 0
+        ) revert BadConfig();
         nft = nft_;
         rewardToken = rewardToken_;
         distributor = distributor_;
@@ -91,9 +96,9 @@ contract AgentStaking is ReentrancyGuard {
         delete stakerOf[tokenId];
         stakedBy[msg.sender]--;
         totalStaked--;
-        nft.transferFrom(address(this), msg.sender, tokenId);
         emit Unstaked(msg.sender, tokenId);
         _payReward();
+        nft.transferFrom(address(this), msg.sender, tokenId);
     }
 
     function getReward() external nonReentrant updateReward(msg.sender) {

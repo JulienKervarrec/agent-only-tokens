@@ -22,11 +22,11 @@ interface IERC5192 {
 /// make spam costly; nobody can seize the deposit. It is refunded `exitDelay` after retiring.
 contract AgentReputationBadge is ERC721AgentOnly, IERC5192 {
     struct Badge {
-        address issuer;
-        bytes32 category; // e.g. keccak256("code-contribution")
-        bytes32 evidenceHash; // hash of the evidence document
+        address issuer; // issuer, issuedAt and revoked share one storage slot
         uint64 issuedAt; // when the agent claimed it
         bool revoked;
+        bytes32 category; // e.g. keccak256("code-contribution")
+        bytes32 evidenceHash; // hash of the evidence document
         string evidenceURI; // e.g. a merged pull request, a report on IPFS
     }
 
@@ -65,6 +65,7 @@ contract AgentReputationBadge is ERC721AgentOnly, IERC5192 {
     error NotYours();
     error NoSuchOffer();
     error TooEarly();
+    error BadInput();
 
     constructor(IAgentRegistry registry_, uint256 issuerDeposit_, uint32 dailyQuota_, uint64 exitDelay_)
         ERC721("Agent Reputation Badge", "ARB")
@@ -117,6 +118,7 @@ contract AgentReputationBadge is ERC721AgentOnly, IERC5192 {
         returns (uint256 offerId)
     {
         if (!isActiveIssuer(msg.sender)) revert NotIssuer();
+        if (agent == address(0)) revert BadInput();
         Issuer storage i = issuers[msg.sender];
         uint64 today = uint64(block.timestamp / 1 days);
         if (i.day != today) {
@@ -129,7 +131,7 @@ contract AgentReputationBadge is ERC721AgentOnly, IERC5192 {
         evidenceUsed[msg.sender][evidenceHash] = true;
 
         offerId = ++lastId;
-        _badges[offerId] = Badge(msg.sender, category, evidenceHash, 0, false, evidenceURI);
+        _badges[offerId] = Badge(msg.sender, 0, false, category, evidenceHash, evidenceURI);
         offeredTo[offerId] = agent;
         emit Offered(offerId, msg.sender, agent, category, evidenceHash);
     }
@@ -137,6 +139,8 @@ contract AgentReputationBadge is ERC721AgentOnly, IERC5192 {
     function cancelOffer(uint256 offerId) external {
         if (offeredTo[offerId] == address(0)) revert NoSuchOffer();
         if (_badges[offerId].issuer != msg.sender) revert NotIssuer();
+        // The evidence becomes usable again, e.g. after an offer made to the wrong account.
+        evidenceUsed[msg.sender][_badges[offerId].evidenceHash] = false;
         delete offeredTo[offerId];
         delete _badges[offerId];
         emit OfferCancelled(offerId);
@@ -164,6 +168,14 @@ contract AgentReputationBadge is ERC721AgentOnly, IERC5192 {
         if (b.issuer != msg.sender) revert NotIssuer();
         b.revoked = true;
         emit Revoked(badgeId, msg.sender);
+    }
+
+    /// What a pending offer contains, so that the agent can read it before claiming.
+    /// The issuer cannot change it: it can only cancel it.
+    function pendingOffer(uint256 offerId) external view returns (address agent, Badge memory content) {
+        agent = offeredTo[offerId];
+        if (agent == address(0)) revert NoSuchOffer();
+        content = _badges[offerId];
     }
 
     function badge(uint256 badgeId) external view returns (Badge memory) {
