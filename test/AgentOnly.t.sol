@@ -8,6 +8,7 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IAgentRegistry} from "../src/IAgentRegistry.sol";
 import {ERC721AgentOnly} from "../src/ERC721AgentOnly.sol";
+import {IERC721AgentOnly} from "../src/IERC721AgentOnly.sol";
 import {AgentAccount} from "../src/AgentAccount.sol";
 import {AttestedAgentRegistry} from "../src/AttestedAgentRegistry.sol";
 import {AgentSwap} from "../src/AgentSwap.sol";
@@ -56,7 +57,8 @@ contract RogueWrapper {
     }
 }
 
-contract AgentOnlyTest is Test {
+/// Shared setup: a registry with three attesters, two enrolled agents, a sale and a loan venue.
+abstract contract AgentOnlyBase is Test {
     AttestedAgentRegistry reg;
     AnyCollection nft;
     AgentSwap swap;
@@ -79,7 +81,7 @@ contract AgentOnlyTest is Test {
     uint256 constant BOND = 0.01 ether;
     uint64 constant TTL = 30 days;
 
-    function setUp() public {
+    function setUp() public virtual {
         vm.chainId(8453);
         vm.warp(NOW);
         human = vm.addr(HUMAN_PK);
@@ -144,7 +146,9 @@ contract AgentOnlyTest is Test {
     function _expectNotAgent(address who) internal {
         vm.expectRevert(abi.encodeWithSelector(ERC721AgentOnly.NotAgent.selector, who));
     }
+}
 
+contract AgentOnlyTest is AgentOnlyBase {
     // ------------------------------------------------------------ a classic NFT, between agents
 
     function test_ClassicBehaviourBetweenAgents() public {
@@ -160,7 +164,9 @@ contract AgentOnlyTest is Test {
 
         // safeTransferFrom works too, and so does burn.
         _do(K2, acc2, address(nft), abi.encodeCall(nft.approve, (address(acc1), id)));
-        _do(K1, acc1, address(nft), abi.encodeWithSignature("safeTransferFrom(address,address,uint256)", acc2, acc1, id));
+        _do(
+            K1, acc1, address(nft), abi.encodeWithSignature("safeTransferFrom(address,address,uint256)", acc2, acc1, id)
+        );
         assertEq(nft.ownerOf(id), address(acc1));
         _do(K1, acc1, address(nft), abi.encodeCall(nft.burn, (id)));
         assertEq(nft.balanceOf(address(acc1)), 0);
@@ -233,14 +239,14 @@ contract AgentOnlyTest is Test {
         vm.startPrank(human);
         usdc.approve(address(swap), 300);
         _expectNotAgent(human);
-        swap.buy(nft, id, 300);
+        swap.buy(nft, id, usdc, 300);
         vm.stopPrank();
         assertEq(nft.ownerOf(id), address(acc1));
         assertEq(usdc.balanceOf(human), 300);
 
         // An agent buys: NFT and USDC move in the same transaction.
         _do(K2, acc2, address(usdc), abi.encodeCall(usdc.approve, (address(swap), 300)));
-        _do(K2, acc2, address(swap), abi.encodeCall(swap.buy, (nft, id, 300)));
+        _do(K2, acc2, address(swap), abi.encodeCall(swap.buy, (nft, id, usdc, 300)));
         assertEq(nft.ownerOf(id), address(acc2));
         assertEq(usdc.balanceOf(address(acc1)), 1_300);
         assertEq(usdc.balanceOf(address(acc2)), 700);
@@ -255,7 +261,7 @@ contract AgentOnlyTest is Test {
         assertEq(nft.ownerOf(id), address(loan));
 
         _do(K2, acc2, address(usdc), abi.encodeCall(usdc.approve, (address(loan), 400)));
-        _do(K2, acc2, address(loan), abi.encodeCall(loan.fund, (nft, id)));
+        _do(K2, acc2, address(loan), abi.encodeCall(loan.fund, (nft, id, usdc, 400, 440, 900)));
         assertEq(usdc.balanceOf(address(acc1)), 1_400);
 
         _do(K1, acc1, address(usdc), abi.encodeCall(usdc.approve, (address(loan), 440)));
@@ -267,7 +273,7 @@ contract AgentOnlyTest is Test {
         _do(K1, acc1, address(nft), abi.encodeCall(nft.approve, (address(loan), id)));
         _do(K1, acc1, address(loan), abi.encodeCall(loan.offer, (nft, id, usdc, 100, 110, 500)));
         _do(K2, acc2, address(usdc), abi.encodeCall(usdc.approve, (address(loan), 100)));
-        _do(K2, acc2, address(loan), abi.encodeCall(loan.fund, (nft, id)));
+        _do(K2, acc2, address(loan), abi.encodeCall(loan.fund, (nft, id, usdc, 100, 110, 500)));
         vm.expectRevert(AgentLoan.NotDue.selector);
         _do(K2, acc2, address(loan), abi.encodeCall(loan.claim, (nft, id)));
         vm.warp(NOW + 501);
@@ -313,8 +319,8 @@ contract AgentOnlyTest is Test {
 
         // ERC-1271: the account validates its session key's signatures, and only those.
         bytes32 h = keccak256("order");
-        assertEq(acc1.isValidSignature(h, _sign(K1, h)), bytes4(0x1626ba7e));
-        assertEq(acc1.isValidSignature(h, _sign(HUMAN_PK, h)), bytes4(0xffffffff));
+        assertEq(acc1.isValidSignature(h, _sign(K1, acc1.messageDigest(h))), bytes4(0x1626ba7e));
+        assertEq(acc1.isValidSignature(h, _sign(HUMAN_PK, acc1.messageDigest(h))), bytes4(0xffffffff));
     }
 
     // ------------------------------------------------------------ registry
@@ -354,7 +360,7 @@ contract AgentOnlyTest is Test {
         _do(K2, acc2, address(swap), abi.encodeCall(swap.list, (nft, id2, usdc, 0, address(acc1))));
         vm.prank(address(acc1));
         _expectNotAgent(address(acc1));
-        swap.buy(nft, id2, 0);
+        swap.buy(nft, id2, usdc, 0);
         vm.prank(SPONSOR1);
         reg.setFrozen(1, false);
 
@@ -381,5 +387,118 @@ contract AgentOnlyTest is Test {
 
         _enroll(r, SPONSOR1, 42, vm.addr(K1), BOND);
         assertTrue(r.isAgent(r.accountOf(42)));
+    }
+
+    // ------------------------------------------------------------ hardening
+    // Each test below replays an attack that worked before the review of 13 November 2026.
+
+    function test_VenueDecisionCannotBeReplayed() public {
+        address rogue = address(0xBAD);
+        bytes[] memory approval = _attest(A1, A2, reg.hashVenue(rogue, true, keccak256("code")));
+        reg.setVenue(rogue, true, keccak256("code"), approval);
+        reg.setVenue(rogue, false, keccak256("code"), _attest(A1, A2, reg.hashVenue(rogue, false, keccak256("code"))));
+        assertFalse(reg.isVenue(rogue));
+        // Anyone replays the old approval: refused.
+        vm.prank(human);
+        vm.expectRevert(AttestedAgentRegistry.BadAttester.selector);
+        reg.setVenue(rogue, true, keccak256("code"), approval);
+        assertFalse(reg.isVenue(rogue));
+    }
+
+    function test_FrozenHolderTokensDoNotMove() public {
+        uint256 id = _mint(K1, acc1);
+        _do(K1, acc1, address(nft), abi.encodeCall(nft.approve, (address(swap), id)));
+        _do(K1, acc1, address(swap), abi.encodeCall(swap.list, (nft, id, usdc, 1, address(0))));
+        _do(K2, acc2, address(usdc), abi.encodeCall(usdc.approve, (address(swap), 1)));
+        // Emergency stop: the listing left behind can no longer be bought.
+        vm.prank(SPONSOR1);
+        reg.setFrozen(1, true);
+        vm.prank(vm.addr(K2));
+        _expectNotAgent(address(acc1));
+        acc2.execute(address(swap), 0, abi.encodeCall(swap.buy, (nft, id, usdc, 1)));
+        assertEq(nft.ownerOf(id), address(acc1));
+        // Unfrozen, the sale goes through.
+        vm.prank(SPONSOR1);
+        reg.setFrozen(1, false);
+        _do(K2, acc2, address(swap), abi.encodeCall(swap.buy, (nft, id, usdc, 1)));
+        assertEq(nft.ownerOf(id), address(acc2));
+    }
+
+    function test_SellerCannotSwitchCurrency() public {
+        MockUSDC junk = new MockUSDC();
+        junk.mint(address(acc2), 300);
+        uint256 id = _mint(K1, acc1);
+        _do(K1, acc1, address(nft), abi.encodeCall(nft.approve, (address(swap), id)));
+        _do(K1, acc1, address(swap), abi.encodeCall(swap.list, (nft, id, junk, 300, address(0))));
+        _do(K2, acc2, address(junk), abi.encodeCall(junk.approve, (address(swap), 300)));
+        _do(K2, acc2, address(usdc), abi.encodeCall(usdc.approve, (address(swap), 1_000)));
+        // The seller re-lists at the same number in another currency, just before the purchase.
+        _do(K1, acc1, address(swap), abi.encodeCall(swap.list, (nft, id, usdc, 300, address(0))));
+        vm.prank(vm.addr(K2));
+        vm.expectRevert(AgentSwap.TermsChanged.selector);
+        acc2.execute(address(swap), 0, abi.encodeCall(swap.buy, (nft, id, junk, 300)));
+        assertEq(usdc.balanceOf(address(acc2)), 1_000);
+    }
+
+    function test_BorrowerCannotSwitchTerms() public {
+        uint256 id = _mint(K1, acc1);
+        _do(K1, acc1, address(nft), abi.encodeCall(nft.approve, (address(loan), id)));
+        _do(K1, acc1, address(loan), abi.encodeCall(loan.offer, (nft, id, usdc, 100, 110, 30 days)));
+        _do(K2, acc2, address(usdc), abi.encodeCall(usdc.approve, (address(loan), 1_000)));
+        // The borrower replaces its offer just before the funding.
+        _do(K1, acc1, address(loan), abi.encodeCall(loan.cancel, (nft, id)));
+        _do(K1, acc1, address(nft), abi.encodeCall(nft.approve, (address(loan), id)));
+        _do(K1, acc1, address(loan), abi.encodeCall(loan.offer, (nft, id, usdc, 1_000, 0, 1)));
+        vm.prank(vm.addr(K2));
+        vm.expectRevert(AgentLoan.TermsChanged.selector);
+        acc2.execute(address(loan), 0, abi.encodeCall(loan.fund, (nft, id, usdc, 100, 110, 30 days)));
+        assertEq(usdc.balanceOf(address(acc2)), 1_000);
+    }
+
+    function test_SignaturesAreBoundToTheirPurpose() public {
+        bytes memory data = abi.encodeCall(usdc.transfer, (human, 1_000));
+        bytes32 order = acc1.execDigest(address(usdc), 0, data, acc1.nonce(), FAR);
+        // The agent approves `order` as an off-chain message (ERC-1271)...
+        bytes memory messageSig = _sign(K1, acc1.messageDigest(order));
+        assertEq(acc1.isValidSignature(order, messageSig), bytes4(0x1626ba7e));
+        // ... which cannot be turned into an execution.
+        vm.expectRevert(AgentAccount.NotKey.selector);
+        acc1.executeBySig(address(usdc), 0, data, FAR, messageSig);
+        // A raw signature over a hash is not an approval of that hash.
+        assertEq(acc1.isValidSignature(order, _sign(K1, order)), bytes4(0xffffffff));
+        // A message approved on one account means nothing on another.
+        assertEq(acc2.isValidSignature(order, messageSig), bytes4(0xffffffff));
+        assertEq(usdc.balanceOf(human), 0);
+    }
+
+    function test_BatchIsAllOrNothing() public {
+        uint256 id = _mint(K1, acc1);
+        _do(K1, acc1, address(nft), abi.encodeCall(nft.approve, (address(swap), id)));
+        _do(K1, acc1, address(swap), abi.encodeCall(swap.list, (nft, id, usdc, 300, address(0))));
+        AgentAccount.Call[] memory calls = new AgentAccount.Call[](2);
+        calls[0] = AgentAccount.Call(address(usdc), 0, abi.encodeCall(usdc.approve, (address(swap), 300)));
+        calls[1] = AgentAccount.Call(address(swap), 0, abi.encodeCall(swap.buy, (nft, id, usdc, 999)));
+        // The second call fails: the first one is undone too.
+        vm.prank(vm.addr(K2));
+        vm.expectRevert(AgentSwap.TermsChanged.selector);
+        acc2.executeBatch(calls);
+        assertEq(usdc.allowance(address(acc2), address(swap)), 0);
+        // A human cannot batch on the agent's behalf.
+        vm.prank(human);
+        vm.expectRevert(AgentAccount.NotKey.selector);
+        acc2.executeBatch(calls);
+        // Relayed batch: signed by the key, submitted by anyone.
+        calls[1].data = abi.encodeCall(swap.buy, (nft, id, usdc, 300));
+        bytes memory data = abi.encodeCall(acc2.executeBatch, (calls));
+        bytes memory sig = _sign(K2, acc2.execDigest(address(acc2), 0, data, acc2.nonce(), FAR));
+        vm.prank(address(0xBEEF));
+        acc2.executeBySig(address(acc2), 0, data, FAR, sig);
+        assertEq(nft.ownerOf(id), address(acc2));
+    }
+
+    function test_InterfaceIsAdvertised() public view {
+        assertTrue(nft.supportsInterface(type(IERC721AgentOnly).interfaceId));
+        assertTrue(nft.supportsInterface(type(IERC721).interfaceId));
+        assertEq(address(IERC721AgentOnly(address(nft)).agentRegistry()), address(reg));
     }
 }
