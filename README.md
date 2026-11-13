@@ -53,6 +53,7 @@ interface IAgentRegistry {
 | `src/AttestedAgentRegistry.sol` | Reference registry: k-of-n attesters, refundable bond, expiring keys, optional ERC-8004 identity link | 213 |
 | `src/AgentSwap.sol` | Fixed-price sale between agents | 50 |
 | `src/AgentLoan.sol` | Collateralised loan between agents | 84 |
+| `src/AgentStaking.sol` | Staking of agent-only NFTs for ERC-20 rewards (Synthetix-style accounting, one NFT = one unit) | 125 |
 | `src/AgentWrapped721.sol` | Wrapper that makes any existing ERC-721 agent-only | 80 |
 | `src/AgentWrappedUniV3.sol` | Non-unwrappable wrapper for Uniswap V3 liquidity positions | 95 |
 | `src/AgentReputationBadge.sol` | Reputation badges: agent-only and soulbound (ERC-5192). An issuer offers, the agent claims; issuers post a refundable deposit and have a daily quota | 203 |
@@ -66,10 +67,10 @@ Requires [Foundry](https://book.getfoundry.sh/) and Node.js.
     git clone --depth 1 --branch v1.9.7 https://github.com/foundry-rs/forge-std lib/forge-std
     forge test
 
-Thirty-six tests. They cover: classic ERC-721 behaviour between agents,
+Forty-three tests. They cover: classic ERC-721 behaviour between agents,
 refusal of humans as holder, recipient, minter or approved operator, refusal
 of unsolicited tokens and of unapproved wrapper contracts, sale, loan (repaid
-and defaulted), session-key rotation, single, batched and relayed calls,
+and defaulted), staking with rewards, session-key rotation, single, batched and relayed calls,
 ERC-1271 signatures, attester threshold, freeze and revocation, and the
 ERC-8004 identity check, and reputation badges (claim by the named agent only,
 no transfer or approval, revocation, issuer deposit, quota and exit).
@@ -77,7 +78,7 @@ no transfer or approval, revocation, issuer deposit, quota and exit).
 One test is fuzzed over 512 random addresses. One is a stateful invariant
 test: two agents, a human and an unapproved contract perform 128 runs of 100
 random actions (mint, approve, transfer, list, buy, lend, repay, claim,
-freeze), and after every action no token may be held by, or approved for,
+stake, unstake, freeze), and after every action no token may be held by, or approved for,
 anything but an agent account or an approved venue. Removing the recipient
 check from the standard makes that test fail, as it should.
 
@@ -126,6 +127,9 @@ the L1 data fee comes on top and is not measured here.
 | Key rotation (2 attester signatures) | 52,933 |
 | Badge offer, by an issuer | 254,919 |
 | Badge claim, through the agent account | 113,998 |
+| Stake, through the agent account | 162,824 |
+| Claim staking rewards | 113,097 |
+| Unstake with rewards | 130,626 |
 
 The standard adds about 20,000 gas to a transfer: the registry is asked about
 the caller, the holder and the recipient.
@@ -151,14 +155,16 @@ the caller, the holder and the recipient.
 - A classic NFT sent to a wrapper with a plain `transferFrom`, instead of
   `depositFor`, is stuck there.
 - Tokens of a retired or revoked agent stay where they are.
-- Staking is not implemented. Mint fees and quotas are left to each collection.
+- Staking: rewards streamed while nothing is staked stay in the contract, and
+  fee-on-transfer reward tokens are not supported. Mint fees and quotas are
+  left to each collection.
 - An agent account cannot sign an x402 `exact` payment as specified today,
   which expects a plain key signature.
 - No audit and no external review yet. The review above is the author's own.
 
 ## Use cases
 
-Tested here: reputation badges, sale and collateralised loans between agents, wrapping of any
+Tested here: reputation badges, sale, collateralised loans and staking between agents, wrapping of any
 existing ERC-721, and Uniswap V3 liquidity positions held and traded by agents
 only. Supported by design but without a dedicated test: art and collectibles
 for agents, documents and credentials, links to ERC-8004 agent identities.
