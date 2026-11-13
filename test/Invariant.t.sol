@@ -8,6 +8,7 @@ import {AgentAccount} from "../src/AgentAccount.sol";
 import {AttestedAgentRegistry} from "../src/AttestedAgentRegistry.sol";
 import {AgentSwap} from "../src/AgentSwap.sol";
 import {AgentLoan} from "../src/AgentLoan.sol";
+import {AgentStaking} from "../src/AgentStaking.sol";
 import {AgentOnlyBase, AnyCollection, RogueWrapper} from "./AgentOnly.t.sol";
 
 /// Random actors hammer the token: two agents, a human, and an unapproved contract.
@@ -17,6 +18,7 @@ contract Handler is Test {
     AnyCollection nft;
     AgentSwap swap;
     AgentLoan loan;
+    AgentStaking staking;
     IERC20 usdc;
     AgentAccount[2] acc;
     uint256[2] key;
@@ -32,6 +34,7 @@ contract Handler is Test {
         AnyCollection nft;
         AgentSwap swap;
         AgentLoan loan;
+        AgentStaking staking;
         IERC20 usdc;
         AgentAccount[2] acc;
         uint256[2] key;
@@ -45,6 +48,7 @@ contract Handler is Test {
         nft = s.nft;
         swap = s.swap;
         loan = s.loan;
+        staking = s.staking;
         usdc = s.usdc;
         acc = s.acc;
         key = s.key;
@@ -58,8 +62,9 @@ contract Handler is Test {
     }
 
     function _party(uint256 seed) private view returns (address) {
-        address[6] memory p = [address(acc[0]), address(acc[1]), human, rogue, address(swap), address(loan)];
-        return p[seed % 6];
+        address[7] memory p =
+            [address(acc[0]), address(acc[1]), human, rogue, address(swap), address(loan), address(staking)];
+        return p[seed % 7];
     }
 
     function _id(uint256 seed) private view returns (uint256) {
@@ -207,6 +212,22 @@ contract Handler is Test {
         _track(id, from);
     }
 
+    function stake(uint256 a, uint256 idSeed) external {
+        uint256 id = _id(idSeed);
+        address from = _owner(id);
+        _agent(a, address(nft), abi.encodeCall(nft.approve, (address(staking), id)));
+        _agent(a, address(staking), abi.encodeCall(staking.stake, (id)));
+        _track(id, from);
+    }
+
+    function unstake(uint256 who, uint256 idSeed, bool byAgent) external {
+        uint256 id = _id(idSeed);
+        address from = _owner(id);
+        if (byAgent) _agent(who, address(staking), abi.encodeCall(staking.unstake, (id)));
+        else _outsider(who, address(staking), abi.encodeCall(staking.unstake, (id)));
+        _track(id, from);
+    }
+
     /// Freezes rarely and unfreezes often, so that most of a run happens with live agents.
     function freeze(uint256 a, uint8 dice) external {
         vm.prank(sponsor[a % 2]);
@@ -216,16 +237,29 @@ contract Handler is Test {
 
 contract InvariantTest is AgentOnlyBase {
     Handler handler;
+    AgentStaking staking;
     address rogue;
 
     function setUp() public override {
         super.setUp();
         rogue = address(new RogueWrapper());
+        staking = new AgentStaking(nft, IERC20(address(usdc)), address(this), 7 days);
+        _venue(address(staking));
         usdc.mint(human, 1_000);
         usdc.mint(rogue, 1_000);
         handler = new Handler(
             Handler.Setup(
-                reg, nft, swap, loan, IERC20(address(usdc)), [acc1, acc2], [K1, K2], [SPONSOR1, SPONSOR2], human, rogue
+                reg,
+                nft,
+                swap,
+                loan,
+                staking,
+                IERC20(address(usdc)),
+                [acc1, acc2],
+                [K1, K2],
+                [SPONSOR1, SPONSOR2],
+                human,
+                rogue
             )
         );
         for (uint256 i; i < 4; ++i) {
@@ -251,15 +285,17 @@ contract InvariantTest is AgentOnlyBase {
             address approved = nft.getApproved(id);
             assertTrue(approved == address(0) || _isParty(approved), "approved address is neither an agent nor a venue");
         }
-        address[4] memory holders = [address(acc1), address(acc2), address(swap), address(loan)];
-        for (uint256 i; i < 4; ++i) {
+        address[5] memory holders = [address(acc1), address(acc2), address(swap), address(loan), address(staking)];
+        for (uint256 i; i < 5; ++i) {
             assertFalse(nft.isApprovedForAll(holders[i], human));
             assertFalse(nft.isApprovedForAll(holders[i], rogue));
         }
     }
 
     function _isParty(address a) private view returns (bool) {
-        return a == address(acc1) || a == address(acc2) || a == address(swap) || a == address(loan);
+        return
+            a == address(acc1) || a == address(acc2) || a == address(swap) || a == address(loan)
+                || a == address(staking);
     }
 
     /// Shows that the random actions are not all refused: tokens do change hands during a run.
