@@ -243,13 +243,14 @@ The token asks the registry only two questions: `isAgent(address)` and
 | `AttestedAgentRegistry` | Proof of agent, version 1: attesters, bond, expiring keys, freeze, revocation, venue approval, ERC-8004 link | 213 |
 | `AgentSwap` | Fixed-price sale between agents | 50 |
 | `AgentLoan` | Collateralised loan between agents | 84 |
+| `AgentStaking` | Staking for ERC-20 rewards, Synthetix-style accounting, one NFT = one unit | 125 |
 | `AgentWrapped721` | Wrapper making any existing ERC-721 agent-only | 80 |
 | `AgentWrappedUniV3` | Non-unwrappable wrapper for Uniswap V3 positions | 95 |
 | `AgentReputationBadge` | Soulbound reputation badges (ERC-5192): an issuer offers, the named agent claims, the issuer can revoke | 203 |
 
 ### 3.3 What the tests establish
 
-Thirty-six tests on a local simulated EVM, one fuzzed over 512 addresses and one
+Forty-three tests on a local simulated EVM, one fuzzed over 512 addresses and one
 stateful invariant test.
 
 | Scenario | Result |
@@ -394,6 +395,9 @@ L1 data fee comes on top and is not measured.
 | Key rotation (2 attester signatures) | 52,933 |
 | Badge offer, by an issuer | 254,919 |
 | Badge claim, through the agent account | 113,998 |
+| Stake, through the agent account | 162,824 |
+| Claim staking rewards | 113,097 |
+| Unstake with rewards | 130,626 |
 
 The standard adds about 20,000 gas to a transfer: the registry is asked about
 the caller, the holder and the recipient. The first enrollment is the costly
@@ -414,7 +418,7 @@ The table separates what was tested from what is only supported by design.
 | Art and collectibles made for agents | A collection inherits the standard; unlike existing projects, resale stays between agents | Supported by design; mint and transfer rules tested |
 | Documents and credentials | A non-monetary token (certificate, administrative record, licence) that only agents can hold or pass on | Supported by design; no specific test |
 | Agent identity and reputation | The registry can require that the sponsor owns the agent's ERC-8004 identity. Reputation badges are soulbound: an issuer offers one for a piece of work, the agent claims it, and it never moves | Tested |
-| Staking | A venue that holds the token during the operation, like the loan | Not implemented |
+| Staking | The agent deposits its NFT in a staking venue and earns an ERC-20 reward stream shared equally per staked NFT; only the staker gets the NFT back | Tested, including in the invariant test |
 | Lending positions (Aave, Morpho, Compound) | These are not NFTs, so the wrapper does not apply. A token-bound account (ERC-6551) per token is the candidate route | Not covered, not tested |
 | Payments for services around the token (x402) | An agent account cannot sign an `exact` payment as [specified today](https://github.com/x402-foundation/x402/blob/main/specs/schemes/exact/scheme_exact_evm.md), which expects a plain key signature. The specification points smart accounts to ERC-7710 | Not tested |
 
@@ -509,12 +513,11 @@ Options studied and set aside:
 
 ## 8. Proposed next steps
 
-1. Staking venue, on the same pattern as the loan.
-2. x402 payment from an agent account through ERC-7710.
-3. A cheaper first enrollment (minimal proxy for the account).
-4. Deployment on Base Sepolia, to measure the L1 data fee.
-5. A registry verifying a real TEE attestation.
-6. Publication of the idea on [Ethereum Magicians](https://ethereum-magicians.org/),
+1. x402 payment from an agent account through ERC-7710.
+2. A cheaper first enrollment (minimal proxy for the account).
+3. Deployment on Base Sepolia, to measure the L1 data fee.
+4. A registry verifying a real TEE attestation.
+5. Publication of the idea on [Ethereum Magicians](https://ethereum-magicians.org/),
    then a pull request to [ethereum/ERCs](https://github.com/ethereum/ERCs)
    once a second implementation passes the same tests.
 
