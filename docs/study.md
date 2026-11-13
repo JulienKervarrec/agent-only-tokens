@@ -212,9 +212,38 @@ beyond what is intended by design. A stateful invariant test was added, and
 checked by removing the recipient check from the standard: the test then
 fails, as it should.
 
+### 2.4 Second review, after badges, staking and cloned accounts
+
+The same day, everything added after the first review was re-read the same
+way, together with the sale venue.
+
+| Weakness found | Consequence | Fix |
+| --- | --- | --- |
+| A listing stayed usable after the token left and came back, when the seller had given the venue a blanket approval | A forgotten low-price listing could be bought later | A listing only lives while the venue holds the token's own approval, which any transfer clears |
+| Cancelling a badge offer did not free its evidence | An offer made to the wrong account could never be issued again | Cancelling frees the evidence |
+| A badge could be offered to the zero address | Evidence and daily quota spent for nothing | Refused |
+| Staking could be deployed with a zero duration or no distributor | A venue that could never pay rewards | Refused at deployment |
+| The account implementation accepted ETH | ETH sent to it by mistake was lost for good | It refuses ETH; clones still accept it |
+| Six security checks had no test | Removing any of them went unnoticed: burn by a removed venue, expiry of relayed calls, who may list, reserved buyer, replay of an old enrollment, single payment of rewards | One test each |
+
+Improvements made in the same pass:
+
+- **Fewer questions to the registry.** When the caller is the recipient, one
+  question covers both. The standard's overhead on a direct transfer went from
+  about 19,750 to about 14,850 gas.
+- **Badge storage packed.** Issuer, date and revoked flag share one storage
+  slot, which makes a claim about 22,000 gas cheaper.
+- **An agent can read a pending badge offer on-chain before claiming it.**
+- **Mutation testing.** Each of 33 security checks is removed in turn; the test
+  suite now fails every time.
+
+One more lesson: **a venue that never holds the token must tie each listing to
+the token's own approval**, because that approval is the only thing a transfer
+resets.
+
 ## 3. The standard
 
-**A classic ERC-721 plus three rules, 54 lines in the reference implementation.
+**A classic ERC-721 plus three rules, 62 lines in the reference implementation.
 Everything else is ordinary code.**
 
 ### 3.1 The three rules
@@ -236,21 +265,21 @@ The token asks the registry only two questions: `isAgent(address)` and
 
 | Contract | Role | Lines |
 | --- | --- | --- |
-| `ERC721AgentOnly` | The standard: the three rules | 54 |
+| `ERC721AgentOnly` | The standard: the three rules | 62 |
 | `IERC721AgentOnly` | The interface a compliant token exposes, advertised through ERC-165 | 10 |
 | `IAgentRegistry` | The two questions asked to the registry | 10 |
-| `AgentAccount` | An agent's account, with no human owner. Only its session key makes it act: single calls, all-or-nothing batches, relayed calls, ERC-1271 | 112 |
-| `AttestedAgentRegistry` | Proof of agent, version 1: attesters, bond, expiring keys, freeze, revocation, venue approval, ERC-8004 link | 213 |
-| `AgentSwap` | Fixed-price sale between agents | 50 |
+| `AgentAccount` | An agent's account, with no human owner. Only its session key makes it act: single calls, all-or-nothing batches, relayed calls, ERC-1271. Each account is an ERC-1167 clone of one implementation | 139 |
+| `AttestedAgentRegistry` | Proof of agent, version 1: attesters, bond, expiring keys, freeze, revocation, venue approval, ERC-8004 link | 218 |
+| `AgentSwap` | Fixed-price sale between agents | 54 |
 | `AgentLoan` | Collateralised loan between agents | 84 |
-| `AgentStaking` | Staking for ERC-20 rewards, Synthetix-style accounting, one NFT = one unit | 125 |
+| `AgentStaking` | Staking for ERC-20 rewards, Synthetix-style accounting, one NFT = one unit | 130 |
 | `AgentWrapped721` | Wrapper making any existing ERC-721 agent-only | 80 |
 | `AgentWrappedUniV3` | Non-unwrappable wrapper for Uniswap V3 positions | 95 |
-| `AgentReputationBadge` | Soulbound reputation badges (ERC-5192): an issuer offers, the named agent claims, the issuer can revoke | 203 |
+| `AgentReputationBadge` | Soulbound reputation badges (ERC-5192): an issuer offers, the named agent claims, the issuer can revoke | 215 |
 
 ### 3.3 What the tests establish
 
-Forty-three tests on a local simulated EVM, one fuzzed over 512 addresses and one
+Fifty-six tests on a local simulated EVM, one fuzzed over 512 addresses and one
 stateful invariant test.
 
 | Scenario | Result |
@@ -268,7 +297,8 @@ stateful invariant test.
 | 512 random addresses | None can receive the token |
 | 128 runs of 100 random actions by two agents, a human and an unapproved contract | After every action, no token is held by or approved for anything but an agent account or an approved venue |
 | Several calls in one batch, direct or relayed | All or nothing; a human cannot batch for the agent |
-| The five attacks found by the review (section 2.3) | Each one is now rejected |
+| The five attacks found by the first review and the weaknesses found by the second (sections 2.3 and 2.4) | Each one is now rejected |
+| Each of 33 security checks removed in turn (mutation testing) | The suite fails every time |
 | Any classic NFT wrapped, sold, unwrapped | Only agents can hold the wrapped token; only the holder can unwrap, to its own account |
 | Real Uniswap V3 position wrapped and sold | The buyer collects the fees and withdraws the liquidity; the position never leaves the wrapper |
 | Seller empties a wrapped position just before the sale | The buyer's batch, which checks liquidity then buys, is rejected as a whole |
@@ -386,23 +416,25 @@ L1 data fee comes on top and is not measured.
 | Operation | Gas |
 | --- | --- |
 | Plain ERC-721 `transferFrom`, for reference | 55,582 |
-| Agent-only `transferFrom`, called directly | 75,332 |
-| Agent-only `transferFrom`, through the agent account | 81,574 |
-| Agent-only mint, through the agent account | 132,773 |
-| List for sale | 108,150 |
-| Buy (NFT against an ERC-20) | 110,365 |
-| First enrollment (deploys the account, 2 attester signatures) | 1,154,831 |
+| Agent-only `transferFrom`, called directly | 70,432 |
+| Agent-only `transferFrom`, through the agent account | 80,284 |
+| Agent-only mint, through the agent account | 131,452 |
+| List for sale | 111,772 |
+| Buy (NFT against an ERC-20) | 114,365 |
+| First enrollment (deploys the account as a clone, 2 attester signatures) | 208,574 |
 | Key rotation (2 attester signatures) | 52,933 |
-| Badge offer, by an issuer | 254,919 |
-| Badge claim, through the agent account | 113,998 |
-| Stake, through the agent account | 162,824 |
-| Claim staking rewards | 113,097 |
-| Unstake with rewards | 130,626 |
+| Badge offer, by an issuer | 252,743 |
+| Badge claim, through the agent account | 95,569 |
+| Stake, through the agent account | 165,366 |
+| Claim staking rewards | 116,689 |
+| Unstake with rewards | 133,562 |
 
-The standard adds about 20,000 gas to a transfer: the registry is asked about
-the caller, the holder and the recipient. The first enrollment is the costly
-step, because it deploys a full account contract per agent; a minimal proxy
-would reduce it and was not tried.
+The standard adds about 15,000 gas to a transfer: the registry is asked about
+the caller and the holder, and about the recipient when it is not the caller. Agent accounts are ERC-1167 clones of a single implementation, which brought
+the first enrollment down from 1,154,831 to 208,574 gas. The price is about
+3,650 extra gas on every call through an account, which reads its registry and
+id from its own code; the saving pays for about 260 calls per agent. The
+implementation itself refuses every call.
 
 ## 4. Use cases
 
@@ -509,15 +541,14 @@ Options studied and set aside:
   x402 payments from an agent account.
 - **Not measured.** The L1 data fee on Base. Execution gas is in section 3.9.
 - **Not done.** Deployment on any network, audit, external review. The review in
-  section 2.3 is the author's own.
+  sections 2.3 and 2.4 are the author's own.
 
 ## 8. Proposed next steps
 
 1. x402 payment from an agent account through ERC-7710.
-2. A cheaper first enrollment (minimal proxy for the account).
-3. Deployment on Base Sepolia, to measure the L1 data fee.
-4. A registry verifying a real TEE attestation.
-5. Publication of the idea on [Ethereum Magicians](https://ethereum-magicians.org/),
+2. Deployment on Base Sepolia, to measure the L1 data fee.
+3. A registry verifying a real TEE attestation.
+4. Publication of the idea on [Ethereum Magicians](https://ethereum-magicians.org/),
    then a pull request to [ethereum/ERCs](https://github.com/ethereum/ERCs)
    once a second implementation passes the same tests.
 
