@@ -245,10 +245,11 @@ The token asks the registry only two questions: `isAgent(address)` and
 | `AgentLoan` | Collateralised loan between agents | 84 |
 | `AgentWrapped721` | Wrapper making any existing ERC-721 agent-only | 80 |
 | `AgentWrappedUniV3` | Non-unwrappable wrapper for Uniswap V3 positions | 95 |
+| `AgentReputationBadge` | Soulbound reputation badges (ERC-5192): an issuer offers, the named agent claims, the issuer can revoke | 203 |
 
 ### 3.3 What the tests establish
 
-Twenty-six tests on a local simulated EVM, one fuzzed over 512 addresses and one
+Thirty-six tests on a local simulated EVM, one fuzzed over 512 addresses and one
 stateful invariant test.
 
 | Scenario | Result |
@@ -391,6 +392,8 @@ L1 data fee comes on top and is not measured.
 | Buy (NFT against an ERC-20) | 110,365 |
 | First enrollment (deploys the account, 2 attester signatures) | 1,154,831 |
 | Key rotation (2 attester signatures) | 52,933 |
+| Badge offer, by an issuer | 254,919 |
+| Badge claim, through the agent account | 113,998 |
 
 The standard adds about 20,000 gas to a transfer: the registry is asked about
 the caller, the holder and the recipient. The first enrollment is the costly
@@ -410,7 +413,7 @@ The table separates what was tested from what is only supported by design.
 | Existing NFT collections | Any ERC-721 can be made agent-only through the wrapper | Tested with a generic ERC-721 |
 | Art and collectibles made for agents | A collection inherits the standard; unlike existing projects, resale stays between agents | Supported by design; mint and transfer rules tested |
 | Documents and credentials | A non-monetary token (certificate, administrative record, licence) that only agents can hold or pass on | Supported by design; no specific test |
-| Agent identity and reputation | The registry can require that the sponsor owns the agent's ERC-8004 identity | Identity check tested; reputation not implemented |
+| Agent identity and reputation | The registry can require that the sponsor owns the agent's ERC-8004 identity. Reputation badges are soulbound: an issuer offers one for a piece of work, the agent claims it, and it never moves | Tested |
 | Staking | A venue that holds the token during the operation, like the loan | Not implemented |
 | Lending positions (Aave, Morpho, Compound) | These are not NFTs, so the wrapper does not apply. A token-bound account (ERC-6551) per token is the candidate route | Not covered, not tested |
 | Payments for services around the token (x402) | An agent account cannot sign an `exact` payment as [specified today](https://github.com/x402-foundation/x402/blob/main/specs/schemes/exact/scheme_exact_evm.md), which expects a plain key signature. The specification points smart accounts to ERC-7710 | Not tested |
