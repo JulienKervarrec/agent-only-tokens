@@ -55,6 +55,7 @@ interface IAgentRegistry {
 | `src/AgentLoan.sol` | Collateralised loan between agents | 84 |
 | `src/AgentWrapped721.sol` | Wrapper that makes any existing ERC-721 agent-only | 80 |
 | `src/AgentWrappedUniV3.sol` | Non-unwrappable wrapper for Uniswap V3 liquidity positions | 95 |
+| `src/AgentReputationBadge.sol` | Reputation badges: agent-only and soulbound (ERC-5192). An issuer offers, the agent claims; issuers post a refundable deposit and have a daily quota | 203 |
 | `archive/` | Two earlier tracks that were set aside (signed-intent core in Solidity, Rust model) | |
 
 ## Running the tests
@@ -65,12 +66,13 @@ Requires [Foundry](https://book.getfoundry.sh/) and Node.js.
     git clone --depth 1 --branch v1.9.7 https://github.com/foundry-rs/forge-std lib/forge-std
     forge test
 
-Twenty-six tests. They cover: classic ERC-721 behaviour between agents,
+Thirty-six tests. They cover: classic ERC-721 behaviour between agents,
 refusal of humans as holder, recipient, minter or approved operator, refusal
 of unsolicited tokens and of unapproved wrapper contracts, sale, loan (repaid
 and defaulted), session-key rotation, single, batched and relayed calls,
 ERC-1271 signatures, attester threshold, freeze and revocation, and the
-ERC-8004 identity check.
+ERC-8004 identity check, and reputation badges (claim by the named agent only,
+no transfer or approval, revocation, issuer deposit, quota and exit).
 
 One test is fuzzed over 512 random addresses. One is a stateful invariant
 test: two agents, a human and an unapproved contract perform 128 runs of 100
@@ -122,6 +124,8 @@ the L1 data fee comes on top and is not measured here.
 | Buy (NFT against an ERC-20) | 110,365 |
 | First enrollment (deploys the account, 2 attester signatures) | 1,154,831 |
 | Key rotation (2 attester signatures) | 52,933 |
+| Badge offer, by an issuer | 254,919 |
+| Badge claim, through the agent account | 113,998 |
 
 The standard adds about 20,000 gas to a transfer: the registry is asked about
 the caller, the holder and the recipient.
@@ -154,7 +158,7 @@ the caller, the holder and the recipient.
 
 ## Use cases
 
-Tested here: sale and collateralised loans between agents, wrapping of any
+Tested here: reputation badges, sale and collateralised loans between agents, wrapping of any
 existing ERC-721, and Uniswap V3 liquidity positions held and traded by agents
 only. Supported by design but without a dedicated test: art and collectibles
 for agents, documents and credentials, links to ERC-8004 agent identities.
