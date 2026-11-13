@@ -185,9 +185,36 @@ Two decisions cut across the iterations:
   favours whoever has the most machines. A refundable bond and the pull-only
   rule do the job instead.
 
+### 2.3 Adversarial review of the published code
+
+On 13 November 2026 the first published version was re-read line by line,
+looking for attacks. Five flaws were found. Each was first reproduced by a test
+against that version, then fixed, and the attack is kept as a regression test.
+
+| Flaw found | Consequence | Fix |
+| --- | --- | --- |
+| A venue approval carried no counter | After attesters removed a venue, anyone could replay the old signatures and approve it again | One counter per venue, included in what attesters sign |
+| The token did not check the current holder | A listing left by a frozen or revoked agent could still be bought, so the emergency stop did not stop everything | A token whose holder is no longer recognised does not move |
+| `buy` only pinned the price | A seller could re-list at the same number in a more valuable currency just before the purchase | The buyer states currency and price |
+| `fund` pinned nothing | A borrower could replace its offer just before funding and receive more, owing nothing | The lender states all the terms |
+| The account's key signed raw hashes | A hash approved as an off-chain message was also a valid order to execute, enough to empty the account | EIP-712 typed data bound to the account, with separate types for orders and messages |
+
+Three lessons carry over to any implementation of the standard:
+
+- **Every signed decision needs a counter**, including administrative ones.
+- **A venue must let the party who pays state the terms it agreed to.** The
+  standard protects who can hold a token, not the fairness of a venue.
+- **An agent key should only ever sign typed data.** Otherwise the runtime rule
+  "no generic `sign(bytes)`" cannot be applied to the account's own orders.
+
+The Slither static analyzer was run on the contracts and reported nothing
+beyond what is intended by design. A stateful invariant test was added, and
+checked by removing the recipient check from the standard: the test then
+fails, as it should.
+
 ## 3. The standard
 
-**A classic ERC-721 plus three rules, 46 lines in the reference implementation.
+**A classic ERC-721 plus three rules, 54 lines in the reference implementation.
 Everything else is ordinary code.**
 
 ### 3.1 The three rules
@@ -195,6 +222,9 @@ Everything else is ordinary code.**
 1. Only an agent or an approved venue can hold a token or be approved for it.
 2. Only an agent or an approved venue can trigger a mint, transfer or burn.
 3. An agent only receives a token if it pulls it itself. No unsolicited token.
+
+A token whose holder is no longer recognised (frozen, expired or revoked) does
+not move until the holder is recognised again.
 
 A collection adopts the standard with one line of inheritance, whether it
 carries an artwork, a document or a position. `ownerOf`, `approve`,
@@ -206,18 +236,20 @@ The token asks the registry only two questions: `isAgent(address)` and
 
 | Contract | Role | Lines |
 | --- | --- | --- |
-| `ERC721AgentOnly` | The standard: the three rules | 46 |
+| `ERC721AgentOnly` | The standard: the three rules | 54 |
+| `IERC721AgentOnly` | The interface a compliant token exposes, advertised through ERC-165 | 10 |
 | `IAgentRegistry` | The two questions asked to the registry | 10 |
-| `AgentAccount` | An agent's account, with no human owner. Only its session key makes it act, directly or through a relayer | 77 |
-| `AttestedAgentRegistry` | Proof of agent, version 1: attesters, bond, expiring keys, freeze, revocation, venue approval, ERC-8004 link | 201 |
-| `AgentSwap` | Fixed-price sale between agents | 48 |
-| `AgentLoan` | Collateralised loan between agents | 75 |
-| `AgentWrapped721` | Wrapper making any existing ERC-721 agent-only | 68 |
-| `AgentWrappedUniV3` | Non-unwrappable wrapper for Uniswap V3 positions | 67 |
+| `AgentAccount` | An agent's account, with no human owner. Only its session key makes it act: single calls, all-or-nothing batches, relayed calls, ERC-1271 | 112 |
+| `AttestedAgentRegistry` | Proof of agent, version 1: attesters, bond, expiring keys, freeze, revocation, venue approval, ERC-8004 link | 213 |
+| `AgentSwap` | Fixed-price sale between agents | 50 |
+| `AgentLoan` | Collateralised loan between agents | 84 |
+| `AgentWrapped721` | Wrapper making any existing ERC-721 agent-only | 80 |
+| `AgentWrappedUniV3` | Non-unwrappable wrapper for Uniswap V3 positions | 95 |
 
 ### 3.3 What the tests establish
 
-Fourteen tests, one of them fuzzed, on a local simulated EVM.
+Twenty-six tests on a local simulated EVM, one fuzzed over 512 addresses and one
+stateful invariant test.
 
 | Scenario | Result |
 | --- | --- |
@@ -232,8 +264,14 @@ Fourteen tests, one of them fuzzed, on a local simulated EVM.
 | Call signed, then submitted by a relayer | Accepted once, rejected on replay. The agent needs no ETH |
 | ERC-8004 identity enrolled by someone other than its owner | Rejected |
 | 512 random addresses | None can receive the token |
+| 128 runs of 100 random actions by two agents, a human and an unapproved contract | After every action, no token is held by or approved for anything but an agent account or an approved venue |
+| Several calls in one batch, direct or relayed | All or nothing; a human cannot batch for the agent |
+| The five attacks found by the review (section 2.3) | Each one is now rejected |
 | Any classic NFT wrapped, sold, unwrapped | Only agents can hold the wrapped token; only the holder can unwrap, to its own account |
 | Real Uniswap V3 position wrapped and sold | The buyer collects the fees and withdraws the liquidity; the position never leaves the wrapper |
+| Seller empties a wrapped position just before the sale | The buyer's batch, which checks liquidity then buys, is rejected as a whole |
+| Holder adds liquidity to a wrapped position directly on Uniswap | Works |
+| Uniswap `permit` on a wrapped position | Rejected: the wrapper signs nothing |
 
 ### 3.4 Proof of agent, version 1
 
@@ -308,8 +346,9 @@ interface IAgentRegistry {
     function isVenue(address account) external view returns (bool);
 }
 
-/// A compliant token is a full ERC-721 that exposes its registry.
-interface IERCAgentOnly /* is IERC165, IERC721 */ {
+/// A compliant token is a full ERC-721 that exposes its registry
+/// and advertises this interface through ERC-165.
+interface IERC721AgentOnly /* is IERC165, IERC721 */ {
     function agentRegistry() external view returns (IAgentRegistry);
 }
 ```
@@ -326,14 +365,37 @@ Normative rules:
    agent nor an approved venue. Clearing an approval MUST always be possible.
 6. The registry is fixed at deployment. The token MUST NOT expose any
    privileged transfer.
-7. When an account stops being recognised as an agent, its tokens stay with it
-   and do not move until it is recognised again.
+7. A transfer or burn MUST revert if the current holder is neither an agent nor
+   an approved venue. When an account stops being recognised as an agent, its
+   tokens therefore stay with it and do not move until it is recognised again.
 
 Out of scope on purpose: how the registry establishes that an account is an
 agent or that a venue is safe, the agent account itself, and ERC-20 and
 ERC-1155 profiles, which would follow the same rules but were not tested.
 
 This draft matches the tested prototype. Nobody else has reviewed it yet.
+
+### 3.9 Gas
+
+Execution gas per transaction, measured locally with `forge test --isolate`, so
+that each call pays for its first access to storage. On an L2 such as Base the
+L1 data fee comes on top and is not measured.
+
+| Operation | Gas |
+| --- | --- |
+| Plain ERC-721 `transferFrom`, for reference | 55,582 |
+| Agent-only `transferFrom`, called directly | 75,332 |
+| Agent-only `transferFrom`, through the agent account | 81,574 |
+| Agent-only mint, through the agent account | 132,773 |
+| List for sale | 108,150 |
+| Buy (NFT against an ERC-20) | 110,365 |
+| First enrollment (deploys the account, 2 attester signatures) | 1,154,831 |
+| Key rotation (2 attester signatures) | 52,933 |
+
+The standard adds about 20,000 gas to a transfer: the registry is asked about
+the caller, the holder and the recipient. The first enrollment is the costly
+step, because it deploys a full account contract per agent; a minimal proxy
+would reduce it and was not tried.
 
 ## 4. Use cases
 
@@ -367,10 +429,13 @@ given to the model.
 | --- | --- | --- |
 | Unsolicited token used to escalate permissions | Rule 3: an agent only receives what it pulls | Never derive a permission from holding a token |
 | Injection through metadata, name or `tokenURI` | Nothing: the token cannot inspect content | Treat all token content as untrusted data; keep free text out of decisions |
-| Approval or `permit` drainer | Approvals only go to agents and approved venues | Sign typed intents only; no generic `sign(bytes)` |
+| Approval or `permit` drainer | Approvals only go to agents and approved venues. The account's key only signs EIP-712 typed data bound to that account | Sign typed data only; no generic `sign(bytes)` |
 | EIP-7702 delegation trap | Eligibility never depends on the presence of code | Refuse that message type |
-| Replay of a relayed call | Per-account nonce, chain id and deadline in the signed digest | |
-| Stolen or leaked session key | Keys expire and are replaced at the next enrollment; the sponsor can freeze | Keep the key inside the attested runtime |
+| Replay of a relayed call | Per-account nonce and deadline, in typed data bound to the chain and the account | |
+| Replay of an attester decision | Counter per agent for enrollments, per venue for approvals and removals | |
+| Off-chain message reused as an order | Orders and messages are distinct EIP-712 types | |
+| Seller or borrower changing terms at the last moment | The buyer or lender states the terms it agreed to | Never rely on a listing read in an earlier block |
+| Stolen or leaked session key | Keys expire and are replaced at the next enrollment; the sponsor can freeze, and a frozen holder's tokens do not move, even through a listing left behind | Keep the key inside the attested runtime |
 | False proof of agent | Attesters can revoke; the bond is forfeited | |
 | Compromised attester | A threshold of signatures is required | |
 | Dishonest approved venue | Nothing once approved | Attesters must review venue code before approving |
@@ -421,23 +486,30 @@ Options studied and set aside:
 - **No real attestation** is wired in. The registry only checks signatures.
 - **The standard protects the NFT, not what it yields.** Tokens withdrawn from
   a position are ordinary ERC-20s.
-- **Selling a position.** The seller can empty it right before the purchase,
-  as with any Uniswap position sold on a marketplace. The buyer-side check is
-  not implemented.
+- **Selling a position.** The buyer must check its liquidity in the same batch
+  as the purchase, otherwise the seller can empty it right before. Fees already
+  earned can always be collected by the seller before selling.
+- **Removed venues.** If attesters remove a venue while it holds tokens, those
+  tokens are stuck until the venue is approved again.
+- **Human lenders.** A human can lend through the loan venue but can never
+  receive the token: on default it stays in the venue until the borrower repays.
+- **Stranded NFTs.** A classic NFT sent to a wrapper with a plain
+  `transferFrom`, instead of `depositFor`, is stuck there.
 - **Emptied positions** stay in a non-unwrappable wrapper; burning is not
   provided.
 - **Retired or revoked agents.** Their tokens stay where they are.
 - **Not tested.** Uniswap V4, any other protocol, ERC-20 and ERC-1155 profiles,
   x402 payments from an agent account.
-- **Not measured.** Gas costs on Base.
-- **Not done.** Deployment on any network, audit, external review.
+- **Not measured.** The L1 data fee on Base. Execution gas is in section 3.9.
+- **Not done.** Deployment on any network, audit, external review. The review in
+  section 2.3 is the author's own.
 
 ## 8. Proposed next steps
 
 1. Staking venue, on the same pattern as the loan.
-2. Buyer-side check when purchasing a wrapped position.
-3. x402 payment from an agent account through ERC-7710.
-4. Deployment on Base Sepolia to measure gas.
+2. x402 payment from an agent account through ERC-7710.
+3. A cheaper first enrollment (minimal proxy for the account).
+4. Deployment on Base Sepolia, to measure the L1 data fee.
 5. A registry verifying a real TEE attestation.
 6. Publication of the idea on [Ethereum Magicians](https://ethereum-magicians.org/),
    then a pull request to [ethereum/ERCs](https://github.com/ethereum/ERCs)
