@@ -49,6 +49,7 @@ contract ReputationBadgeTest is AgentOnlyBase {
         assertFalse(b.revoked);
         assertEq(badges.tokenURI(id), "github.com/org/repo/pull/1");
         assertTrue(badges.supportsInterface(type(IERC5192).interfaceId));
+        assertEq(type(IERC5192).interfaceId, bytes4(0xb45a3c0e)); // the identifier given in ERC-5192
         assertTrue(badges.supportsInterface(type(IERC721AgentOnly).interfaceId));
         assertTrue(badges.supportsInterface(type(IERC721).interfaceId));
     }
@@ -132,6 +133,32 @@ contract ReputationBadgeTest is AgentOnlyBase {
         badges.offer(address(acc1), CODE, keccak256("pr/10"), "pr/10");
         vm.warp(NOW + 1 days);
         _offer(address(acc1), "pr/10");
+    }
+
+    function test_AgentReadsTheOfferBeforeClaiming() public {
+        uint256 offerId = _offer(address(acc1), "pr/read");
+        (address agent, AgentReputationBadge.Badge memory content) = badges.pendingOffer(offerId);
+        assertEq(agent, address(acc1));
+        assertEq(content.issuer, bot);
+        assertEq(content.evidenceHash, keccak256("pr/read"));
+        assertEq(content.evidenceURI, "pr/read");
+        _claim(K1, acc1, offerId);
+        vm.expectRevert(AgentReputationBadge.NoSuchOffer.selector);
+        badges.pendingOffer(offerId);
+    }
+
+    function test_CancelledOfferFreesItsEvidence() public {
+        // The issuer names the wrong account by mistake, cancels, and offers again to the right one.
+        uint256 wrong = _offer(address(acc2), "pr/mistake");
+        vm.prank(bot);
+        badges.cancelOffer(wrong);
+        uint256 right = _offer(address(acc1), "pr/mistake");
+        uint256 id = _claim(K1, acc1, right);
+        assertEq(badges.ownerOf(id), address(acc1));
+        // An offer to nobody is refused instead of burning the evidence and the quota.
+        vm.prank(bot);
+        vm.expectRevert(AgentReputationBadge.BadInput.selector);
+        badges.offer(address(0), CODE, keccak256("pr/nobody"), "pr/nobody");
     }
 
     function test_IssuerCancelsOffer() public {

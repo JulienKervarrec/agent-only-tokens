@@ -108,6 +108,27 @@ contract StakingTest is AgentOnlyBase {
         staking.notifyRewardAmount(1); // less than one unit per second
     }
 
+    function test_RewardsArePaidOnce() public {
+        uint256 id = _mint(K1, acc1);
+        _stake(K1, acc1, id);
+        _fund(7_000 ether);
+        vm.warp(block.timestamp + WEEK);
+        uint256 before = usdc.balanceOf(address(acc1));
+        _do(K1, acc1, address(staking), abi.encodeCall(staking.getReward, ()));
+        uint256 paid = usdc.balanceOf(address(acc1)) - before;
+        assertApproxEqAbs(paid, 7_000 ether, 1e6);
+        _do(K1, acc1, address(staking), abi.encodeCall(staking.getReward, ()));
+        _do(K1, acc1, address(staking), abi.encodeCall(staking.unstake, (id)));
+        assertEq(usdc.balanceOf(address(acc1)) - before, paid);
+    }
+
+    function test_BadConfigIsRefusedAtDeployment() public {
+        vm.expectRevert(AgentStaking.BadConfig.selector);
+        new AgentStaking(nft, usdc, distributor, 0); // could never be funded
+        vm.expectRevert(AgentStaking.BadConfig.selector);
+        new AgentStaking(nft, usdc, address(0), WEEK); // nobody could fund it
+    }
+
     function test_TopUpKeepsLeftover() public {
         uint256 id = _mint(K1, acc1);
         _stake(K1, acc1, id);

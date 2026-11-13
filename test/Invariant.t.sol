@@ -71,6 +71,17 @@ contract Handler is Test {
         return ids.length == 0 ? 0 : ids[seed % ids.length];
     }
 
+    /// Three times out of four the token's holder acts, so that most actions are valid ones;
+    /// otherwise a random agent tries, and should be refused.
+    function _actor(uint256 a, uint256 id) private view returns (uint256) {
+        address o = _owner(id);
+        if (a % 4 != 0) {
+            if (o == address(acc[0])) return 0;
+            if (o == address(acc[1])) return 1;
+        }
+        return a;
+    }
+
     function _owner(uint256 id) private view returns (address) {
         try nft.ownerOf(id) returns (address o) {
             return o;
@@ -153,6 +164,7 @@ contract Handler is Test {
 
     function list(uint256 a, uint256 idSeed, uint256 price) external {
         uint256 id = _id(idSeed);
+        a = _actor(a, id);
         _agent(a, address(nft), abi.encodeCall(nft.approve, (address(swap), id)));
         _agent(a, address(swap), abi.encodeCall(swap.list, (nft, id, usdc, price % 50, address(0))));
     }
@@ -178,6 +190,7 @@ contract Handler is Test {
     function offer(uint256 a, uint256 idSeed, uint64 duration) external {
         uint256 id = _id(idSeed);
         address from = _owner(id);
+        a = _actor(a, id);
         _agent(a, address(nft), abi.encodeCall(nft.approve, (address(loan), id)));
         _agent(a, address(loan), abi.encodeCall(loan.offer, (nft, id, usdc, 10, 11, duration % 1000)));
         _track(id, from);
@@ -215,6 +228,7 @@ contract Handler is Test {
     function stake(uint256 a, uint256 idSeed) external {
         uint256 id = _id(idSeed);
         address from = _owner(id);
+        a = _actor(a, id);
         _agent(a, address(nft), abi.encodeCall(nft.approve, (address(staking), id)));
         _agent(a, address(staking), abi.encodeCall(staking.stake, (id)));
         _track(id, from);

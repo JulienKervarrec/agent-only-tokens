@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: CC0-1.0
 pragma solidity ^0.8.24;
 
+import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {Test} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
@@ -51,6 +52,13 @@ contract AnyCollection is ERC721AgentOnly {
 }
 
 /// An unapproved contract trying to wrap the token to resell it to humans.
+/// A venue that tries to burn the tokens it has been approved for.
+contract BurnerVenue {
+    function burn(AnyCollection nft, uint256 id) external {
+        nft.burn(id);
+    }
+}
+
 contract RogueWrapper {
     function grab(IERC721 nft, address from, uint256 id) external {
         nft.transferFrom(from, address(this), id);
@@ -496,9 +504,164 @@ contract AgentOnlyTest is AgentOnlyBase {
         assertEq(nft.ownerOf(id), address(acc2));
     }
 
+    function test_StaleListingDoesNotComeBackToLife() public {
+        uint256 id = _mint(K1, acc1);
+        // The seller gives the venue a blanket approval and lists at a low price...
+        _do(K1, acc1, address(nft), abi.encodeCall(nft.setApprovalForAll, (address(swap), true)));
+        _do(K1, acc1, address(nft), abi.encodeCall(nft.approve, (address(swap), id)));
+        _do(K1, acc1, address(swap), abi.encodeCall(swap.list, (nft, id, usdc, 1, address(0))));
+        // ... then the token leaves by another route and later comes back, without a cancel.
+        _do(K1, acc1, address(nft), abi.encodeCall(nft.approve, (address(acc2), id)));
+        _do(K2, acc2, address(nft), abi.encodeCall(nft.transferFrom, (address(acc1), address(acc2), id)));
+        _do(K2, acc2, address(nft), abi.encodeCall(nft.approve, (address(acc1), id)));
+        _do(K1, acc1, address(nft), abi.encodeCall(nft.transferFrom, (address(acc2), address(acc1), id)));
+        // The forgotten listing cannot be used, although the blanket approval still stands.
+        _do(K2, acc2, address(usdc), abi.encodeCall(usdc.approve, (address(swap), 1)));
+        vm.prank(vm.addr(K2));
+        vm.expectRevert(AgentSwap.NotListed.selector);
+        acc2.execute(address(swap), 0, abi.encodeCall(swap.buy, (nft, id, usdc, 1)));
+        assertEq(nft.ownerOf(id), address(acc1));
+        // A blanket approval alone never makes a listing buyable.
+        uint256 id2 = _mint(K1, acc1);
+        _do(K1, acc1, address(swap), abi.encodeCall(swap.list, (nft, id2, usdc, 1, address(0))));
+        vm.prank(vm.addr(K2));
+        vm.expectRevert(AgentSwap.NotListed.selector);
+        acc2.execute(address(swap), 0, abi.encodeCall(swap.buy, (nft, id2, usdc, 1)));
+    }
+
+    function test_RemovedVenueCanNoLongerTriggerAnything() public {
+        BurnerVenue burner = new BurnerVenue();
+        _venue(address(burner));
+        uint256 id = _mint(K1, acc1);
+        _do(K1, acc1, address(nft), abi.encodeCall(nft.approve, (address(burner), id)));
+        // Attesters remove the venue. Its standing approval no longer lets it act, not even to burn.
+        reg.setVenue(
+            address(burner),
+            false,
+            keccak256("code"),
+            _attest(A1, A2, reg.hashVenue(address(burner), false, keccak256("code")))
+        );
+        _expectNotAgent(address(burner));
+        burner.burn(nft, id);
+        assertEq(nft.ownerOf(id), address(acc1));
+    }
+
+    function test_OldEnrollmentCannotBeReplayed() public {
+        // The sponsor rotates away from a key, say because it leaked.
+        address oldKey = address(0x01D);
+        bytes32 d = reg.hashEnrollment(1, oldKey, keccak256("evidence"), SPONSOR1, reg.enrollmentNonce(1), FAR);
+        bytes[] memory oldSigs = _attest(A1, A2, d);
+        vm.prank(SPONSOR1);
+        reg.enroll(1, oldKey, keccak256("evidence"), FAR, oldSigs);
+        _enroll(reg, SPONSOR1, 1, vm.addr(K1), 0);
+        assertEq(reg.keyOf(1), vm.addr(K1));
+        // The attesters' old signatures cannot bring the old key back.
+        vm.prank(SPONSOR1);
+        vm.expectRevert(AttestedAgentRegistry.BadAttester.selector);
+        reg.enroll(1, oldKey, keccak256("evidence"), FAR, oldSigs);
+        assertEq(reg.keyOf(1), vm.addr(K1));
+    }
+
+    function test_RelayedCallExpires() public {
+        bytes memory data = abi.encodeCall(usdc.transfer, (address(acc2), 1));
+        uint64 deadline = NOW + 60;
+        bytes memory sig = _sign(K1, acc1.execDigest(address(usdc), 0, data, acc1.nonce(), deadline));
+        vm.warp(NOW + 61);
+        vm.expectRevert(AgentAccount.Expired.selector);
+        acc1.executeBySig(address(usdc), 0, data, deadline, sig);
+    }
+
+    function test_ListingRules() public {
+        uint256 id = _mint(K1, acc1);
+        // Only the holder can list: nobody else can overwrite its listing.
+        vm.prank(vm.addr(K2));
+        vm.expectRevert(AgentSwap.NotOwner.selector);
+        acc2.execute(address(swap), 0, abi.encodeCall(swap.list, (nft, id, usdc, 1, address(0))));
+        // A listing reserved for one buyer cannot be taken by another.
+        _do(K1, acc1, address(nft), abi.encodeCall(nft.approve, (address(swap), id)));
+        _do(K1, acc1, address(swap), abi.encodeCall(swap.list, (nft, id, usdc, 5, address(0xB0B))));
+        _do(K2, acc2, address(usdc), abi.encodeCall(usdc.approve, (address(swap), 5)));
+        vm.prank(vm.addr(K2));
+        vm.expectRevert(AgentSwap.NotBuyer.selector);
+        acc2.execute(address(swap), 0, abi.encodeCall(swap.buy, (nft, id, usdc, 5)));
+        // The seller cancels; nothing is left to buy.
+        _do(K1, acc1, address(swap), abi.encodeCall(swap.cancel, (nft, id)));
+        vm.prank(vm.addr(K2));
+        vm.expectRevert(AgentSwap.NotListed.selector);
+        acc2.execute(address(swap), 0, abi.encodeCall(swap.buy, (nft, id, usdc, 5)));
+    }
+
     function test_InterfaceIsAdvertised() public view {
         assertTrue(nft.supportsInterface(type(IERC721AgentOnly).interfaceId));
         assertTrue(nft.supportsInterface(type(IERC721).interfaceId));
         assertEq(address(IERC721AgentOnly(address(nft)).agentRegistry()), address(reg));
+    }
+}
+
+/// A registry made up by a human, which names the human as the key of every agent.
+contract FakeKeys {
+    address immutable key;
+
+    constructor(address key_) {
+        key = key_;
+    }
+
+    function keyOf(uint256) external view returns (address) {
+        return key;
+    }
+}
+
+contract AccountCloneTest is AgentOnlyBase {
+    function test_HumanMadeCloneIsNotAnAgent() public {
+        // Anyone can clone the account implementation and point the clone at a registry of their own.
+        FakeKeys fake = new FakeKeys(human);
+        address clone =
+            Clones.cloneWithImmutableArgs(reg.accountImplementation(), abi.encode(address(fake), uint256(1)));
+        // The real registry does not know that account: it can hold nothing and trigger nothing.
+        assertFalse(reg.isAgent(clone));
+        uint256 id = _mint(K1, acc1);
+        vm.prank(vm.addr(K1));
+        _expectNotAgent(clone);
+        acc1.execute(address(nft), 0, abi.encodeCall(nft.approve, (clone, id)));
+        vm.prank(human);
+        _expectNotAgent(clone);
+        AgentAccount(payable(clone)).execute(address(nft), 0, abi.encodeCall(nft.mint, (bytes32(0))));
+    }
+
+    function test_CloneHoldsEthImplementationRefusesIt() public {
+        vm.deal(address(this), 2 ether);
+        (bool ok,) = address(acc1).call{value: 1 ether}("");
+        assertTrue(ok);
+        assertEq(address(acc1).balance, 1 ether);
+        (ok,) = reg.accountImplementation().call{value: 1 ether}("");
+        assertFalse(ok);
+        // The agent can spend its ETH.
+        vm.prank(vm.addr(K1));
+        acc1.execute(human, 0.4 ether, "");
+        assertEq(human.balance, 0.4 ether);
+    }
+
+    function test_AccountIsACloneBoundToItsAgent() public view {
+        assertEq(address(acc1.registry()), address(reg));
+        assertEq(acc1.agentId(), 1);
+        assertEq(acc2.agentId(), 2);
+        // The address is predictable from the agent id alone.
+        assertEq(
+            address(acc1),
+            Clones.predictDeterministicAddressWithImmutableArgs(
+                reg.accountImplementation(), abi.encode(address(reg), uint256(1)), bytes32(uint256(1)), address(reg)
+            )
+        );
+    }
+
+    function test_ImplementationCannotAct() public {
+        AgentAccount impl = AgentAccount(payable(reg.accountImplementation()));
+        vm.expectRevert(AgentAccount.NotAClone.selector);
+        impl.agentId();
+        vm.prank(vm.addr(K1));
+        vm.expectRevert(AgentAccount.NotAClone.selector);
+        impl.execute(address(usdc), 0, abi.encodeCall(usdc.transfer, (human, 1)));
+        vm.expectRevert(AgentAccount.NotAClone.selector);
+        impl.isValidSignature(bytes32(0), "");
     }
 }
