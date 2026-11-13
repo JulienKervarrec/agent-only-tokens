@@ -21,7 +21,7 @@ attestation). The standard itself is independent of that proof.
 
 ## The standard: three rules on top of ERC-721
 
-`src/ERC721AgentOnly.sol` (54 lines) overrides three OpenZeppelin hooks:
+`src/ERC721AgentOnly.sol` (62 lines) overrides three OpenZeppelin hooks:
 
 1. Only an agent or an approved venue can hold a token or be approved for it.
 2. Only an agent or an approved venue can trigger a mint, transfer or burn.
@@ -48,15 +48,15 @@ interface IAgentRegistry {
 | --- | --- | --- |
 | `src/IAgentRegistry.sol` | The two questions asked to a registry | 10 |
 | `src/IERC721AgentOnly.sol` | The interface a compliant token exposes, advertised through ERC-165 | 10 |
-| `src/ERC721AgentOnly.sol` | The standard: the three rules | 54 |
-| `src/AgentAccount.sol` | An agent's account, with no human owner, driven by a rotating session key. Single calls, batches, relayed calls, ERC-1271 | 112 |
-| `src/AttestedAgentRegistry.sol` | Reference registry: k-of-n attesters, refundable bond, expiring keys, optional ERC-8004 identity link | 213 |
-| `src/AgentSwap.sol` | Fixed-price sale between agents | 50 |
+| `src/ERC721AgentOnly.sol` | The standard: the three rules | 62 |
+| `src/AgentAccount.sol` | An agent's account, with no human owner, driven by a rotating session key. Single calls, batches, relayed calls, ERC-1271. Each account is an ERC-1167 clone of one implementation | 139 |
+| `src/AttestedAgentRegistry.sol` | Reference registry: k-of-n attesters, refundable bond, expiring keys, optional ERC-8004 identity link | 218 |
+| `src/AgentSwap.sol` | Fixed-price sale between agents | 54 |
 | `src/AgentLoan.sol` | Collateralised loan between agents | 84 |
-| `src/AgentStaking.sol` | Staking of agent-only NFTs for ERC-20 rewards (Synthetix-style accounting, one NFT = one unit) | 125 |
+| `src/AgentStaking.sol` | Staking of agent-only NFTs for ERC-20 rewards (Synthetix-style accounting, one NFT = one unit) | 130 |
 | `src/AgentWrapped721.sol` | Wrapper that makes any existing ERC-721 agent-only | 80 |
 | `src/AgentWrappedUniV3.sol` | Non-unwrappable wrapper for Uniswap V3 liquidity positions | 95 |
-| `src/AgentReputationBadge.sol` | Reputation badges: agent-only and soulbound (ERC-5192). An issuer offers, the agent claims; issuers post a refundable deposit and have a daily quota | 203 |
+| `src/AgentReputationBadge.sol` | Reputation badges: agent-only and soulbound (ERC-5192). An issuer offers, the agent claims; issuers post a refundable deposit and have a daily quota | 215 |
 | `archive/` | Two earlier tracks that were set aside (signed-intent core in Solidity, Rust model) | |
 
 ## Running the tests
@@ -67,7 +67,7 @@ Requires [Foundry](https://book.getfoundry.sh/) and Node.js.
     git clone --depth 1 --branch v1.9.7 https://github.com/foundry-rs/forge-std lib/forge-std
     forge test
 
-Forty-three tests. They cover: classic ERC-721 behaviour between agents,
+Fifty-six tests. They cover: classic ERC-721 behaviour between agents,
 refusal of humans as holder, recipient, minter or approved operator, refusal
 of unsolicited tokens and of unapproved wrapper contracts, sale, loan (repaid
 and defaulted), staking with rewards, session-key rotation, single, batched and relayed calls,
@@ -109,6 +109,33 @@ The Slither static analyzer was also run on the contracts. It reported nothing
 beyond what is intended by design (the account makes arbitrary calls for its
 key, the sale venue moves a token on a prior approval).
 
+## Second review of 13 November 2026
+
+Everything added after the first review (reputation badges, staking, cloned
+accounts) was re-read the same way, together with the sale venue.
+
+| Weakness found | Consequence | Fix |
+| --- | --- | --- |
+| A listing stayed usable after the token left and came back, when the seller had given the venue a blanket approval | A forgotten low-price listing could be bought later | A listing only lives while the venue holds the token's own approval, which any transfer clears |
+| Cancelling a badge offer did not free its evidence | An offer made to the wrong account could never be issued again | Cancelling frees the evidence |
+| A badge could be offered to the zero address | Evidence and daily quota spent for nothing | Refused |
+| Staking could be deployed with a zero duration or no distributor | A venue that could never pay rewards | Refused at deployment |
+| The account implementation accepted ETH | ETH sent to it by mistake was lost for good | It refuses ETH; clones still accept it |
+| Six security checks had no test | Removing any of them went unnoticed: burn by a removed venue, expiry of relayed calls, who may list, reserved buyer, replay of an old enrollment, single payment of rewards | One test each |
+
+Improvements made in the same pass:
+
+- **Fewer questions to the registry.** When the caller is the recipient, one
+  question covers both. The standard's overhead on a direct transfer went from
+  about 19,750 to about 14,850 gas.
+- **Badge storage packed.** Issuer, date and revoked flag share one storage
+  slot, which makes a claim about 22,000 gas cheaper.
+- **An agent can read a pending badge offer on-chain before claiming it.**
+- **Mutation testing.** Each of 33 security checks is removed in turn; the test
+  suite now fails every time.
+
+Slither was run again on the new contracts and reported nothing real.
+
 ## Gas
 
 Execution gas per transaction, measured locally with `forge test --isolate`,
@@ -118,21 +145,24 @@ the L1 data fee comes on top and is not measured here.
 | Operation | Gas |
 | --- | --- |
 | Plain ERC-721 `transferFrom`, for reference | 55,582 |
-| Agent-only `transferFrom`, called directly | 75,332 |
-| Agent-only `transferFrom`, through the agent account | 81,574 |
-| Agent-only mint, through the agent account | 132,773 |
-| List for sale | 108,150 |
-| Buy (NFT against an ERC-20) | 110,365 |
-| First enrollment (deploys the account, 2 attester signatures) | 1,154,831 |
+| Agent-only `transferFrom`, called directly | 70,432 |
+| Agent-only `transferFrom`, through the agent account | 80,284 |
+| Agent-only mint, through the agent account | 131,452 |
+| List for sale | 111,772 |
+| Buy (NFT against an ERC-20) | 114,365 |
+| First enrollment (deploys the account as a clone, 2 attester signatures) | 208,574 |
 | Key rotation (2 attester signatures) | 52,933 |
-| Badge offer, by an issuer | 254,919 |
-| Badge claim, through the agent account | 113,998 |
-| Stake, through the agent account | 162,824 |
-| Claim staking rewards | 113,097 |
-| Unstake with rewards | 130,626 |
+| Badge offer, by an issuer | 252,743 |
+| Badge claim, through the agent account | 95,569 |
+| Stake, through the agent account | 165,366 |
+| Claim staking rewards | 116,689 |
+| Unstake with rewards | 133,562 |
 
-The standard adds about 20,000 gas to a transfer: the registry is asked about
-the caller, the holder and the recipient.
+The standard adds about 15,000 gas to a transfer: the registry is asked about
+the caller and the holder, and about the recipient when it is not the caller. Agent accounts are ERC-1167 clones:
+the first enrollment dropped from 1,154,831 to 208,574 gas, at the price of
+about 3,650 extra gas on every call through an account (it reads its registry
+and id from its own code). The saving pays for about 260 calls per agent.
 
 ## Known limits
 
@@ -148,6 +178,10 @@ the caller, the holder and the recipient.
 - A buyer must check a wrapped position in the same batch as its purchase
   (`requireLiquidity`), otherwise a seller can empty it right before the sale.
   Fees already earned can always be collected by the seller before selling.
+- A listing needs the sale venue to be the token's own approved address;
+  `setApprovalForAll` is not enough, on purpose.
+- Badges: issuing is open to anyone who posts the deposit, so a badge is worth
+  what its issuer is worth. The deposit is refundable, so it only slows spam.
 - If attesters remove a venue while it holds tokens, those tokens are stuck
   until the venue is approved again.
 - A human can lend through the loan venue, but can never receive the token:
@@ -160,7 +194,7 @@ the caller, the holder and the recipient.
   left to each collection.
 - An agent account cannot sign an x402 `exact` payment as specified today,
   which expects a plain key signature.
-- No audit and no external review yet. The review above is the author's own.
+- No audit and no external review yet. The reviews above are the author's own.
 
 ## Use cases
 
