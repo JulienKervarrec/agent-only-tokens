@@ -30,7 +30,8 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
         "Enrollment(uint256 agentId,address sessionKey,bytes32 evidenceHash,address sponsor,uint256 nonce,uint64 deadline)"
     );
     bytes32 private constant REVOKE_TYPEHASH = keccak256("Revocation(uint256 agentId)");
-    bytes32 private constant VENUE_TYPEHASH = keccak256("Venue(address venue,bool approved,bytes32 evidenceHash)");
+    bytes32 private constant VENUE_TYPEHASH =
+        keccak256("Venue(address venue,bool approved,bytes32 evidenceHash,uint256 nonce)");
 
     uint256 public immutable threshold;
     uint256 public immutable bond; // anti-Sybil bond, in wei
@@ -42,6 +43,7 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
     mapping(uint256 => address) public accountOf;
     mapping(address => uint256) public agentIdOf;
     mapping(address => bool) public isVenue;
+    mapping(address => uint256) public venueNonce; // one signature set = one decision
 
     event Enrolled(uint256 indexed agentId, address sessionKey, bytes32 evidenceHash);
     event FrozenSet(uint256 indexed agentId, bool frozen);
@@ -60,10 +62,16 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
     error RefundFailed();
     error NotIdentityOwner();
 
-    constructor(address[] memory attesters, uint256 threshold_, uint256 bond_, uint64 keyTtl_, IERC721 identityRegistry_)
-        EIP712("AttestedAgentRegistry", "1")
-    {
-        if (threshold_ == 0 || threshold_ > attesters.length || keyTtl_ == 0) revert BadConfig();
+    constructor(
+        address[] memory attesters,
+        uint256 threshold_,
+        uint256 bond_,
+        uint64 keyTtl_,
+        IERC721 identityRegistry_
+    ) EIP712("AttestedAgentRegistry", "1") {
+        if (threshold_ == 0 || threshold_ > attesters.length || keyTtl_ == 0) {
+            revert BadConfig();
+        }
         for (uint256 i; i < attesters.length; ++i) {
             if (attesters[i] == address(0) || isAttester[attesters[i]]) revert BadConfig();
             isAttester[attesters[i]] = true;
@@ -148,13 +156,16 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
 
     /// Attesters approve or remove a venue contract, after checking its code.
     function setVenue(address venue, bool approved, bytes32 evidenceHash, bytes[] calldata sigs) external {
-        _requireAttesters(_hashTypedDataV4(keccak256(abi.encode(VENUE_TYPEHASH, venue, approved, evidenceHash))), sigs);
+        _requireAttesters(hashVenue(venue, approved, evidenceHash), sigs);
+        venueNonce[venue] += 1;
         isVenue[venue] = approved;
         emit VenueSet(venue, approved, evidenceHash);
     }
 
-    function hashVenue(address venue, bool approved, bytes32 evidenceHash) external view returns (bytes32) {
-        return _hashTypedDataV4(keccak256(abi.encode(VENUE_TYPEHASH, venue, approved, evidenceHash)));
+    /// Digest for the next decision on `venue`. It changes after each decision, so that
+    /// an old approval cannot be replayed once the venue has been removed.
+    function hashVenue(address venue, bool approved, bytes32 evidenceHash) public view returns (bytes32) {
+        return _hashTypedDataV4(keccak256(abi.encode(VENUE_TYPEHASH, venue, approved, evidenceHash, venueNonce[venue])));
     }
 
     /// The sponsor can freeze or unfreeze its agent.
@@ -164,7 +175,8 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
         emit FrozenSet(agentId, frozen);
     }
 
-    /// Attesters revoke an agent whose evidence turns out to be false. The bond is forfeited.
+    /// Attesters revoke an agent whose evidence turns out to be false. The bond is forfeited:
+    /// it stays locked in this contract for good.
     function revoke(uint256 agentId, bytes[] calldata sigs) external {
         Agent storage a = _agents[agentId];
         if (a.sponsor == address(0) || a.closed) revert Closed();

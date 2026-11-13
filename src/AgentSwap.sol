@@ -24,7 +24,7 @@ contract AgentSwap is ReentrancyGuard {
     error NotOwner();
     error NotListed();
     error NotBuyer();
-    error PriceChanged();
+    error TermsChanged();
 
     function list(IERC721 nft, uint256 id, IERC20 currency, uint256 price, address buyer) external {
         if (nft.ownerOf(id) != msg.sender) revert NotOwner();
@@ -36,11 +36,13 @@ contract AgentSwap is ReentrancyGuard {
         delete listings[nft][id];
     }
 
-    function buy(IERC721 nft, uint256 id, uint256 expectedPrice) external nonReentrant {
+    /// The buyer states the currency and price it agreed to: the seller cannot change them
+    /// between the buyer's decision and its transaction.
+    function buy(IERC721 nft, uint256 id, IERC20 currency, uint256 price) external nonReentrant {
         Listing memory l = listings[nft][id];
         if (l.seller == address(0)) revert NotListed();
         if (l.buyer != address(0) && l.buyer != msg.sender) revert NotBuyer();
-        if (l.price != expectedPrice) revert PriceChanged();
+        if (l.currency != currency || l.price != price) revert TermsChanged();
         delete listings[nft][id];
         if (l.price != 0) l.currency.safeTransferFrom(msg.sender, l.seller, l.price);
         nft.transferFrom(l.seller, msg.sender, id);

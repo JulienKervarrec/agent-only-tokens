@@ -20,11 +20,13 @@ contract AgentWrapped721 is ERC721Wrapper, ERC721AgentOnly {
     error NotUnwrappable();
     error OnlyToSelf();
 
-    constructor(IERC721 underlying_, IAgentRegistry registry_, bool unwrappable_, string memory name_, string memory symbol_)
-        ERC721(name_, symbol_)
-        ERC721Wrapper(underlying_)
-        ERC721AgentOnly(registry_)
-    {
+    constructor(
+        IERC721 underlying_,
+        IAgentRegistry registry_,
+        bool unwrappable_,
+        string memory name_,
+        string memory symbol_
+    ) ERC721(name_, symbol_) ERC721Wrapper(underlying_) ERC721AgentOnly(registry_) {
         unwrappable = unwrappable_;
     }
 
@@ -39,6 +41,16 @@ contract AgentWrapped721 is ERC721Wrapper, ERC721AgentOnly {
     function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
         _requireOwned(tokenId);
         return IERC721Metadata(address(underlying())).tokenURI(tokenId);
+    }
+
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        virtual
+        override(ERC721, ERC721AgentOnly)
+        returns (bool)
+    {
+        return super.supportsInterface(interfaceId);
     }
 
     function _update(address to, uint256 tokenId, address auth)

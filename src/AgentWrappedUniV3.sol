@@ -29,6 +29,24 @@ interface IUniV3Positions {
         returns (uint256 amount0, uint256 amount1);
 
     function collect(CollectParams calldata params) external payable returns (uint256 amount0, uint256 amount1);
+
+    function positions(uint256 tokenId)
+        external
+        view
+        returns (
+            uint96,
+            address,
+            address,
+            address,
+            uint24,
+            int24,
+            int24,
+            uint128 liquidity,
+            uint256,
+            uint256,
+            uint128,
+            uint128
+        );
 }
 
 /// @title Agent-only Uniswap V3 liquidity positions.
@@ -37,6 +55,7 @@ interface IUniV3Positions {
 /// @dev Adding liquidity is done directly on Uniswap, which allows anyone to do it.
 contract AgentWrappedUniV3 is AgentWrapped721 {
     error NotAuthorized();
+    error LiquidityTooLow();
 
     constructor(IERC721 positionManager, IAgentRegistry registry_)
         AgentWrapped721(positionManager, registry_, false, "Agent-Only Uniswap V3 Positions", "AO-UNI-V3")
@@ -48,20 +67,29 @@ contract AgentWrappedUniV3 is AgentWrapped721 {
     }
 
     /// Removes liquidity. The tokens become owed to the position; `collect` pays them out.
-    function decreaseLiquidity(uint256 tokenId, uint128 liquidity, uint256 amount0Min, uint256 amount1Min, uint256 deadline)
-        external
-        onlyHolder(tokenId)
-        returns (uint256, uint256)
-    {
-        return IUniV3Positions(address(underlying())).decreaseLiquidity(
-            IUniV3Positions.DecreaseLiquidityParams(tokenId, liquidity, amount0Min, amount1Min, deadline)
-        );
+    function decreaseLiquidity(
+        uint256 tokenId,
+        uint128 liquidity,
+        uint256 amount0Min,
+        uint256 amount1Min,
+        uint256 deadline
+    ) external onlyHolder(tokenId) returns (uint256, uint256) {
+        return IUniV3Positions(address(underlying()))
+            .decreaseLiquidity(
+                IUniV3Positions.DecreaseLiquidityParams(tokenId, liquidity, amount0Min, amount1Min, deadline)
+            );
+    }
+
+    /// Reverts if the position holds less liquidity than `minLiquidity`. A buyer puts this call
+    /// in the same batch as its purchase, so that a seller cannot empty the position just before.
+    function requireLiquidity(uint256 tokenId, uint128 minLiquidity) external view {
+        (,,,,,,, uint128 liquidity,,,,) = IUniV3Positions(address(underlying())).positions(tokenId);
+        if (liquidity < minLiquidity) revert LiquidityTooLow();
     }
 
     /// Pays the holder the fees and tokens owed to the position.
     function collect(uint256 tokenId) external onlyHolder(tokenId) returns (uint256, uint256) {
-        return IUniV3Positions(address(underlying())).collect(
-            IUniV3Positions.CollectParams(tokenId, msg.sender, type(uint128).max, type(uint128).max)
-        );
+        return IUniV3Positions(address(underlying()))
+            .collect(IUniV3Positions.CollectParams(tokenId, msg.sender, type(uint128).max, type(uint128).max));
     }
 }

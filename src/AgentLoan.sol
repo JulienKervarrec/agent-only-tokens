@@ -27,6 +27,7 @@ contract AgentLoan is ReentrancyGuard {
     error NotParty();
     error BadState();
     error NotDue();
+    error TermsChanged();
 
     /// The borrower deposits its token and publishes its terms.
     function offer(IERC721 nft, uint256 id, IERC20 currency, uint256 principal, uint256 repayAmount, uint64 duration)
@@ -47,9 +48,17 @@ contract AgentLoan is ReentrancyGuard {
         nft.transferFrom(address(this), msg.sender, id);
     }
 
-    function fund(IERC721 nft, uint256 id) external nonReentrant {
+    /// The lender states the terms it agreed to: the borrower cannot change them between
+    /// the lender's decision and its transaction.
+    function fund(IERC721 nft, uint256 id, IERC20 currency, uint256 principal, uint256 repayAmount, uint64 duration)
+        external
+        nonReentrant
+    {
         Loan storage l = loans[nft][id];
         if (l.borrower == address(0) || l.lender != address(0)) revert BadState();
+        if (l.currency != currency || l.principal != principal || l.repay != repayAmount || l.duration != duration) {
+            revert TermsChanged();
+        }
         l.lender = msg.sender;
         l.due = uint64(block.timestamp) + l.duration;
         l.currency.safeTransferFrom(msg.sender, l.borrower, l.principal);
