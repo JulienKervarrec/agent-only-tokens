@@ -57,6 +57,7 @@ interface IAgentRegistry {
 | `src/AgentWrapped721.sol` | Wrapper that makes any existing ERC-721 agent-only | 80 |
 | `src/AgentWrappedUniV3.sol` | Non-unwrappable wrapper for Uniswap V3 liquidity positions | 95 |
 | `src/AgentReputationBadge.sol` | Reputation badges: agent-only and soulbound (ERC-5192). An issuer offers, the agent claims; issuers post a refundable deposit and have a daily quota | 215 |
+| `examples/x402/` | x402 demo: an agent account buys from a paid API through the x402 reference facilitator, on a local chain. Includes the 28-line signer adapter and a script comparing this repository's USDC code with the one deployed on a chain | |
 | `archive/` | Two earlier tracks that were set aside (signed-intent core in Solidity, Rust model) | |
 
 ## Running the tests
@@ -79,6 +80,9 @@ Four tests pay x402-style invoices on Circle's own USDC code (`FiatTokenV2_2`,
 compiled unchanged, see `test/usdc`): an agent account pays a merchant and
 another agent, is paid by an ordinary wallet, and cannot pay with a wrong key,
 a raw signature, changed terms, or while frozen.
+
+`examples/x402` runs the same payment outside Foundry, through the x402
+reference facilitator and the standard x402 client (see "x402 payments" below).
 
 One test is fuzzed over 512 random addresses. One is a stateful invariant
 test: two agents, a human and an unapproved contract perform 128 runs of 100
@@ -197,13 +201,12 @@ and id from its own code). The saving pays for about 260 calls per agent.
 - Staking: rewards streamed while nothing is staked stay in the contract, and
   fee-on-transfer reward tokens are not supported. Mint fees and quotas are
   left to each collection.
-- x402: the payment itself is tested on real USDC code, but no real facilitator
-  was run. That the reference facilitator accepts a contract payer through
-  ERC-1271 comes from reading [its code](https://github.com/x402-foundation/x402/blob/1a084343e165d6f61b60b34f6146d6e4a4a7f3ca/typescript/packages/mechanisms/evm/src/exact/facilitator/eip3009.ts); the written
-  specification still describes a signature that recovers to the payer. The
-  agent's x402 client must sign the account's `AgentMessage` wrapper around the
-  payment digest, which stock x402 clients do not do. Whether the USDC deployed
-  on Base is this exact version was not checked on-chain.
+- x402: the whole flow runs on a local chain only; no payment was made on Base
+  or on a testnet. The facilitator is the open-source reference code, and a
+  hosted facilitator may run other code or add its own rules. The written
+  specification still describes a signature that recovers to the payer, so
+  another facilitator may refuse a payer that is a contract. USDC is
+  upgradeable: Circle can change the code the comparison was made against.
 - No audit and no external review yet. The reviews above are the author's own.
 
 ## x402 payments
@@ -215,9 +218,28 @@ the agent account already implements. The session key signs the payment digest
 wrapped as a message of its account, a facilitator submits it, and the agent
 needs no ETH. A frozen or expired agent cannot pay.
 
+`examples/x402` runs the whole flow on a local chain with the real pieces: the
+x402 reference facilitator (`@x402/core` and `@x402/evm` 2.31.0) served over
+HTTP, an Express API behind the x402 payment middleware, Circle's USDC code,
+and the standard x402 fetch client. The agent calls the API, receives HTTP
+402, pays 0.25 USDC and receives the content, without holding ETH. The
+facilitator refuses a raw signature by the session key, another key, and a
+frozen agent.
+
+The only thing the agent adds to a stock x402 client is `agentSigner.mjs`, a
+28-line signer: it names the account as the payer and signs the payment as a
+message of that account. Spending limits (allowed tokens, cap per payment) are
+set on the x402 client.
+
+The USDC code used here is the one that runs on Base. On 14 November 2026, at
+block 57,208,253, the code behind USDC on Base and its signature library were
+compared byte for byte with `test/usdc`: identical, apart from the compiler's
+metadata hash and the library's address. `examples/x402/check-usdc.mjs` repeats
+that comparison.
+
 ## Use cases
 
-Tested here: x402-style USDC payments, reputation badges, sale, collateralised loans and staking between agents, wrapping of any
+Tested here: x402 USDC payments (reference facilitator, local chain), reputation badges, sale, collateralised loans and staking between agents, wrapping of any
 existing ERC-721, and Uniswap V3 liquidity positions held and traded by agents
 only. Supported by design but without a dedicated test: art and collectibles
 for agents, documents and credentials, links to ERC-8004 agent identities.
