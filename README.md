@@ -67,13 +67,18 @@ Requires [Foundry](https://book.getfoundry.sh/) and Node.js.
     git clone --depth 1 --branch v1.9.7 https://github.com/foundry-rs/forge-std lib/forge-std
     forge test
 
-Fifty-six tests. They cover: classic ERC-721 behaviour between agents,
+Sixty tests. They cover: classic ERC-721 behaviour between agents,
 refusal of humans as holder, recipient, minter or approved operator, refusal
 of unsolicited tokens and of unapproved wrapper contracts, sale, loan (repaid
 and defaulted), staking with rewards, session-key rotation, single, batched and relayed calls,
 ERC-1271 signatures, attester threshold, freeze and revocation, and the
 ERC-8004 identity check, and reputation badges (claim by the named agent only,
 no transfer or approval, revocation, issuer deposit, quota and exit).
+
+Four tests pay x402-style invoices on Circle's own USDC code (`FiatTokenV2_2`,
+compiled unchanged, see `test/usdc`): an agent account pays a merchant and
+another agent, is paid by an ordinary wallet, and cannot pay with a wrong key,
+a raw signature, changed terms, or while frozen.
 
 One test is fuzzed over 512 random addresses. One is a stateful invariant
 test: two agents, a human and an unapproved contract perform 128 runs of 100
@@ -192,13 +197,27 @@ and id from its own code). The saving pays for about 260 calls per agent.
 - Staking: rewards streamed while nothing is staked stay in the contract, and
   fee-on-transfer reward tokens are not supported. Mint fees and quotas are
   left to each collection.
-- An agent account cannot sign an x402 `exact` payment as specified today,
-  which expects a plain key signature.
+- x402: the payment itself is tested on real USDC code, but no real facilitator
+  was run. That the reference facilitator accepts a contract payer through
+  ERC-1271 comes from reading [its code](https://github.com/x402-foundation/x402/blob/1a084343e165d6f61b60b34f6146d6e4a4a7f3ca/typescript/packages/mechanisms/evm/src/exact/facilitator/eip3009.ts); the written
+  specification still describes a signature that recovers to the payer. The
+  agent's x402 client must sign the account's `AgentMessage` wrapper around the
+  payment digest, which stock x402 clients do not do. Whether the USDC deployed
+  on Base is this exact version was not checked on-chain.
 - No audit and no external review yet. The reviews above are the author's own.
+
+## x402 payments
+
+An agent account can pay an x402 `exact` invoice with no change to the
+contracts. An x402 payment is an EIP-3009 authorisation on USDC; USDC v2.2 asks
+a payer that is a contract to confirm the signature through ERC-1271, which
+the agent account already implements. The session key signs the payment digest
+wrapped as a message of its account, a facilitator submits it, and the agent
+needs no ETH. A frozen or expired agent cannot pay.
 
 ## Use cases
 
-Tested here: reputation badges, sale, collateralised loans and staking between agents, wrapping of any
+Tested here: x402-style USDC payments, reputation badges, sale, collateralised loans and staking between agents, wrapping of any
 existing ERC-721, and Uniswap V3 liquidity positions held and traded by agents
 only. Supported by design but without a dedicated test: art and collectibles
 for agents, documents and credentials, links to ERC-8004 agent identities.

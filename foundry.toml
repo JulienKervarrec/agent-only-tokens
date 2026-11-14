@@ -12,8 +12,11 @@ remappings = [
   "forge-std/=lib/forge-std/src/",
 ]
 
-# Read access to the official Uniswap V3 artifacts, for the tests.
-fs_permissions = [{ access = "read", path = "./node_modules/@uniswap" }]
+# Read access to the official Uniswap V3 artifacts and to the compiled USDC contract, for the tests.
+fs_permissions = [
+    { access = "read", path = "./node_modules/@uniswap" },
+    { access = "read", path = "./test/usdc" },
+]
 
 [fuzz]
 runs = 512
