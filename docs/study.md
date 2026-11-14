@@ -457,14 +457,42 @@ Four tests run against Circle's own `FiatTokenV2_2`, compiled unchanged: an
 agent pays a merchant and another agent, is paid by an ordinary wallet, and
 cannot pay with a wrong key, a raw signature, changed terms, or while frozen.
 
-Three things are not established. No real facilitator was run: that the
-reference facilitator accepts a contract payer comes from reading
-[its code](https://github.com/x402-foundation/x402/blob/1a084343e165d6f61b60b34f6146d6e4a4a7f3ca/typescript/packages/mechanisms/evm/src/exact/facilitator/eip3009.ts), while the written
+**The whole flow was then run with the real x402 software** (14 November
+2026, `examples/x402`). On a local chain, one script starts the x402 reference
+facilitator (`@x402/core` and `@x402/evm` 2.31.0) behind HTTP, an Express API
+protected by the x402 payment middleware, Circle's USDC code, and the standard
+x402 fetch client acting for an agent account.
+
+| Step | Result |
+| --- | --- |
+| The agent calls the API without paying | HTTP 402 |
+| The agent calls it through the x402 client | The facilitator accepts and settles; HTTP 200; the merchant receives 0.25 USDC |
+| The session key signs the payment directly, as a wallet would | Refused by the facilitator (`invalid_exact_evm_signature`) |
+| Another key signs for the agent account | Refused, same reason |
+| The sponsor freezes the agent | Refused, same reason; once unfrozen the agent pays again |
+| ETH held by the agent account and its key, start to end | 0 |
+
+- **The adapter.** Stock x402 clients sign the payment directly. The agent adds
+  one 28-line signer (`agentSigner.mjs`) to the standard client: it names the
+  account as the payer and signs the payment as a message of that account. The
+  rest of the client is unchanged.
+- **Spending limits** are a feature of the x402 client, not of the contracts:
+  allowed tokens and a cap per payment. The demo sets both.
+- **The USDC on Base is this code.** On 14 November 2026, at block 57,208,253,
+  the code behind USDC on Base
+  (`0x2Ce6311ddAE708829bc0784C967b7d77D19FD779`) and its signature library
+  (`0x2D943E25e1859ED786AFe4AFB2B42e14EFAC691e`) were compared byte for byte
+  with the code these tests use: identical, apart from the compiler's metadata
+  hash and the library's address. The comparison was run from a browser against
+  the public RPC `https://mainnet.base.org`; `check-usdc.mjs` applies the same
+  comparison and was run against a local chain only.
+
+What remains open: no payment was made on Base or on a testnet; a hosted
+facilitator may run other code than the reference one, and the written
 [specification](https://github.com/x402-foundation/x402/blob/main/specs/schemes/exact/scheme_exact_evm.md) still describes a signature that recovers to the
-payer. Stock x402 clients sign the payment digest directly, so an agent needs
-a small signer of its own. And whether the USDC deployed on Base is this exact
-version was not checked on-chain. ERC-7710, which the specification proposes
-for smart accounts, turned out not to be needed for this path.
+payer, so another facilitator may refuse a payer that is a contract; USDC is
+upgradeable. ERC-7710, which the specification proposes for smart accounts,
+turned out not to be needed for this path.
 
 ## 4. Use cases
 
@@ -482,7 +510,7 @@ The table separates what was tested from what is only supported by design.
 | Agent identity and reputation | The registry can require that the sponsor owns the agent's ERC-8004 identity. Reputation badges are soulbound: an issuer offers one for a piece of work, the agent claims it, and it never moves | Tested |
 | Staking | The agent deposits its NFT in a staking venue and earns an ERC-20 reward stream shared equally per staked NFT; only the staker gets the NFT back | Tested, including in the invariant test |
 | Lending positions (Aave, Morpho, Compound) | These are not NFTs, so the wrapper does not apply. A token-bound account (ERC-6551) per token is the candidate route | Not covered, not tested |
-| Payments for services around the token (x402) | The agent's session key signs an EIP-3009 USDC authorisation as a message of its account; USDC confirms it through ERC-1271 and a facilitator submits it. The agent needs no ETH (section 3.10) | Payment tested on Circle's USDC code; no real facilitator run |
+| Payments for services around the token (x402) | The agent's session key signs an EIP-3009 USDC authorisation as a message of its account; USDC confirms it through ERC-1271 and a facilitator submits it. The agent needs no ETH (section 3.10) | A paid API bought end to end through the x402 reference facilitator, on a local chain. No payment on a public network |
 
 **Open question.** What does holding the token give an agent? Without a clear
 answer, no autonomous agent has a reason to buy, borrow against, or lend on it.
@@ -567,9 +595,8 @@ Options studied and set aside:
 - **Emptied positions** stay in a non-unwrappable wrapper; burning is not
   provided.
 - **Retired or revoked agents.** Their tokens stay where they are.
-- **x402.** No real facilitator was run, the agent needs a client that signs
-  the account's message wrapper, and the USDC version deployed on Base was not
-  checked on-chain (section 3.10).
+- **x402.** The flow runs on a local chain only. A hosted facilitator may run
+  other code than the reference one, and USDC is upgradeable (section 3.10).
 - **Not tested.** Uniswap V4, any other protocol, ERC-20 and ERC-1155 profiles.
 - **Not measured.** The L1 data fee on Base. Execution gas is in section 3.9.
 - **Not done.** Deployment on any network, audit, external review. The reviews in
@@ -577,11 +604,10 @@ Options studied and set aside:
 
 ## 8. Proposed next steps
 
-1. Run the x402 reference facilitator against a local chain with an agent payer,
-   and write the small client-side signer it needs.
-2. Deployment on Base Sepolia, to measure the L1 data fee.
-3. A registry verifying a real TEE attestation.
-4. Publication of the idea on [Ethereum Magicians](https://ethereum-magicians.org/),
+1. Deployment on Base Sepolia, to measure the L1 data fee and to make an x402
+   payment from an agent account through a hosted facilitator.
+2. A registry verifying a real TEE attestation.
+3. Publication of the idea on [Ethereum Magicians](https://ethereum-magicians.org/),
    then a pull request to [ethereum/ERCs](https://github.com/ethereum/ERCs)
    once a second implementation passes the same tests.
 
@@ -614,9 +640,10 @@ unless stated otherwise.
 | NEAR Shade Agents has not been maintained since 19 April 2026 | Confirmed | [NEAR documentation](https://docs.near.org/ai/shade-agents/concepts/terminology) |
 | FlashProve was tested on Llama 4 Maverick with a 1,024-token window | Confirmed on press reports only | [Crypto Briefing](https://cryptobriefing.com/anthropic-flashprove-zksnark-ai-inference/) |
 | The x402 `exact` EVM specification describes a 65-byte signature that recovers to the payer | Confirmed again on 13 November 2026 | [x402 exact scheme](https://github.com/x402-foundation/x402/blob/main/specs/schemes/exact/scheme_exact_evm.md) |
-| The x402 reference facilitator nevertheless verifies a payer that has code through ERC-1271, and settles a 65-byte signature with the (v, r, s) form | Read in the code at commit `1a08434` (13 November 2026), not executed | [eip3009.ts](https://github.com/x402-foundation/x402/blob/1a084343e165d6f61b60b34f6146d6e4a4a7f3ca/typescript/packages/mechanisms/evm/src/exact/facilitator/eip3009.ts) |
+| The x402 reference facilitator nevertheless verifies a payer that has code through ERC-1271, and settles a 65-byte signature with the (v, r, s) form | Read in the code at commit `1a08434` (13 November 2026), then executed on 14 November 2026: packages `@x402/core` and `@x402/evm` 2.31.0, local chain, agent payer accepted and settled (`examples/x402`) | [eip3009.ts](https://github.com/x402-foundation/x402/blob/1a084343e165d6f61b60b34f6146d6e4a4a7f3ca/typescript/packages/mechanisms/evm/src/exact/facilitator/eip3009.ts) |
 | USDC `FiatTokenV2_2` checks contract payers through ERC-1271, in both forms of `transferWithAuthorization` | Confirmed by test against the compiled source, commit `fc85788` | [circlefin/stablecoin-evm](https://github.com/circlefin/stablecoin-evm) |
-| The USDC deployed on Base is `FiatTokenV2_2` | **Not checked** | |
+| The USDC deployed on Base is `FiatTokenV2_2` | Confirmed on 14 November 2026 at block 57,208,253: the implementation `0x2Ce6311ddAE708829bc0784C967b7d77D19FD779` and its signature library are byte-identical to the code compiled from commit `fc85788`, apart from the metadata hash and the library address. Read through the public RPC `https://mainnet.base.org` | `examples/x402/check-usdc.mjs` |
+| The standard x402 client pays from an agent account once given the 28-line signer adapter | Confirmed by execution on 14 November 2026: packages `@x402/fetch` and `@x402/express` 2.31.0, local chain | `examples/x402/demo.mjs` |
 
 ## 10. Sources
 
