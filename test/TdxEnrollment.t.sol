@@ -5,7 +5,8 @@ import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IAgentRegistry} from "../src/IAgentRegistry.sol";
 import {AgentAccount} from "../src/AgentAccount.sol";
 import {AttestedAgentRegistry} from "../src/AttestedAgentRegistry.sol";
-import {IDcapAttestation, TdxEnrollmentVerifier} from "../src/TdxEnrollmentVerifier.sol";
+import {IDcapAttestation, TdxQuoteVerifier} from "../src/TdxQuoteVerifier.sol";
+import {TdxEnrollmentVerifier} from "../src/TdxEnrollmentVerifier.sol";
 import {AgentOnlyBase, AnyCollection} from "./AgentOnly.t.sol";
 
 /// Stands in for the DCAP verifier. It answers in the verifier's format, from the quote's own
@@ -151,7 +152,7 @@ contract TdxEnrollmentTest is AgentOnlyBase {
 
     function test_RefusesQuoteTheVerifierRejects() public {
         dcap.set(false, 0, 2);
-        vm.expectRevert(abi.encodeWithSelector(TdxEnrollmentVerifier.QuoteRejected.selector, bytes("signature check failed")));
+        vm.expectRevert(abi.encodeWithSelector(TdxQuoteVerifier.QuoteRejected.selector, bytes("signature check failed")));
         verifier.attest(_quoteFor(keccak256("digest")));
     }
 
@@ -159,12 +160,12 @@ contract TdxEnrollmentTest is AgentOnlyBase {
         // One bit changed in the boot measurement, or in a runtime register.
         bytes memory quote = _quoteFor(keccak256("digest"));
         quote[MR_TD] ^= 0x01;
-        vm.expectPartialRevert(TdxEnrollmentVerifier.UnknownCode.selector);
+        vm.expectPartialRevert(TdxQuoteVerifier.UnknownCode.selector);
         verifier.attest(quote);
 
         quote = _quoteFor(keccak256("digest"));
         quote[RTMR3 + 47] ^= 0x01;
-        vm.expectPartialRevert(TdxEnrollmentVerifier.UnknownCode.selector);
+        vm.expectPartialRevert(TdxQuoteVerifier.UnknownCode.selector);
         verifier.attest(quote);
     }
 
@@ -176,7 +177,7 @@ contract TdxEnrollmentTest is AgentOnlyBase {
         approved[0] = verifier.codeOf(output);
         TdxEnrollmentVerifier careless = new TdxEnrollmentVerifier(dcap, 1, approved);
 
-        vm.expectRevert(TdxEnrollmentVerifier.DebugMachine.selector);
+        vm.expectRevert(TdxQuoteVerifier.DebugMachine.selector);
         careless.attest(quote);
     }
 
@@ -184,7 +185,7 @@ contract TdxEnrollmentTest is AgentOnlyBase {
         bytes memory quote = _quoteFor(keccak256("digest"));
         for (uint8 status = 1; status < 8; ++status) {
             dcap.set(true, status, 2);
-            vm.expectRevert(abi.encodeWithSelector(TdxEnrollmentVerifier.PlatformNotAccepted.selector, status));
+            vm.expectRevert(abi.encodeWithSelector(TdxQuoteVerifier.PlatformNotAccepted.selector, status));
             verifier.attest(quote);
         }
         // A level outside the known range is refused too, whatever was accepted at deployment.
@@ -192,7 +193,7 @@ contract TdxEnrollmentTest is AgentOnlyBase {
         approved[0] = REAL_CODE;
         TdxEnrollmentVerifier lax = new TdxEnrollmentVerifier(dcap, 0xff, approved);
         dcap.set(true, 8, 2);
-        vm.expectRevert(abi.encodeWithSelector(TdxEnrollmentVerifier.PlatformNotAccepted.selector, uint8(8)));
+        vm.expectRevert(abi.encodeWithSelector(TdxQuoteVerifier.PlatformNotAccepted.selector, uint8(8)));
         lax.attest(quote);
         // That lax deployment does accept an outdated platform: the choice is made at deployment.
         dcap.set(true, 4, 2);
@@ -202,28 +203,28 @@ contract TdxEnrollmentTest is AgentOnlyBase {
     function test_RefusesReportsThatAreNotTdx10() public {
         bytes memory quote = _quoteFor(keccak256("digest"));
         dcap.set(true, 0, 1); // an SGX enclave report
-        vm.expectRevert(TdxEnrollmentVerifier.UnsupportedReport.selector);
+        vm.expectRevert(TdxQuoteVerifier.UnsupportedReport.selector);
         verifier.attest(quote);
         dcap.set(true, 0, 3); // a TDX 1.5 report
-        vm.expectRevert(TdxEnrollmentVerifier.UnsupportedReport.selector);
+        vm.expectRevert(TdxQuoteVerifier.UnsupportedReport.selector);
         verifier.attest(quote);
     }
 
     function test_RefusesReportDataLongerThanADigest() public {
         bytes memory quote = _quoteFor(keccak256("digest"));
         quote[REPORT_DATA + 63] = 0x01;
-        vm.expectRevert(TdxEnrollmentVerifier.BadReportData.selector);
+        vm.expectRevert(TdxQuoteVerifier.BadReportData.selector);
         verifier.attest(quote);
     }
 
     function test_RefusesEmptyConfiguration() public {
         bytes32[] memory none = new bytes32[](0);
         bytes32[] memory one = new bytes32[](1);
-        vm.expectRevert(TdxEnrollmentVerifier.BadConfig.selector);
+        vm.expectRevert(TdxQuoteVerifier.BadConfig.selector);
         new TdxEnrollmentVerifier(dcap, 1, none);
-        vm.expectRevert(TdxEnrollmentVerifier.BadConfig.selector);
+        vm.expectRevert(TdxQuoteVerifier.BadConfig.selector);
         new TdxEnrollmentVerifier(dcap, 0, one);
-        vm.expectRevert(TdxEnrollmentVerifier.BadConfig.selector);
+        vm.expectRevert(TdxQuoteVerifier.BadConfig.selector);
         new TdxEnrollmentVerifier(IDcapAttestation(address(0)), 1, one);
     }
 
