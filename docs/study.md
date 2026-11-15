@@ -272,17 +272,53 @@ Improvements made in the same pass:
 - **Badge storage packed.** Issuer, date and revoked flag share one storage
   slot, which makes a claim about 22,000 gas cheaper.
 - **An agent can read a pending badge offer on-chain before claiming it.**
-- **Mutation testing.** Each of 33 security checks (60 with the 27 added in
-  section 3.11) is removed in turn; the test
+- **Mutation testing.** Each of 33 security checks (68 with the 35 added in
+  sections 2.5 and 3.11) is removed in turn; the test
   suite now fails every time.
 
 One more lesson: **a venue that never holds the token must tie each listing to
 the token's own approval**, because that approval is the only thing a transfer
 resets.
 
+### 2.5 Third review: independent agent, symbolic proofs, fuzzing
+
+On 15 November 2026, three checks were added that do not rest on the author's
+judgement.
+
+- **Independent reviewer.** A separate AI agent received only the code and the
+  rules, not the design notes, with one task: break the contracts. It wrote a
+  test for each attack it found.
+- **Symbolic proofs with [Halmos](https://github.com/a16z/halmos).** Each
+  property holds for every possible input: three accounts with any agent and
+  venue status, any action by any of them. Proved: holders and approved
+  operators are always agents or venues; an account that is neither changes
+  nothing; a token only changes hands if the recipient pulled it or a venue
+  moved it, and a holder no longer recognised does not lose it; with an
+  enrollment verifier, no enrollment passes without its approval of that exact
+  digest.
+- **Large-scale fuzzing.** 4,000 sequences of 100 random actions (400,000
+  calls) on the stateful test, and 20,000 random inputs on each fuzz test.
+
+| Weakness | Found by | Consequence | Fix |
+| --- | --- | --- | --- |
+| A holder that is no longer recognised could still grant approvals | Halmos | A frozen holder (key stolen, then frozen) could approve another agent, which would take the token once the holder was unfrozen. Our own agent account already refused a frozen key; the standard now holds whatever the account type | Granting an approval requires the granter to be an agent or venue; revoking stays free |
+| `retire` returned the bond at once | Independent review | A sponsor could escape an attesters' revocation by retiring first, and keep its bond | The bond comes back with `withdrawBond` after `EXIT_DELAY` (7 days), during which `revoke` still forfeits it |
+| The Uniswap V3 wrapper let any approved operator manage a position | Independent review | An operator approved earlier could empty the position of a holder that had since been frozen, while the token itself stayed put | Only the holder, and only while recognised, can remove liquidity and collect |
+| The dstack verifier did not require a `boot-mr-done` event | Independent review | Without that marker, nothing in the log separates OS events from application events | At least one `boot-mr-done` must follow the compose-hash event |
+| The TDX verifiers could not receive a fee refund | Independent review | A DCAP verifier that refunds unused fee to its caller would have made every paid attestation fail | The verifiers accept the refund and pass it on to whoever paid |
+
+Each fix has a test that fails without it. The independent reviewer found
+nothing in the core rules, the signatures, the accounts, the venues or SHA-384.
+Its remarks not acted upon are listed in section 7.
+
+The first finding came from a property that was written too strictly at first
+("an unrecognised account changes nothing", approvals included). The prover's
+counterexample showed it was right: an approval prepared while frozen is a
+movement deferred.
+
 ## 3. The standard
 
-**A classic ERC-721 plus three rules, 62 lines in the reference implementation.
+**A classic ERC-721 plus three rules, 70 lines in the reference implementation.
 Everything else is ordinary code.**
 
 ### 3.1 The three rules
@@ -304,26 +340,26 @@ The token asks the registry only two questions: `isAgent(address)` and
 
 | Contract | Role | Lines |
 | --- | --- | --- |
-| `ERC721AgentOnly` | The standard: the three rules | 62 |
+| `ERC721AgentOnly` | The standard: the three rules | 70 |
 | `IERC721AgentOnly` | The interface a compliant token exposes, advertised through ERC-165 | 10 |
 | `IAgentRegistry` | The two questions asked to the registry | 10 |
 | `AgentAccount` | An agent's account, with no human owner. Only its session key makes it act: single calls, all-or-nothing batches, relayed calls, ERC-1271. Each account is an ERC-1167 clone of one implementation | 139 |
-| `AttestedAgentRegistry` | Proof of agent, version 1: attesters, bond, expiring keys, freeze, revocation, venue approval, ERC-8004 link, optional enrollment verifier | 233 |
-| `TdxQuoteVerifier` | Checks shared by the hardware verifiers: genuine quote, accepted platform, no debug mode, report data | 107 |
+| `AttestedAgentRegistry` | Proof of agent, version 1: attesters, bond, expiring keys, freeze, revocation, venue approval, ERC-8004 link, optional enrollment verifier, bond returned after an exit delay | 249 |
+| `TdxQuoteVerifier` | Checks shared by the hardware verifiers: genuine quote, accepted platform, no debug mode, report data (`src/experimental`) | 116 |
 | `TdxEnrollmentVerifier` | Enrollment by Intel TDX attestation, for images measured the same for every instance | 41 |
-| `DstackEnrollmentVerifier` | Enrollment of agents on dstack: replays the RTMR3 event log, code = base image + compose hash | 130 |
+| `DstackEnrollmentVerifier` | Enrollment of agents on dstack: replays the RTMR3 event log, code = base image + compose hash (`src/experimental`) | 137 |
 | `Sha384` | SHA-384 for replaying TDX registers (no EVM precompile) | 92 |
 | `AgentSwap` | Fixed-price sale between agents | 54 |
 | `AgentLoan` | Collateralised loan between agents | 84 |
 | `AgentStaking` | Staking for ERC-20 rewards, Synthetix-style accounting, one NFT = one unit | 130 |
 | `AgentWrapped721` | Wrapper making any existing ERC-721 agent-only | 80 |
-| `AgentWrappedUniV3` | Non-unwrappable wrapper for Uniswap V3 positions | 95 |
+| `AgentWrappedUniV3` | Non-unwrappable wrapper for Uniswap V3 positions | 98 |
 | `AgentReputationBadge` | Soulbound reputation badges (ERC-5192): an issuer offers, the named agent claims, the issuer can revoke | 215 |
 
 ### 3.3 What the tests establish
 
-Ninety-two tests on a local simulated EVM, two fuzzed (512 addresses; random SHA-384 inputs) and one
-stateful invariant test.
+Ninety-eight tests on a local simulated EVM, three fuzzed and one stateful
+invariant test, plus four properties proved symbolically (section 2.5).
 
 | Scenario | Result |
 | --- | --- |
@@ -341,7 +377,8 @@ stateful invariant test.
 | 128 runs of 100 random actions by two agents, a human and an unapproved contract | After every action, no token is held by or approved for anything but an agent account or an approved venue |
 | Several calls in one batch, direct or relayed | All or nothing; a human cannot batch for the agent |
 | The five attacks found by the first review and the weaknesses found by the second (sections 2.3 and 2.4) | Each one is now rejected |
-| Each of 60 security checks removed in turn (mutation testing) | The suite fails every time |
+| Each of 68 security checks removed in turn (mutation testing) | The suite fails every time |
+| The five weaknesses found by the third review (section 2.5) | Each one is now rejected |
 | A real dstack quote and its real event log (DCAP verifier replaced by a stand-in) | The log replays to the quote's RTMR3; the quote is accepted; an agent enrolls; another instance of the same application is accepted |
 | Another application, another base image, a compose hash the log does not hold, a compose-hash event written after `boot-mr-done`, a log that does not replay, more than 64 events | Quote rejected |
 | SHA-384 on 13 reference vectors and 2,000 random inputs against a plain-Solidity version | Identical |
@@ -477,6 +514,7 @@ L1 data fee comes on top and is not measured.
 | Stake, through the agent account | 165,366 |
 | Claim staking rewards | 116,689 |
 | Unstake with rewards | 133,562 |
+| Approval, through the agent account (since the third review) | 73,206 |
 
 The standard adds about 15,000 gas to a transfer: the registry is asked about
 the caller and the holder, and about the recipient when it is not the caller. Agent accounts are ERC-1167 clones of a single implementation, which brought
@@ -552,9 +590,9 @@ and revoking agents, which also lets them revoke an agent enrolled with a quote
 later found to be forged.
 
 Two such verifiers exist for Intel TDX, on top of shared checks
-(`TdxQuoteVerifier`, 107 lines): `TdxEnrollmentVerifier` (41 lines) for images
+(`TdxQuoteVerifier`, 116 lines): `TdxEnrollmentVerifier` (41 lines) for images
 whose measurements are the same for every instance, and
-`DstackEnrollmentVerifier` (130 lines) for agents on dstack.
+`DstackEnrollmentVerifier` (137 lines) for agents on dstack.
 
 - **What the agent does.** Its program runs in a TDX confidential virtual
   machine. It creates its session key there, computes the registry's
@@ -596,7 +634,7 @@ attestation, the assembly one about 1 million with eight events, on top of the
 DCAP verification. It is checked against 13 reference vectors from Python's
 `hashlib` and, on 2,000 random inputs, against the plain-Solidity version.
 
-Thirty-one tests cover both verifiers and SHA-384, and removing any of the 27
+Thirty-four tests cover both verifiers and SHA-384, and removing any of the 28
 checks makes one fail. They use a real TDX quote from Automata's tests and a
 real dstack quote with its event log from dstack's tests.
 
@@ -620,6 +658,113 @@ Slither (0.11.6) reports one point on the verifier: `attest` writes its state
 after calling the DCAP verifier. It is accepted: the verifier's address is fixed
 at deployment, and a re-entrant call could only record another digest from
 another verified quote.
+
+### 3.12 Test on Base Sepolia
+
+On 15 November 2026 the contracts ran on Base Sepolia, Base's public test
+network. Every transaction was signed in the author's cloud workspace with
+throwaway test keys; test ETH has no value. Scripts: `script/SepoliaDemo.s.sol`
+and `script/SepoliaTdx.s.sol`.
+
+**A sale between two agents, on a public chain.** The registry, a collection on
+the standard, the sale venue and a test stablecoin were deployed. The attesters
+approved the venue and enrolled two agents. Agent 1 minted a token, approved
+the venue and listed it; agent 2 bought it for 25 test dollars. One relayer
+sent every transaction: the agents' session keys only signed, so the agents
+held no ETH. A plain wallet then tried to mint and was refused
+(`NotAgent`, [tx](https://sepolia.basescan.org/tx/0xfc832d088dc0f21bf0ca391e86bba77db9354063d1a2ff8c8810071d6f50da49)).
+
+| Contract | Address |
+| --- | --- |
+| `AttestedAgentRegistry` | [`0x587b…e087`](https://sepolia.basescan.org/address/0x587b4c01Db0c4779Fb729c5f806879A5ECd6e087) |
+| Collection on the standard | [`0xD5d6…3fD8`](https://sepolia.basescan.org/address/0xD5d6caFd31435539fE626a733b173cACe81a3fD8) |
+| `AgentSwap` | [`0xb346…7951`](https://sepolia.basescan.org/address/0xb346d7455107820ED9651fd62c128664A7C77951) |
+| Agent 1 / agent 2 accounts | [`0x90c5…2FeA`](https://sepolia.basescan.org/address/0x90c55bB78C4f13822dA7Bb6bfD6777e471602FeA) / [`0xF392…c70c`](https://sepolia.basescan.org/address/0xF392e59B2bFef511D1d6AA18e0eBB00948d5c70c) |
+| `TdxEnrollmentVerifier` | [`0xF950…cc8b`](https://sepolia.basescan.org/address/0xF9501de58921B36cb7591d745761E4D3c990cc8b) |
+
+**Real fees, L1 data fee included.** Gas price was about 0.006 gwei.
+
+| Transaction | Gas | Total fee (ETH) | Of which L1 data |
+| --- | --- | --- | --- |
+| Enrollment of an agent (deploys its account) | 208,945 | 0.0000013 | 0.00000004 |
+| Mint, relayed for the agent | 161,006 | 0.0000010 | 0.00000003 |
+| Approval of the venue, relayed | 85,330 | 0.0000005 | 0.00000003 |
+| Listing, relayed | 123,904 | 0.0000008 | 0.00000003 |
+| Purchase, relayed | 140,553 | 0.0000009 | 0.00000003 |
+| Deployment of the registry | 2,840,449 | 0.0000181 | 0.0000011 |
+| TDX quote verified through Automata | 4,339,314 | 0.0000269 | 0.0000005 |
+
+The whole sale scenario, deployments included, cost about 0.00004 test ETH.
+The L1 data fee was about 3% to 20% of each transaction's fee.
+
+**The real DCAP verifier, at last.** Automata's verifier is deployed on Base
+Sepolia at [`0xaDde…Ea1F`](https://sepolia.basescan.org/address/0xaDdeC7e85c2182202b66E331f2a4A0bBB2cEEa1F), as its repository
+states. Our `TdxEnrollmentVerifier` was deployed against it and sent the real
+TDX quote of `test/experimental/tdx` in a transaction
+([tx](https://sepolia.basescan.org/tx/0x713be5c31abcd1fed0ce5923725520330b3ea0d0d99bcc3241cc55a14241110c)).
+Automata checked the quote's signatures up to Intel's root key on chain, and our
+contract applied its own checks to the result and recorded the quote's digest.
+
+- **Output format confirmed.** The real output carries the report body at the
+  offset our contract reads, followed by 1,408 more bytes, which it ignores.
+- **Platform level is enforced.** Automata rates this quote's platform "out of
+  date" (level 4). A verifier accepting only up-to-date platforms refused it;
+  the deployment above accepts levels 0 and 4, a choice made at deployment.
+- **A changed quote is refused.** With one bit of the measurement changed, the
+  real verifier reverts: the P-256 precompile returns nothing for a bad
+  signature, and Automata reverts rather than returning false. Shown on a fork
+  of Base Sepolia (`test/fork`).
+- **No fee.** Automata's fee was zero on Base Sepolia; ETH sent with the call is
+  returned to the transaction's origin.
+- **The dstack quote was refused**, with Automata's code `TCBR` ("TCB status is
+  revoked or missing" in its source): the test machine behind dstack's fixture
+  has no valid platform level in Automata's collateral. The dstack event-log
+  logic is therefore still tested against a stand-in only.
+
+**Second round: every venue and every rule.** The same morning, two more scripts
+ran on the contracts above (`script/SepoliaVenues.s.sol`,
+`script/SepoliaRules.s.sol`). All 40 transactions succeeded.
+
+| Venue | Address | What ran |
+| --- | --- | --- |
+| `AgentLoan` | [`0x58d7…8a9A`](https://sepolia.basescan.org/address/0x58d71733E51242EC277a79043E56FB9f02558a9A) | A loan of 10 tUSD repaid with 11: the token went back to the borrower. A one-minute loan left unpaid: the lender's agent claimed the token |
+| `AgentStaking` | [`0x4DDE…7b71`](https://sepolia.basescan.org/address/0x4DDE60a93ABF35B01A7430D0ff05876777157b71) | 30 tUSD streamed over five minutes; an agent staked a token, then unstaked it with 29.5 tUSD of rewards (it staked a few seconds after the stream began) |
+| `AgentReputationBadge` | [`0xdbf8…d967`](https://sepolia.basescan.org/address/0xdbf8aF05A58714e205F9a260A13B10A33f11d967) | An issuer posted its deposit and offered a badge; the named agent claimed it |
+| `AgentWrapped721` | [`0xDe6D…Ecd2`](https://sepolia.basescan.org/address/0xDe6D8a7C7D07e18c787C5d7b14015CF48499Ecd2) | A classic NFT held by an agent was wrapped, then unwrapped by its holder |
+
+| Operation, relayed for the agent | Gas | Total fee (ETH) |
+| --- | --- | --- |
+| Loan offer | 213,466 | 0.0000021 |
+| Loan funding | 105,566 | 0.0000011 |
+| Loan repayment | 123,878 | 0.0000012 |
+| Claim after default | 92,880 | 0.0000006 |
+| Stake | 184,863 | 0.0000018 |
+| Unstake with rewards | 157,142 | 0.0000010 |
+| Badge claim | 107,651 | 0.0000011 |
+| Wrap / unwrap a classic NFT | 139,268 / 100,844 | 0.0000014 / 0.0000010 |
+
+Each forbidden action was then attempted on the chain's state at that moment,
+and each was refused with the expected error:
+
+| Attempt | Refused with |
+| --- | --- |
+| A plain wallet mints | `NotAgent` |
+| An agent approves a plain wallet, or names it operator as a marketplace would be | `NotAgent` |
+| An agent sends a token to a plain wallet | `NotAgent` |
+| An agent pushes a token to another agent | `NotPulledByRecipient` |
+| An agent transfers its reputation badge | Refused (soulbound) |
+| A frozen agent grants an approval (called directly, whatever its account type) | `NotAgent` |
+| The key of a frozen agent drives its account | `NotKey` |
+| A sponsor takes the bond back right after retiring | `TooEarly` |
+
+The freeze, the unfreeze, and the enrollment and retirement of a third agent
+were sent as real transactions. The refused attempts were simulated on the live
+state rather than sent, because a script cannot broadcast a transaction that
+fails; the plain-wallet mint above was also sent, and failed on chain.
+
+What this does not show: no real machine produced a quote for one of our keys,
+so no agent was enrolled by attestation on chain (the sample quote's report data
+is empty, not an enrollment digest). Base Sepolia is a test network.
 
 ## 4. Use cases
 
@@ -727,16 +872,25 @@ Options studied and set aside:
 - **x402.** The flow runs on a local chain only. A hosted facilitator may run
   other code than the reference one, and USDC is upgradeable (section 3.10).
 - **Not tested.** Uniswap V4, any other protocol, ERC-20 and ERC-1155 profiles.
-- **Not measured.** The L1 data fee on Base. Execution gas is in section 3.9.
-- **Not done.** Deployment on any network, audit, external review. The reviews in
-  sections 2.3 and 2.4 are the author's own.
+- **Measured on a test network only.** Real fees, L1 data fee included, come
+  from Base Sepolia (section 3.12).
+- **Noted by the independent review, not fixed.** Anyone can take a free agent
+  id first when no identity registry is set. After an ERC-8004 identity changes
+  hands, the old sponsor keeps its rights. An approved dstack application that
+  quotes any data a caller chooses would let that caller enroll a key: approved
+  code must only quote enrollment digests of keys it created. The dstack
+  verifier trusts that no application code runs before `boot-mr-done`. An
+  application that logs more than 64 events cannot enroll.
+- **Not done.** Deployment on a main network, professional audit. The third review
+  (section 2.5) uses an independent agent, symbolic proofs and fuzzing; it does
+  not replace a human audit before real value is at stake.
 
 ## 8. Proposed next steps
 
-1. Run the real DCAP verifier on the sample quotes, then a quote produced by a
-   real dstack machine for one of our keys.
-2. Deployment on Base Sepolia, to measure the L1 data fee and to make an x402
-   payment from an agent account through a hosted facilitator.
+1. A quote produced by a real dstack machine, with a valid platform level, for
+   one of our keys: the first agent enrolled by attestation on chain.
+2. An x402 payment from an agent account on Base Sepolia, through a hosted
+   facilitator.
 3. Publication of the idea on [Ethereum Magicians](https://ethereum-magicians.org/),
    then a pull request to [ethereum/ERCs](https://github.com/ethereum/ERCs)
    once a second implementation passes the same tests.
@@ -775,6 +929,7 @@ unless stated otherwise.
 | Automata DCAP Attestation returns, for a verified quote, its version, body type, security level, platform family and report body, in that order | Read in the source at tag `v1.2.0` (`serializeOutput`), 14 November 2026. Not executed | [automata-dcap-attestation](https://github.com/automata-network/automata-dcap-attestation/tree/v1.2.0) |
 | Automata's verifier does not check the debug flag of a TDX machine | Read in the same source: no test of the machine's attributes in the V4 and V5 verifiers. Not executed | Same |
 | Automata DCAP Attestation is deployed on Base | Stated by its repository (`deployment/current/8453`). **Not checked on-chain** | Same |
+| Automata DCAP Attestation is deployed on Base Sepolia and verifies a real TDX quote | Confirmed on 15 November 2026 by a transaction through our verifier (section 3.12) | [BaseScan](https://sepolia.basescan.org/tx/0x713be5c31abcd1fed0ce5923725520330b3ea0d0d99bcc3241cc55a14241110c) |
 | In dstack, the last runtime register contains the instance id and differs for each instance | Confirmed in its documentation, commit `b936f86` (13 November 2026) | [dstack attestation](https://github.com/Dstack-TEE/dstack/blob/master/docs/attestation-tdx.md) |
 | dstack extends RTMR3 as SHA-384(RTMR3 \|\| event digest) from zero; V1 digest = SHA-384(type LE \|\| ":" \|\| name \|\| ":" \|\| payload) | Read in `cc-eventlog/src/runtime_events.rs` (commit `b936f86`), then confirmed on 15 November 2026 by replaying the real event log of `verifier/fixtures/quote-report.json`, offline and in the tests | [dstack](https://github.com/Dstack-TEE/dstack) |
 | The USDC deployed on Base is `FiatTokenV2_2` | Confirmed on 14 November 2026 at block 57,208,253: the implementation `0x2Ce6311ddAE708829bc0784C967b7d77D19FD779` and its signature library are byte-identical to the code compiled from commit `fc85788`, apart from the metadata hash and the library address. Read through the public RPC `https://mainnet.base.org` | `examples/x402/check-usdc.mjs` |
