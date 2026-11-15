@@ -18,6 +18,7 @@ fs_permissions = [
     { access = "read", path = "./node_modules/@uniswap" },
     { access = "read", path = "./test/usdc" },
     { access = "read", path = "./test/tdx" },
+    { access = "read", path = "./test/dstack" },
 ]
 
 [fuzz]
