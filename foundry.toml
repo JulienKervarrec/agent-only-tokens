@@ -17,8 +17,8 @@ remappings = [
 fs_permissions = [
     { access = "read", path = "./node_modules/@uniswap" },
     { access = "read", path = "./test/usdc" },
-    { access = "read", path = "./test/tdx" },
-    { access = "read", path = "./test/dstack" },
+    { access = "read", path = "./test/experimental/tdx" },
+    { access = "read", path = "./test/experimental/dstack" },
 ]
 
 [fuzz]
