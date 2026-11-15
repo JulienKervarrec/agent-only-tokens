@@ -272,7 +272,7 @@ Improvements made in the same pass:
 - **Badge storage packed.** Issuer, date and revoked flag share one storage
   slot, which makes a claim about 22,000 gas cheaper.
 - **An agent can read a pending badge offer on-chain before claiming it.**
-- **Mutation testing.** Each of 33 security checks (48 with the 15 added in
+- **Mutation testing.** Each of 33 security checks (60 with the 27 added in
   section 3.11) is removed in turn; the test
   suite now fails every time.
 
@@ -309,7 +309,10 @@ The token asks the registry only two questions: `isAgent(address)` and
 | `IAgentRegistry` | The two questions asked to the registry | 10 |
 | `AgentAccount` | An agent's account, with no human owner. Only its session key makes it act: single calls, all-or-nothing batches, relayed calls, ERC-1271. Each account is an ERC-1167 clone of one implementation | 139 |
 | `AttestedAgentRegistry` | Proof of agent, version 1: attesters, bond, expiring keys, freeze, revocation, venue approval, ERC-8004 link, optional enrollment verifier | 233 |
-| `TdxEnrollmentVerifier` | Enrollment by Intel TDX attestation: approves the key carried by a verified quote from approved code | 113 |
+| `TdxQuoteVerifier` | Checks shared by the hardware verifiers: genuine quote, accepted platform, no debug mode, report data | 107 |
+| `TdxEnrollmentVerifier` | Enrollment by Intel TDX attestation, for images measured the same for every instance | 41 |
+| `DstackEnrollmentVerifier` | Enrollment of agents on dstack: replays the RTMR3 event log, code = base image + compose hash | 130 |
+| `Sha384` | SHA-384 for replaying TDX registers (no EVM precompile) | 92 |
 | `AgentSwap` | Fixed-price sale between agents | 54 |
 | `AgentLoan` | Collateralised loan between agents | 84 |
 | `AgentStaking` | Staking for ERC-20 rewards, Synthetix-style accounting, one NFT = one unit | 130 |
@@ -319,7 +322,7 @@ The token asks the registry only two questions: `isAgent(address)` and
 
 ### 3.3 What the tests establish
 
-Seventy-three tests on a local simulated EVM, one fuzzed over 512 addresses and one
+Ninety-two tests on a local simulated EVM, two fuzzed (512 addresses; random SHA-384 inputs) and one
 stateful invariant test.
 
 | Scenario | Result |
@@ -338,7 +341,10 @@ stateful invariant test.
 | 128 runs of 100 random actions by two agents, a human and an unapproved contract | After every action, no token is held by or approved for anything but an agent account or an approved venue |
 | Several calls in one batch, direct or relayed | All or nothing; a human cannot batch for the agent |
 | The five attacks found by the first review and the weaknesses found by the second (sections 2.3 and 2.4) | Each one is now rejected |
-| Each of 48 security checks removed in turn (mutation testing) | The suite fails every time |
+| Each of 60 security checks removed in turn (mutation testing) | The suite fails every time |
+| A real dstack quote and its real event log (DCAP verifier replaced by a stand-in) | The log replays to the quote's RTMR3; the quote is accepted; an agent enrolls; another instance of the same application is accepted |
+| Another application, another base image, a compose hash the log does not hold, a compose-hash event written after `boot-mr-done`, a log that does not replay, more than 64 events | Quote rejected |
+| SHA-384 on 13 reference vectors and 2,000 random inputs against a plain-Solidity version | Identical |
 | Enrollment with a TDX quote carrying the enrollment digest (DCAP verifier replaced by a stand-in) | The key is enrolled without attester signatures and drives a normal agent account |
 | No quote, a quote for another key, sponsor or agent id, or a quote already used | Enrollment rejected |
 | Quote rejected by the DCAP verifier, other code, debug machine, platform below the accepted level, SGX or TDX 1.5 report | Quote rejected |
@@ -545,7 +551,10 @@ approves an enrollment digest through ERC-1271. Attesters keep approving venues
 and revoking agents, which also lets them revoke an agent enrolled with a quote
 later found to be forged.
 
-`TdxEnrollmentVerifier` (113 lines) is such a verifier for Intel TDX.
+Two such verifiers exist for Intel TDX, on top of shared checks
+(`TdxQuoteVerifier`, 107 lines): `TdxEnrollmentVerifier` (41 lines) for images
+whose measurements are the same for every instance, and
+`DstackEnrollmentVerifier` (130 lines) for agents on dstack.
 
 - **What the agent does.** Its program runs in a TDX confidential virtual
   machine. It creates its session key there, computes the registry's
@@ -564,9 +573,32 @@ interface and output format were read in the source at tag `v1.2.0`. That code
 does not look at the debug flag of the machine, so the enrollment verifier
 checks it.
 
-Thirteen tests cover the path and each refusal, and removing any of the 15
-checks makes one fail. They use the report body of a real TDX quote, taken from
-Automata's test suite, for its layout and measurements.
+**dstack.** dstack measures its base image in the boot registers and the
+application in the last one, RTMR3, as a chain of events:
+RTMR3 = SHA-384(RTMR3 || event digest), from 48 zero bytes. One event is the
+hash of the application's compose file; another is its instance id, which
+makes RTMR3 differ for each instance. The formula and both digest formats (V1
+binary, V2 canonical JSON) were read in dstack's source (`cc-eventlog`,
+commit `b936f86`) and confirmed by replaying a real event log from dstack's
+tests offline.
+
+`DstackEnrollmentVerifier` takes the quote and the digests of all RTMR3 events.
+It replays them and requires the result to equal the quote's RTMR3. It
+recomputes the compose-hash event from its payload and requires it to come
+before `boot-mr-done`: events before it are written by the dstack OS, events
+after it may be written by the application, which could otherwise log a fake
+compose hash. The code is the pair (base image, compose hash), approved at
+deployment, so every instance of an approved application is accepted.
+
+The EVM has no SHA-384 precompile, so `Sha384` implements it. Its 80 rounds are
+in assembly: a first plain-Solidity version cost 2.8 million gas per
+attestation, the assembly one about 1 million with eight events, on top of the
+DCAP verification. It is checked against 13 reference vectors from Python's
+`hashlib` and, on 2,000 random inputs, against the plain-Solidity version.
+
+Thirty-one tests cover both verifiers and SHA-384, and removing any of the 27
+checks makes one fail. They use a real TDX quote from Automata's tests and a
+real dstack quote with its event log from dstack's tests.
 
 What is not established:
 
@@ -575,10 +607,9 @@ What is not established:
   not reach Base, where the repository lists a deployment.
 - **No real machine produced a quote for one of our keys.** The tests overwrite
   the report data of the sample quote, which a real verifier would reject.
-- **dstack applications do not fit yet.** The list of approved code compares
-  the quote's measurements as they are, and [dstack's last register differs
-  for each instance](https://github.com/Dstack-TEE/dstack/blob/master/docs/attestation-tdx.md). Supporting it means replaying its
-  event log, with SHA-384, in the contract.
+- **Trust in the dstack OS.** The verifier relies on the base image to log
+  the compose hash before `boot-mr-done` and to start only that application.
+  Approving a base image means trusting that build of dstack.
 - **Cost.** Automata states about 4 to 5 million gas for a direct verification
   and about 500,000 with a zk proof. Only the direct route is wired, and it was
   not measured here.
@@ -702,12 +733,11 @@ Options studied and set aside:
 
 ## 8. Proposed next steps
 
-1. Run the real DCAP verifier on the sample quote, then a quote produced by a
-   real TDX machine for one of our keys.
-2. Replay of the dstack event log in the enrollment verifier.
-3. Deployment on Base Sepolia, to measure the L1 data fee and to make an x402
+1. Run the real DCAP verifier on the sample quotes, then a quote produced by a
+   real dstack machine for one of our keys.
+2. Deployment on Base Sepolia, to measure the L1 data fee and to make an x402
    payment from an agent account through a hosted facilitator.
-4. Publication of the idea on [Ethereum Magicians](https://ethereum-magicians.org/),
+3. Publication of the idea on [Ethereum Magicians](https://ethereum-magicians.org/),
    then a pull request to [ethereum/ERCs](https://github.com/ethereum/ERCs)
    once a second implementation passes the same tests.
 
@@ -746,6 +776,7 @@ unless stated otherwise.
 | Automata's verifier does not check the debug flag of a TDX machine | Read in the same source: no test of the machine's attributes in the V4 and V5 verifiers. Not executed | Same |
 | Automata DCAP Attestation is deployed on Base | Stated by its repository (`deployment/current/8453`). **Not checked on-chain** | Same |
 | In dstack, the last runtime register contains the instance id and differs for each instance | Confirmed in its documentation, commit `b936f86` (13 November 2026) | [dstack attestation](https://github.com/Dstack-TEE/dstack/blob/master/docs/attestation-tdx.md) |
+| dstack extends RTMR3 as SHA-384(RTMR3 \|\| event digest) from zero; V1 digest = SHA-384(type LE \|\| ":" \|\| name \|\| ":" \|\| payload) | Read in `cc-eventlog/src/runtime_events.rs` (commit `b936f86`), then confirmed on 15 November 2026 by replaying the real event log of `verifier/fixtures/quote-report.json`, offline and in the tests | [dstack](https://github.com/Dstack-TEE/dstack) |
 | The USDC deployed on Base is `FiatTokenV2_2` | Confirmed on 14 November 2026 at block 57,208,253: the implementation `0x2Ce6311ddAE708829bc0784C967b7d77D19FD779` and its signature library are byte-identical to the code compiled from commit `fc85788`, apart from the metadata hash and the library address. Read through the public RPC `https://mainnet.base.org` | `examples/x402/check-usdc.mjs` |
 | The standard x402 client pays from an agent account once given the 28-line signer adapter | Confirmed by execution on 14 November 2026: packages `@x402/fetch` and `@x402/express` 2.31.0, local chain | `examples/x402/demo.mjs` |
 
