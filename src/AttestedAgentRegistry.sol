@@ -29,6 +29,7 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
         bool closed; // revoked or retired: final
         address sponsor;
         uint64 enrollments;
+        uint64 retiredAt; // 0 unless retired
         uint256 bondHeld;
     }
 
@@ -41,6 +42,9 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
 
     uint256 public immutable threshold;
     uint256 public immutable bond; // anti-Sybil bond, in wei
+    /// After retiring, the bond stays revocable this long before the sponsor can take it back,
+    /// so a sponsor cannot escape a pending revocation by retiring first.
+    uint64 public constant EXIT_DELAY = 7 days;
     uint64 public immutable keyTtl; // lifetime of a session key
     IERC721 public immutable identityRegistry; // ERC-8004, or address(0)
     address public immutable enrollmentVerifier; // ERC-1271 contract, or address(0)
@@ -63,6 +67,7 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
     error BadInput();
     error Expired();
     error Closed();
+    error TooEarly();
     error NotSponsor();
     error BadBond();
     error NotEnoughAttesters();
@@ -197,25 +202,36 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
 
     /// Attesters revoke an agent whose evidence turns out to be false. The bond is forfeited:
     /// it stays locked in this contract for good.
+    /// A retired agent can still be revoked until its sponsor has taken the bond back.
     function revoke(uint256 agentId, bytes[] calldata sigs) external {
         Agent storage a = _agents[agentId];
-        if (a.sponsor == address(0) || a.closed) revert Closed();
+        if (a.sponsor == address(0)) revert Closed();
+        if (a.closed && (a.retiredAt == 0 || a.bondHeld == 0)) revert Closed();
         _requireAttesters(hashRevocation(agentId), sigs);
         a.closed = true;
         a.bondHeld = 0;
         emit Revoked(agentId);
     }
 
-    /// The sponsor closes its agent for good and gets the bond back.
-    /// Tokens the agent still holds become immovable forever.
+    /// The sponsor closes its agent for good. Tokens the agent still holds become immovable
+    /// forever. The bond can be taken back with `withdrawBond` after `EXIT_DELAY`.
     function retire(uint256 agentId) external {
         Agent storage a = _agents[agentId];
         if (a.sponsor != msg.sender) revert NotSponsor();
         if (a.closed) revert Closed();
         a.closed = true;
+        a.retiredAt = uint64(block.timestamp);
+        emit Retired(agentId);
+    }
+
+    /// Returns the bond of a retired agent that was not revoked during `EXIT_DELAY`.
+    function withdrawBond(uint256 agentId) external {
+        Agent storage a = _agents[agentId];
+        if (a.sponsor != msg.sender) revert NotSponsor();
+        if (a.retiredAt == 0) revert Closed();
+        if (block.timestamp < a.retiredAt + EXIT_DELAY) revert TooEarly();
         uint256 refund = a.bondHeld;
         a.bondHeld = 0;
-        emit Retired(agentId);
         (bool sent,) = msg.sender.call{value: refund}("");
         if (!sent) revert RefundFailed();
     }

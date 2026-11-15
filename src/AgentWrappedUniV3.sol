@@ -61,8 +61,11 @@ contract AgentWrappedUniV3 is AgentWrapped721 {
         AgentWrapped721(positionManager, registry_, false, "Agent-Only Uniswap V3 Positions", "AO-UNI-V3")
     {}
 
+    /// Only the holder itself, and only while it is recognised: an operator it approved, or
+    /// the holder once frozen, expired or revoked, cannot empty the position.
     modifier onlyHolder(uint256 tokenId) {
-        if (!_isAuthorized(_requireOwned(tokenId), msg.sender, tokenId)) revert NotAuthorized();
+        if (_requireOwned(tokenId) != msg.sender) revert NotAuthorized();
+        if (!agentRegistry.isAgent(msg.sender) && !agentRegistry.isVenue(msg.sender)) revert NotAuthorized();
         _;
     }
 
