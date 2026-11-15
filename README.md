@@ -50,7 +50,8 @@ interface IAgentRegistry {
 | `src/IERC721AgentOnly.sol` | The interface a compliant token exposes, advertised through ERC-165 | 10 |
 | `src/ERC721AgentOnly.sol` | The standard: the three rules | 62 |
 | `src/AgentAccount.sol` | An agent's account, with no human owner, driven by a rotating session key. Single calls, batches, relayed calls, ERC-1271. Each account is an ERC-1167 clone of one implementation | 139 |
-| `src/AttestedAgentRegistry.sol` | Reference registry: k-of-n attesters, refundable bond, expiring keys, optional ERC-8004 identity link | 218 |
+| `src/AttestedAgentRegistry.sol` | Reference registry: k-of-n attesters, refundable bond, expiring keys, optional ERC-8004 identity link, optional enrollment verifier | 233 |
+| `src/TdxEnrollmentVerifier.sol` | Enrollment verifier: approves an enrollment only for the key carried by an Intel TDX attestation quote from approved code. The quote itself is checked by an on-chain DCAP verifier (Automata's interface) | 113 |
 | `src/AgentSwap.sol` | Fixed-price sale between agents | 54 |
 | `src/AgentLoan.sol` | Collateralised loan between agents | 84 |
 | `src/AgentStaking.sol` | Staking of agent-only NFTs for ERC-20 rewards (Synthetix-style accounting, one NFT = one unit) | 130 |
@@ -68,7 +69,7 @@ Requires [Foundry](https://book.getfoundry.sh/) and Node.js.
     git clone --depth 1 --branch v1.9.7 https://github.com/foundry-rs/forge-std lib/forge-std
     forge test
 
-Sixty tests. They cover: classic ERC-721 behaviour between agents,
+Seventy-three tests. They cover: classic ERC-721 behaviour between agents,
 refusal of humans as holder, recipient, minter or approved operator, refusal
 of unsolicited tokens and of unapproved wrapper contracts, sale, loan (repaid
 and defaulted), staking with rewards, session-key rotation, single, batched and relayed calls,
@@ -83,6 +84,11 @@ a raw signature, changed terms, or while frozen.
 
 `examples/x402` runs the same payment outside Foundry, through the x402
 reference facilitator and the standard x402 client (see "x402 payments" below).
+
+Thirteen tests cover enrollment by hardware attestation (see "Enrollment by
+hardware attestation" below). They use the report body of a real Intel TDX
+quote (`test/tdx`), but a stand-in replaces the DCAP verifier: no quote
+signature is verified in this repository.
 
 One test is fuzzed over 512 random addresses. One is a stateful invariant
 test: two agents, a human and an unapproved contract perform 128 runs of 100
@@ -140,7 +146,8 @@ Improvements made in the same pass:
 - **Badge storage packed.** Issuer, date and revoked flag share one storage
   slot, which makes a claim about 22,000 gas cheaper.
 - **An agent can read a pending badge offer on-chain before claiming it.**
-- **Mutation testing.** Each of 33 security checks is removed in turn; the test
+- **Mutation testing.** Each of 33 security checks (48 with the 15 added for
+  the enrollment verifier on 14 November 2026) is removed in turn; the test
   suite now fails every time.
 
 Slither was run again on the new contracts and reported nothing real.
@@ -159,8 +166,8 @@ the L1 data fee comes on top and is not measured here.
 | Agent-only mint, through the agent account | 131,452 |
 | List for sale | 111,772 |
 | Buy (NFT against an ERC-20) | 114,365 |
-| First enrollment (deploys the account as a clone, 2 attester signatures) | 208,574 |
-| Key rotation (2 attester signatures) | 52,933 |
+| First enrollment (deploys the account as a clone, 2 attester signatures) | 208,898 |
+| Key rotation (2 attester signatures) | 53,219 |
 | Badge offer, by an issuer | 252,743 |
 | Badge claim, through the agent account | 95,569 |
 | Stake, through the agent account | 165,366 |
@@ -169,7 +176,7 @@ the L1 data fee comes on top and is not measured here.
 
 The standard adds about 15,000 gas to a transfer: the registry is asked about
 the caller and the holder, and about the recipient when it is not the caller. Agent accounts are ERC-1167 clones:
-the first enrollment dropped from 1,154,831 to 208,574 gas, at the price of
+the first enrollment dropped from 1,154,831 to 208,898 gas, at the price of
 about 3,650 extra gas on every call through an account (it reads its registry
 and id from its own code). The saving pays for about 260 calls per agent.
 
@@ -177,8 +184,12 @@ and id from its own code). The saving pays for about 260 calls per agent.
 
 - "No human" rests on the attesters, who also approve venues. A dishonest
   approved venue could wrap tokens for humans. Attesters are fixed at deployment.
-- No real attestation (TEE or otherwise) is wired in. The registry only checks
-  attester signatures.
+- Hardware attestation: `TdxEnrollmentVerifier` exists, but the real DCAP
+  verifier it relies on was not run here, and no real machine produced a quote
+  for one of our keys. Its list of approved code compares the quote's
+  measurements as they are, which does not fit dstack applications, whose last
+  register differs for each instance. TDX 1.5 reports and the cheaper zk route
+  are not supported. The default registry still only checks attester signatures.
 - A wrapper deployed as unwrappable is an exit door back to a classic NFT.
   A non-unwrappable wrapper needs one small adapter per protocol; only the
   Uniswap V3 one exists.
@@ -208,6 +219,32 @@ and id from its own code). The saving pays for about 260 calls per agent.
   another facilitator may refuse a payer that is a contract. USDC is
   upgradeable: Circle can change the code the comparison was made against.
 - No audit and no external review yet. The reviews above are the author's own.
+
+## Enrollment by hardware attestation
+
+The reference registry can replace the attesters' signatures by a proof, for
+enrollments only. It takes an optional *enrollment verifier*: any contract that
+approves an enrollment digest through ERC-1271. Attesters keep approving venues
+and revoking agents.
+
+`TdxEnrollmentVerifier` is such a verifier for Intel TDX:
+
+1. The agent's program runs in a TDX confidential virtual machine. It creates
+   its session key there, computes the registry's enrollment digest for it and
+   asks the processor for a quote carrying that digest.
+2. Anyone submits the quote to `attest`. The contract has the quote checked by
+   an on-chain DCAP verifier, then requires an accepted platform security
+   level, a machine that is not in debug mode, and code on a list fixed at
+   deployment.
+3. The registry then enrolls that key, and no other: the digest binds the
+   chain, the registry, the agent id, the key, the sponsor, a nonce and a
+   deadline.
+
+The DCAP verifier meant here is [Automata DCAP Attestation](https://github.com/automata-network/automata-dcap-attestation),
+whose repository lists a deployment on Base. Its interface and output format
+were read in the source at tag `v1.2.0`; it does not check the debug flag
+itself, so this contract does. Running that verifier on the sample quote could
+not be done in the author's environment, so the tests use a stand-in for it.
 
 ## x402 payments
 
