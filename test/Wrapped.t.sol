@@ -141,7 +141,7 @@ contract WrappedTest is Test {
         address[] memory att = new address[](2);
         att[0] = vm.addr(A1);
         att[1] = vm.addr(A2);
-        reg = new AttestedAgentRegistry(att, 2, BOND, 30 days, IERC721(address(0)));
+        reg = new AttestedAgentRegistry(att, 2, BOND, 30 days, IERC721(address(0)), address(0));
         swap = new AgentSwap();
         usdc = new Coin("USDC");
         vm.deal(address(this), 1 ether);

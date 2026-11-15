@@ -97,7 +97,7 @@ abstract contract AgentOnlyBase is Test {
         att[0] = vm.addr(A1);
         att[1] = vm.addr(A2);
         att[2] = vm.addr(A3);
-        reg = new AttestedAgentRegistry(att, 2, BOND, TTL, IERC721(address(0)));
+        reg = new AttestedAgentRegistry(att, 2, BOND, TTL, IERC721(address(0)), address(0));
         nft = new AnyCollection(IAgentRegistry(address(reg)));
         swap = new AgentSwap();
         loan = new AgentLoan();
@@ -383,7 +383,7 @@ contract AgentOnlyTest is AgentOnlyBase {
         att[0] = vm.addr(A1);
         att[1] = vm.addr(A2);
         att[2] = vm.addr(A3);
-        AttestedAgentRegistry r = new AttestedAgentRegistry(att, 2, BOND, TTL, IERC721(address(ids)));
+        AttestedAgentRegistry r = new AttestedAgentRegistry(att, 2, BOND, TTL, IERC721(address(ids)), address(0));
         ids.register(SPONSOR1, 42);
 
         // Anyone other than the owner of identity 42 cannot enroll it.
