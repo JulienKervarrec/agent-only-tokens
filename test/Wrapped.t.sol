@@ -268,6 +268,32 @@ contract WrappedTest is Test {
 
     // ------------------------------------------------------------ real Uniswap V3 position
 
+    /// Found by the independent review: an operator approved earlier must not empty the
+    /// position of a holder that has since been frozen; only the recognised holder manages it.
+    function test_OperatorCannotEmptyFrozenHoldersPosition() public {
+        _openWrappedPosition();
+        _do(K1, acc1, address(w), abi.encodeCall(w.setApprovalForAll, (address(acc2), true)));
+        reg.setFrozen(1, true);
+        vm.prank(vm.addr(K2));
+        vm.expectRevert(AgentWrappedUniV3.NotAuthorized.selector);
+        acc2.execute(address(w), 0, abi.encodeCall(w.decreaseLiquidity, (id, liquidity, 0, 0, FAR)));
+        vm.prank(vm.addr(K2));
+        vm.expectRevert(AgentWrappedUniV3.NotAuthorized.selector);
+        acc2.execute(address(w), 0, abi.encodeCall(w.collect, (id)));
+        // The frozen holder itself cannot either (called directly, whatever its account type).
+        vm.prank(address(acc1));
+        vm.expectRevert(AgentWrappedUniV3.NotAuthorized.selector);
+        w.collect(id);
+        // Unfrozen, the operator still cannot: only the holder manages its position.
+        reg.setFrozen(1, false);
+        vm.prank(vm.addr(K2));
+        vm.expectRevert(AgentWrappedUniV3.NotAuthorized.selector);
+        acc2.execute(address(w), 0, abi.encodeCall(w.collect, (id)));
+        _do(K1, acc1, address(w), abi.encodeCall(w.decreaseLiquidity, (id, liquidity, 0, 0, FAR)));
+        _do(K1, acc1, address(w), abi.encodeCall(w.collect, (id)));
+        assertGt(t0.balanceOf(address(acc1)), 0);
+    }
+
     function test_RealUniswapV3Position() public {
         _openWrappedPosition();
         vm.expectRevert(AgentWrapped721.NotUnwrappable.selector);

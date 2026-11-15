@@ -432,6 +432,68 @@ contract AgentOnlyTest is AgentOnlyBase {
         assertEq(nft.ownerOf(id), address(acc2));
     }
 
+    /// Found by Halmos: a frozen holder must not be able to grant an approval that would let
+    /// another agent take the token once it is unfrozen. Our AgentAccount already refuses a
+    /// frozen agent's key (NotKey); the standard must hold whatever account type the registry
+    /// recognises, so the account itself is the caller here.
+    function test_FrozenHolderCannotGrantApprovals() public {
+        uint256 id = _mint(K1, acc1);
+        vm.prank(SPONSOR1);
+        reg.setFrozen(1, true);
+        vm.prank(address(acc1));
+        _expectNotAgent(address(acc1));
+        nft.approve(address(acc2), id);
+        vm.prank(address(acc1));
+        _expectNotAgent(address(acc1));
+        nft.setApprovalForAll(address(acc2), true);
+        // Revoking stays possible while frozen.
+        vm.prank(address(acc1));
+        nft.setApprovalForAll(address(acc2), false);
+        // Once unfrozen, acc2 holds no approval.
+        vm.prank(SPONSOR1);
+        reg.setFrozen(1, false);
+        assertEq(nft.getApproved(id), address(0));
+        assertFalse(nft.isApprovedForAll(address(acc1), address(acc2)));
+    }
+
+    /// Found by the independent review: a sponsor must not escape a revocation by retiring
+    /// first. The bond stays revocable for EXIT_DELAY after retiring.
+    function test_RetiringDoesNotEscapeRevocation() public {
+        bytes[] memory sigs = _attest(A1, A2, reg.hashRevocation(1));
+        uint256 before = SPONSOR1.balance;
+        vm.prank(SPONSOR1);
+        reg.retire(1);
+        assertEq(SPONSOR1.balance, before); // no refund yet
+        assertFalse(reg.isAgent(address(acc1))); // the agent stops at once
+        vm.prank(SPONSOR1);
+        vm.expectRevert(AttestedAgentRegistry.TooEarly.selector);
+        reg.withdrawBond(1);
+        // The attesters' revocation still lands, and the bond is forfeited.
+        reg.revoke(1, sigs);
+        vm.warp(block.timestamp + reg.EXIT_DELAY());
+        vm.prank(SPONSOR1);
+        reg.withdrawBond(1);
+        assertEq(SPONSOR1.balance, before);
+        vm.expectRevert(AttestedAgentRegistry.Closed.selector);
+        reg.revoke(1, sigs);
+    }
+
+    function test_RetiredBondComesBackAfterTheDelay() public {
+        uint256 before = SPONSOR1.balance;
+        vm.prank(SPONSOR1);
+        reg.retire(1);
+        vm.warp(block.timestamp + reg.EXIT_DELAY());
+        vm.prank(SPONSOR2);
+        vm.expectRevert(AttestedAgentRegistry.NotSponsor.selector);
+        reg.withdrawBond(1);
+        vm.prank(SPONSOR1);
+        reg.withdrawBond(1);
+        assertEq(SPONSOR1.balance, before + BOND);
+        vm.prank(SPONSOR1);
+        reg.withdrawBond(1); // nothing left: no second refund
+        assertEq(SPONSOR1.balance, before + BOND);
+    }
+
     function test_SellerCannotSwitchCurrency() public {
         MockUSDC junk = new MockUSDC();
         junk.mint(address(acc2), 300);
