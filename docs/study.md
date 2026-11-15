@@ -88,7 +88,7 @@ exists separately.** Statuses were checked on 11 November 2026.
 | Building block | What it brings | Useful fact |
 | --- | --- | --- |
 | [dstack](https://github.com/dstack-TEE/dstack) (Phala) | Confidential VM on Intel TDX with attestation. [Ready-made ERC-8004 agent template](https://docs.phala.com/phala-cloud/getting-started/explore-templates/deploy-erc-8004-agent) | Open source |
-| [Automata DCAP](https://docs.ata.network/tee-overview/tee-verifiers/intel-sgx-tdx-dcap) | On-chain verification of an Intel SGX/TDX attestation | [About 4M gas directly, 300k with a zk proof](https://awesome.ecosyste.ms/projects/github.com%2Fautomata-network%2Fautomata-dcap-attestation) |
+| [Automata DCAP](https://docs.ata.network/tee-overview/tee-verifiers/intel-sgx-tdx-dcap) | On-chain verification of an Intel SGX/TDX attestation | [About 4 to 5M gas directly, about 500k with a zk proof](https://github.com/automata-network/automata-dcap-attestation) |
 | [Proof of Cloud](https://proofofcloud.org/) | Signed public registry binding a TEE server's hardware id to a verified data centre | 11 contributing organisations. No contract-readable interface is documented |
 | Confidential inference ([Phala / RedPill](https://docs.phala.com/phala-cloud/confidential-ai/verify/verify-attestation.md), [NEAR AI Cloud](https://skills.sh/near/agent-skills/near-ai-cloud)) | Open models served in TDX VMs with attested Nvidia GPUs, signed responses | Adds three trusted parties: the provider, Intel and Nvidia |
 | [Oasis ROFL](https://docs.oasis.io/build/use-cases/price-oracle) | Chain-managed TEE application. A Sapphire contract can restrict a function to that application | Kept as a second implementation path |
@@ -115,6 +115,44 @@ was not found.
 | [agentsonly.vip](https://opensea.io/tools/x402-bazaar/base/318388764643149040) (Base) | Sale through x402 only | Not checked |
 | [Printer AI](https://agentprinter.netlify.app/) (BNB Chain) | Binance Agent ID registry | Not checked |
 | [PairMine](https://github.com/pairmineai/pairmine-skill), [ClawMint](https://clawmint.io/) | Not studied in detail | Not checked |
+
+### 1.4b Agent NFT standards that let humans own agents
+
+Checked on 14 November 2026. These proposals answer a different question,
+"how does an agent live inside an NFT", and all of them keep a human able to
+hold or buy the token.
+
+| Proposal | What it does | Who can hold the token | Difference with this project |
+| --- | --- | --- | --- |
+| [ERC-7857](https://docs.0g.ai/developer-hub/building-on-0g/agentic-id/erc7857.md) (0G, "Agentic ID") | Encrypted agent metadata re-encrypted for the new owner on transfer; [marketplace live since March 2026](https://blockeden.xyz/blog/2026/03/14/erc-7857-0g-aiverse-web4-marketplace-ai-agents-ownable-tradeable-infts/) | Anyone; built to sell agents to humans | Opposite goal: the agent is property |
+| [ERC-8181](https://ethereum-magicians.org/t/erc-8181-self-sovereign-agent-nfts/27512) Self-Sovereign Agent NFTs | The NFT is held by its own ERC-6551 account, so no human wallet holds it | The NFT's own account; executors set in the contract act for it | Closest idea. It protects one agent's identity token; it does not restrict a whole collection, nor who the executors are. Deployments without a TEE are labelled "trust-dependent" by the authors |
+| [ERC-8170](https://ethereum-magicians.org/t/erc-8170-ai-native-nft/27801) / [ERC-8171](https://ethereum-magicians.org/t/erc-8171-token-bound-account-agent-registry/27967) | AI-native NFT identity; binds an agent to any existing NFT through a token-bound account | The NFT owner | Agent attached to a human-owned NFT |
+| [ERC-6551P](https://www.tokenpost.com/news/technology/53532) (POLYROB, draft, mint on Robinhood Chain on 13 November 2026) | An agent trades from the NFT's account; a sale undoes any action if the owner changed and checks the buyer's conditions | Anyone; no holder restriction described | Solves safe resale of an agent wallet to a human, which this project forbids by design. Its guarantees hold only on its own sale paths |
+| [ERC-8217](https://eips.ethereum.org/EIPS/eip-8217) Agent NFT Identity Bindings | Binds an ERC-8004 identity to a "master" NFT | Whoever holds the master NFT | Enables the account sale this project prevents |
+| [Phosphors](https://www.producthunt.com/products/phosphors) (Base) | Art gallery where AI agents buy through x402 | Not restricted on-chain | Gate at the payment, not on the token; [testnet volume about 1.50 USDC](https://clawhub.ai/phosphors) |
+| [Clawdmint](https://www.moltecosystem.xyz/) (Base) | Only verified agents can deploy collections | Humans mint | The restriction is on the creator, not the holder |
+
+**What this project adds.** Among the proposals and projects found, none
+restricts every holder and every movement of a token, secondary market
+included, to agent accounts. The others either filter the mint (section 1.4),
+make one agent's identity token self-owned (ERC-8181), or are built so that
+humans can buy agents (ERC-7857, ERC-6551P). This project is the only one found
+that:
+
+- applies the restriction inside the token itself, at every transfer, approval
+  and mint, so any marketplace is bound by it;
+- extends it to assets that already exist (wrapped NFTs and Uniswap V3
+  positions) and to the usual operations (sale, loan, staking, badges);
+- separates "is this an agent" from the token, so the proof can move from
+  attester signatures to a hardware attestation without touching the token
+  (section 3.11).
+
+**Where the others are better.** ERC-7857 carries the agent's private state
+with the token, which this project does not try to do. ERC-8181 has a public
+reference deployment and an open discussion; this project has neither yet.
+ERC-6551P handles a live agent wallet inside the NFT, which this project leaves
+to ERC-6551 (section 4). Mint filters such as No Human Allowed are simpler to
+adopt, at the price of no protection after the mint.
 
 ### 1.5 Ways to prove that an operation comes from an agent
 
@@ -234,7 +272,8 @@ Improvements made in the same pass:
 - **Badge storage packed.** Issuer, date and revoked flag share one storage
   slot, which makes a claim about 22,000 gas cheaper.
 - **An agent can read a pending badge offer on-chain before claiming it.**
-- **Mutation testing.** Each of 33 security checks is removed in turn; the test
+- **Mutation testing.** Each of 33 security checks (48 with the 15 added in
+  section 3.11) is removed in turn; the test
   suite now fails every time.
 
 One more lesson: **a venue that never holds the token must tie each listing to
@@ -269,7 +308,8 @@ The token asks the registry only two questions: `isAgent(address)` and
 | `IERC721AgentOnly` | The interface a compliant token exposes, advertised through ERC-165 | 10 |
 | `IAgentRegistry` | The two questions asked to the registry | 10 |
 | `AgentAccount` | An agent's account, with no human owner. Only its session key makes it act: single calls, all-or-nothing batches, relayed calls, ERC-1271. Each account is an ERC-1167 clone of one implementation | 139 |
-| `AttestedAgentRegistry` | Proof of agent, version 1: attesters, bond, expiring keys, freeze, revocation, venue approval, ERC-8004 link | 218 |
+| `AttestedAgentRegistry` | Proof of agent, version 1: attesters, bond, expiring keys, freeze, revocation, venue approval, ERC-8004 link, optional enrollment verifier | 233 |
+| `TdxEnrollmentVerifier` | Enrollment by Intel TDX attestation: approves the key carried by a verified quote from approved code | 113 |
 | `AgentSwap` | Fixed-price sale between agents | 54 |
 | `AgentLoan` | Collateralised loan between agents | 84 |
 | `AgentStaking` | Staking for ERC-20 rewards, Synthetix-style accounting, one NFT = one unit | 130 |
@@ -279,7 +319,7 @@ The token asks the registry only two questions: `isAgent(address)` and
 
 ### 3.3 What the tests establish
 
-Sixty tests on a local simulated EVM, one fuzzed over 512 addresses and one
+Seventy-three tests on a local simulated EVM, one fuzzed over 512 addresses and one
 stateful invariant test.
 
 | Scenario | Result |
@@ -298,7 +338,10 @@ stateful invariant test.
 | 128 runs of 100 random actions by two agents, a human and an unapproved contract | After every action, no token is held by or approved for anything but an agent account or an approved venue |
 | Several calls in one batch, direct or relayed | All or nothing; a human cannot batch for the agent |
 | The five attacks found by the first review and the weaknesses found by the second (sections 2.3 and 2.4) | Each one is now rejected |
-| Each of 33 security checks removed in turn (mutation testing) | The suite fails every time |
+| Each of 48 security checks removed in turn (mutation testing) | The suite fails every time |
+| Enrollment with a TDX quote carrying the enrollment digest (DCAP verifier replaced by a stand-in) | The key is enrolled without attester signatures and drives a normal agent account |
+| No quote, a quote for another key, sponsor or agent id, or a quote already used | Enrollment rejected |
+| Quote rejected by the DCAP verifier, other code, debug machine, platform below the accepted level, SGX or TDX 1.5 report | Quote rejected |
 | Any classic NFT wrapped, sold, unwrapped | Only agents can hold the wrapped token; only the holder can unwrap, to its own account |
 | Real Uniswap V3 position wrapped and sold | The buyer collects the fees and withdraws the liquidity; the position never leaves the wrapper |
 | Seller empties a wrapped position just before the sale | The buyer's batch, which checks liquidity then buys, is rejected as a whole |
@@ -421,8 +464,8 @@ L1 data fee comes on top and is not measured.
 | Agent-only mint, through the agent account | 131,452 |
 | List for sale | 111,772 |
 | Buy (NFT against an ERC-20) | 114,365 |
-| First enrollment (deploys the account as a clone, 2 attester signatures) | 208,574 |
-| Key rotation (2 attester signatures) | 52,933 |
+| First enrollment (deploys the account as a clone, 2 attester signatures) | 208,898 |
+| Key rotation (2 attester signatures) | 53,219 |
 | Badge offer, by an issuer | 252,743 |
 | Badge claim, through the agent account | 95,569 |
 | Stake, through the agent account | 165,366 |
@@ -431,7 +474,7 @@ L1 data fee comes on top and is not measured.
 
 The standard adds about 15,000 gas to a transfer: the registry is asked about
 the caller and the holder, and about the recipient when it is not the caller. Agent accounts are ERC-1167 clones of a single implementation, which brought
-the first enrollment down from 1,154,831 to 208,574 gas. The price is about
+the first enrollment down from 1,154,831 to 208,898 gas. The price is about
 3,650 extra gas on every call through an account, which reads its registry and
 id from its own code; the saving pays for about 260 calls per agent. The
 implementation itself refuses every call.
@@ -494,6 +537,59 @@ payer, so another facilitator may refuse a payer that is a contract; USDC is
 upgradeable. ERC-7710, which the specification proposes for smart accounts,
 turned out not to be needed for this path.
 
+### 3.11 Enrollment by hardware attestation
+
+**The registry can now require a hardware proof instead of attester signatures
+for enrollments.** It takes an optional enrollment verifier: any contract that
+approves an enrollment digest through ERC-1271. Attesters keep approving venues
+and revoking agents, which also lets them revoke an agent enrolled with a quote
+later found to be forged.
+
+`TdxEnrollmentVerifier` (113 lines) is such a verifier for Intel TDX.
+
+- **What the agent does.** Its program runs in a TDX confidential virtual
+  machine. It creates its session key there, computes the registry's
+  enrollment digest for that key and asks the processor for a quote carrying
+  the digest in its report data.
+- **What the contract checks.** The quote is genuine, which it asks an on-chain
+  DCAP verifier; the platform's security level is one of those accepted at
+  deployment; the machine is not in debug mode; the code it booted is on a list
+  fixed at deployment.
+- **What the digest binds.** The chain, the registry, the agent id, the session
+  key, the sponsor, a nonce and a deadline. A quote enrolls that key once and
+  nothing else.
+
+The DCAP verifier meant here is [Automata DCAP Attestation](https://github.com/automata-network/automata-dcap-attestation). Its
+interface and output format were read in the source at tag `v1.2.0`. That code
+does not look at the debug flag of the machine, so the enrollment verifier
+checks it.
+
+Thirteen tests cover the path and each refusal, and removing any of the 15
+checks makes one fail. They use the report body of a real TDX quote, taken from
+Automata's test suite, for its layout and measurements.
+
+What is not established:
+
+- **The real DCAP verifier was not run.** A stand-in answers in its format. The
+  author's environment refused to execute Automata's code, and its network does
+  not reach Base, where the repository lists a deployment.
+- **No real machine produced a quote for one of our keys.** The tests overwrite
+  the report data of the sample quote, which a real verifier would reject.
+- **dstack applications do not fit yet.** The list of approved code compares
+  the quote's measurements as they are, and [dstack's last register differs
+  for each instance](https://github.com/Dstack-TEE/dstack/blob/master/docs/attestation-tdx.md). Supporting it means replaying its
+  event log, with SHA-384, in the contract.
+- **Cost.** Automata states about 4 to 5 million gas for a direct verification
+  and about 500,000 with a zk proof. Only the direct route is wired, and it was
+  not measured here.
+- **Not covered.** TDX 1.5 reports, AMD SEV-SNP, the Proof of Cloud check, and
+  everything in section 6 beyond the first row.
+
+Slither (0.11.6) reports one point on the verifier: `attest` writes its state
+after calling the DCAP verifier. It is accepted: the verifier's address is fixed
+at deployment, and a re-entrant call could only record another digest from
+another verified quote.
+
 ## 4. Use cases
 
 The standard is content-agnostic: the token can be anything an ERC-721 can be.
@@ -551,7 +647,7 @@ changes.
 
 | Decision | Choice | Why |
 | --- | --- | --- |
-| First-level proof | Intel TDX attestation of a dstack VM, verified on-chain once, at enrollment | Open source, verifiable by a contract, [about 300k gas with a zk proof](https://awesome.ecosyste.ms/projects/github.com%2Fautomata-network%2Fautomata-dcap-attestation) |
+| First-level proof | Intel TDX attestation, verified on-chain at each enrollment. First building block written: section 3.11 | Verifiable by a contract, [about 4 to 5M gas directly or about 500k with a zk proof](https://github.com/automata-network/automata-dcap-attestation). A dstack VM needs one more step: [its last register differs for each instance](https://github.com/Dstack-TEE/dstack/blob/master/docs/attestation-tdx.md), so its event log must be replayed |
 | Where the hardware runs | Only machines listed in the [Proof of Cloud](https://proofofcloud.org/) registry | Closes the attack by an operator with physical access |
 | Key custody | Ephemeral enclave key, recreated at each start | Nothing durable to steal. A persistent key derived by a KMS is discarded: [the application owner can authorise new code](https://docs.phala.com/phala-cloud/key-management/understanding-onchain-kms) |
 | Model | Open model served by confidential inference on attested GPU, with signed responses | A capable model without a GPU in the agent |
@@ -580,7 +676,9 @@ Options studied and set aside:
 
 - **Trust in attesters**, for agents and venues. Attesters are fixed at
   deployment.
-- **No real attestation** is wired in. The registry only checks signatures.
+- **Hardware attestation.** The enrollment verifier of section 3.11 was tested
+  against a stand-in, not against the real DCAP verifier, and no real machine
+  was used. The default registry still only checks signatures.
 - **The standard protects the NFT, not what it yields.** Tokens withdrawn from
   a position are ordinary ERC-20s.
 - **Selling a position.** The buyer must check its liquidity in the same batch
@@ -604,10 +702,12 @@ Options studied and set aside:
 
 ## 8. Proposed next steps
 
-1. Deployment on Base Sepolia, to measure the L1 data fee and to make an x402
+1. Run the real DCAP verifier on the sample quote, then a quote produced by a
+   real TDX machine for one of our keys.
+2. Replay of the dstack event log in the enrollment verifier.
+3. Deployment on Base Sepolia, to measure the L1 data fee and to make an x402
    payment from an agent account through a hosted facilitator.
-2. A registry verifying a real TEE attestation.
-3. Publication of the idea on [Ethereum Magicians](https://ethereum-magicians.org/),
+4. Publication of the idea on [Ethereum Magicians](https://ethereum-magicians.org/),
    then a pull request to [ethereum/ERCs](https://github.com/ethereum/ERCs)
    once a second implementation passes the same tests.
 
@@ -642,6 +742,10 @@ unless stated otherwise.
 | The x402 `exact` EVM specification describes a 65-byte signature that recovers to the payer | Confirmed again on 13 November 2026 | [x402 exact scheme](https://github.com/x402-foundation/x402/blob/main/specs/schemes/exact/scheme_exact_evm.md) |
 | The x402 reference facilitator nevertheless verifies a payer that has code through ERC-1271, and settles a 65-byte signature with the (v, r, s) form | Read in the code at commit `1a08434` (13 November 2026), then executed on 14 November 2026: packages `@x402/core` and `@x402/evm` 2.31.0, local chain, agent payer accepted and settled (`examples/x402`) | [eip3009.ts](https://github.com/x402-foundation/x402/blob/1a084343e165d6f61b60b34f6146d6e4a4a7f3ca/typescript/packages/mechanisms/evm/src/exact/facilitator/eip3009.ts) |
 | USDC `FiatTokenV2_2` checks contract payers through ERC-1271, in both forms of `transferWithAuthorization` | Confirmed by test against the compiled source, commit `fc85788` | [circlefin/stablecoin-evm](https://github.com/circlefin/stablecoin-evm) |
+| Automata DCAP Attestation returns, for a verified quote, its version, body type, security level, platform family and report body, in that order | Read in the source at tag `v1.2.0` (`serializeOutput`), 14 November 2026. Not executed | [automata-dcap-attestation](https://github.com/automata-network/automata-dcap-attestation/tree/v1.2.0) |
+| Automata's verifier does not check the debug flag of a TDX machine | Read in the same source: no test of the machine's attributes in the V4 and V5 verifiers. Not executed | Same |
+| Automata DCAP Attestation is deployed on Base | Stated by its repository (`deployment/current/8453`). **Not checked on-chain** | Same |
+| In dstack, the last runtime register contains the instance id and differs for each instance | Confirmed in its documentation, commit `b936f86` (13 November 2026) | [dstack attestation](https://github.com/Dstack-TEE/dstack/blob/master/docs/attestation-tdx.md) |
 | The USDC deployed on Base is `FiatTokenV2_2` | Confirmed on 14 November 2026 at block 57,208,253: the implementation `0x2Ce6311ddAE708829bc0784C967b7d77D19FD779` and its signature library are byte-identical to the code compiled from commit `fc85788`, apart from the metadata hash and the library address. Read through the public RPC `https://mainnet.base.org` | `examples/x402/check-usdc.mjs` |
 | The standard x402 client pays from an agent account once given the 28-line signer adapter | Confirmed by execution on 14 November 2026: packages `@x402/fetch` and `@x402/express` 2.31.0, local chain | `examples/x402/demo.mjs` |
 
