@@ -3,6 +3,7 @@ pragma solidity ^0.8.24;
 
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {SignatureChecker} from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import {IAgentRegistry} from "./IAgentRegistry.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
@@ -16,6 +17,10 @@ import {AgentAccount, IAgentKeys} from "./AgentAccount.sol";
 /// Attesters, threshold, bond and key lifetime are fixed at deployment.
 /// If an ERC-8004 identity registry is provided, the agent id is the ERC-8004 one and the
 /// sponsor must own it.
+/// If an enrollment verifier is provided, it replaces the attesters' signatures for
+/// enrollments: a contract that approves an enrollment digest (ERC-1271) once it has checked
+/// a proof itself, for example a hardware attestation. Attesters still decide on venues and
+/// revocations.
 contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
     struct Agent {
         address key;
@@ -38,6 +43,7 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
     uint256 public immutable bond; // anti-Sybil bond, in wei
     uint64 public immutable keyTtl; // lifetime of a session key
     IERC721 public immutable identityRegistry; // ERC-8004, or address(0)
+    address public immutable enrollmentVerifier; // ERC-1271 contract, or address(0)
 
     mapping(address => bool) public isAttester;
     mapping(uint256 => Agent) private _agents;
@@ -61,6 +67,7 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
     error BadBond();
     error NotEnoughAttesters();
     error BadAttester();
+    error NotVerified();
     error RefundFailed();
     error NotIdentityOwner();
 
@@ -69,7 +76,8 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
         uint256 threshold_,
         uint256 bond_,
         uint64 keyTtl_,
-        IERC721 identityRegistry_
+        IERC721 identityRegistry_,
+        address enrollmentVerifier_
     ) EIP712("AttestedAgentRegistry", "1") {
         if (threshold_ == 0 || threshold_ > attesters.length || keyTtl_ == 0) {
             revert BadConfig();
@@ -83,6 +91,7 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
         keyTtl = keyTtl_;
         accountImplementation = address(new AgentAccount());
         identityRegistry = identityRegistry_;
+        enrollmentVerifier = enrollmentVerifier_;
     }
 
     // ------------------------------------------------------------ views
@@ -126,7 +135,8 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
     // ------------------------------------------------------------ state changes
 
     /// Registers or replaces an agent's session key. The first caller becomes its sponsor and
-    /// pays the bond. `sigs`: attester signatures, sorted by increasing address.
+    /// pays the bond. `sigs`: attester signatures, sorted by increasing address; ignored when an
+    /// enrollment verifier is set.
     function enroll(uint256 agentId, address sessionKey, bytes32 evidenceHash, uint64 deadline, bytes[] calldata sigs)
         external
         payable
@@ -152,7 +162,12 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
             if (a.sponsor != msg.sender) revert NotSponsor();
             if (msg.value != 0) revert BadBond();
         }
-        _requireAttesters(hashEnrollment(agentId, sessionKey, evidenceHash, msg.sender, a.enrollments, deadline), sigs);
+        bytes32 digest = hashEnrollment(agentId, sessionKey, evidenceHash, msg.sender, a.enrollments, deadline);
+        if (enrollmentVerifier == address(0)) {
+            _requireAttesters(digest, sigs);
+        } else if (!SignatureChecker.isValidERC1271SignatureNow(enrollmentVerifier, digest, "")) {
+            revert NotVerified();
+        }
         a.enrollments += 1;
         a.key = sessionKey;
         a.keyExpiry = uint64(block.timestamp) + keyTtl;
