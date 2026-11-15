@@ -101,7 +101,7 @@ const balance = (who) => chain.readContract({ address: usdc, abi: usdcAbi, funct
 const registryArtifact = json("../../out/AttestedAgentRegistry.sol/AttestedAgentRegistry.json");
 const bond = parseEther("0.01");
 const registry = await deploy(sponsor, registryArtifact.abi, registryArtifact.bytecode.object, [
-  attesters.map((a) => a.address), 2n, bond, 30n * 24n * 3600n, zeroAddress,
+  attesters.map((a) => a.address), 2n, bond, 30n * 24n * 3600n, zeroAddress, zeroAddress,
 ]);
 const enrollment = {
   agentId: 1n,
