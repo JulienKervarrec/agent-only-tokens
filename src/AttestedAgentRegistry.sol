@@ -20,7 +20,8 @@ import {AgentAccount, IAgentKeys} from "./AgentAccount.sol";
 /// If an enrollment verifier is provided, it replaces the attesters' signatures for
 /// enrollments: a contract that approves an enrollment digest (ERC-1271) once it has checked
 /// a proof itself, for example a hardware attestation. Attesters still decide on venues and
-/// revocations.
+/// revocations, and they can replace the verifier: that is how the agents' program is upgraded
+/// without changing their ids, accounts or tokens.
 contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
     struct Agent {
         address key;
@@ -39,6 +40,8 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
     bytes32 private constant REVOKE_TYPEHASH = keccak256("Revocation(uint256 agentId)");
     bytes32 private constant VENUE_TYPEHASH =
         keccak256("Venue(address venue,bool approved,bytes32 evidenceHash,uint256 nonce)");
+    bytes32 private constant VERIFIER_TYPEHASH =
+        keccak256("Verifier(address verifier,bytes32 evidenceHash,uint256 nonce)");
 
     uint256 public immutable threshold;
     uint256 public immutable bond; // anti-Sybil bond, in wei
@@ -47,7 +50,8 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
     uint64 public constant EXIT_DELAY = 7 days;
     uint64 public immutable keyTtl; // lifetime of a session key
     IERC721 public immutable identityRegistry; // ERC-8004, or address(0)
-    address public immutable enrollmentVerifier; // ERC-1271 contract, or address(0)
+    address public enrollmentVerifier; // ERC-1271 contract, or address(0)
+    uint256 public verifierNonce; // one signature set = one replacement
 
     mapping(address => bool) public isAttester;
     mapping(uint256 => Agent) private _agents;
@@ -63,6 +67,7 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
     event Retired(uint256 indexed agentId);
     event BondWithdrawn(uint256 indexed agentId, uint256 amount);
     event VenueSet(address indexed venue, bool approved, bytes32 evidenceHash);
+    event EnrollmentVerifierSet(address indexed verifier, bytes32 evidenceHash);
 
     error BadConfig();
     error BadInput();
@@ -98,6 +103,7 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
         accountImplementation = address(new AgentAccount());
         identityRegistry = identityRegistry_;
         enrollmentVerifier = enrollmentVerifier_;
+        emit EnrollmentVerifierSet(enrollmentVerifier_, bytes32(0));
     }
 
     // ------------------------------------------------------------ views
@@ -192,6 +198,23 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
     /// an old approval cannot be replayed once the venue has been removed.
     function hashVenue(address venue, bool approved, bytes32 evidenceHash) public view returns (bytes32) {
         return _hashTypedDataV4(keccak256(abi.encode(VENUE_TYPEHASH, venue, approved, evidenceHash, venueNonce[venue])));
+    }
+
+    /// Attesters replace the enrollment verifier, after checking what the new one accepts: for
+    /// example a new version of the agents' program. Nothing else changes: agents keep their id,
+    /// account and current key, and their next key must satisfy the new verifier. With
+    /// address(0), enrollments are signed by the attesters again.
+    function setEnrollmentVerifier(address verifier, bytes32 evidenceHash, bytes[] calldata sigs) external {
+        _requireAttesters(hashVerifier(verifier, evidenceHash), sigs);
+        verifierNonce += 1;
+        enrollmentVerifier = verifier;
+        emit EnrollmentVerifierSet(verifier, evidenceHash);
+    }
+
+    /// Digest for the next replacement of the verifier. It changes after each one, so that an
+    /// old decision cannot be replayed.
+    function hashVerifier(address verifier, bytes32 evidenceHash) public view returns (bytes32) {
+        return _hashTypedDataV4(keccak256(abi.encode(VERIFIER_TYPEHASH, verifier, evidenceHash, verifierNonce)));
     }
 
     /// The sponsor can freeze or unfreeze its agent.

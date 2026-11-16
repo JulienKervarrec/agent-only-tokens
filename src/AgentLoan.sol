@@ -23,6 +23,8 @@ contract AgentLoan is ReentrancyGuard {
     }
 
     mapping(IERC721 => mapping(uint256 => Loan)) public loans;
+    /// Repayments waiting for their lender, per currency.
+    mapping(IERC20 => mapping(address => uint256)) public owed;
 
     // Loans cannot be enumerated on-chain: these events are how an agent finds offers to fund.
     event Offered(
@@ -82,15 +84,25 @@ contract AgentLoan is ReentrancyGuard {
         l.currency.safeTransferFrom(msg.sender, l.borrower, l.principal);
     }
 
-    /// Allowed even after the due date, as long as the lender has not claimed.
+    /// Allowed even after the due date, as long as the lender has not claimed. The repayment
+    /// is kept here for the lender to `withdraw`: a lender that cannot or will not receive the
+    /// currency cannot make a repayment fail and then claim the token.
     function repay(IERC721 nft, uint256 id) external nonReentrant {
         Loan memory l = loans[nft][id];
         if (l.borrower != msg.sender) revert NotParty();
         if (l.lender == address(0)) revert BadState();
         delete loans[nft][id];
+        owed[l.currency][l.lender] += l.repay;
         emit Repaid(nft, id);
-        l.currency.safeTransferFrom(msg.sender, l.lender, l.repay);
+        l.currency.safeTransferFrom(msg.sender, address(this), l.repay);
         nft.transferFrom(address(this), msg.sender, id);
+    }
+
+    /// A lender collects what its borrowers have repaid in `currency`.
+    function withdraw(IERC20 currency) external nonReentrant {
+        uint256 amount = owed[currency][msg.sender];
+        owed[currency][msg.sender] = 0;
+        currency.safeTransfer(msg.sender, amount);
     }
 
     function claim(IERC721 nft, uint256 id) external nonReentrant {

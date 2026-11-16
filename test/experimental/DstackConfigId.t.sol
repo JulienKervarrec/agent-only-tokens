@@ -194,6 +194,116 @@ contract DstackConfigIdTest is AgentOnlyBase {
         assertEq(tnft.ownerOf(1), address(acc));
     }
 
+    // ------------------------------------------------------------ upgrading the program
+
+    function _quoteFor(bytes memory base, bytes32 digest) internal pure returns (bytes memory q) {
+        q = bytes.concat(base);
+        for (uint256 i; i < 32; ++i) {
+            q[REPORT_DATA + i] = digest[i];
+        }
+    }
+
+    function _registry(address enrollmentVerifier) internal returns (AttestedAgentRegistry) {
+        address[] memory att = new address[](3);
+        (att[0], att[1], att[2]) = (vm.addr(A1), vm.addr(A2), vm.addr(A3));
+        return new AttestedAgentRegistry(att, 2, BOND, TTL, IERC721(address(0)), enrollmentVerifier);
+    }
+
+    function _replace(AttestedAgentRegistry r, address next) internal {
+        r.setEnrollmentVerifier(next, keccak256("review"), _attest(A1, A2, r.hashVerifier(next, keccak256("review"))));
+    }
+
+    /// The agents' program changes from the first build to the second one. The attesters replace
+    /// the verifier; the agent keeps its id, its account and its token.
+    function test_ProgramUpgradeKeepsTheAccountAndItsTokens() public {
+        bytes memory other = vm.parseBytes(vm.readFile("test/experimental/phala/quote-other-machine.hex"));
+        AttestedAgentRegistry treg = _registry(address(verifier));
+        AnyCollection tnft = new AnyCollection(IAgentRegistry(address(treg)));
+        DstackConfigIdVerifier second = _verifier(V2_CODE);
+        address key = vm.addr(ENCLAVE_KEY);
+        address nextKey = vm.addr(ENCLAVE_KEY + 1);
+
+        verifier.attest(_quoteFor(quote, treg.hashEnrollment(9, key, COMPOSE, SPONSOR1, 0, FAR)));
+        vm.prank(SPONSOR1);
+        treg.enroll{value: BOND}(9, key, COMPOSE, FAR, new bytes[](0));
+        AgentAccount acc = AgentAccount(payable(treg.accountOf(9)));
+        vm.prank(key);
+        acc.execute(address(tnft), 0, abi.encodeCall(tnft.mint, (bytes32(uint256(1)))));
+
+        // The second build asks for a key before the attesters have decided: refused.
+        second.attest(_quoteFor(other, treg.hashEnrollment(9, nextKey, V2_COMPOSE, SPONSOR1, 1, FAR)));
+        vm.prank(SPONSOR1);
+        vm.expectRevert(AttestedAgentRegistry.NotVerified.selector);
+        treg.enroll(9, nextKey, V2_COMPOSE, FAR, new bytes[](0));
+
+        vm.expectEmit(address(treg));
+        emit AttestedAgentRegistry.EnrollmentVerifierSet(address(second), keccak256("review"));
+        _replace(treg, address(second));
+
+        // The key enrolled under the first build still works until it is replaced or expires.
+        vm.prank(key);
+        acc.execute(address(tnft), 0, abi.encodeCall(tnft.mint, (bytes32(uint256(2)))));
+        // The first build can no longer obtain a key.
+        verifier.attest(_quoteFor(quote, treg.hashEnrollment(9, key, COMPOSE, SPONSOR1, 1, FAR)));
+        vm.prank(SPONSOR1);
+        vm.expectRevert(AttestedAgentRegistry.NotVerified.selector);
+        treg.enroll(9, key, COMPOSE, FAR, new bytes[](0));
+
+        vm.prank(SPONSOR1);
+        treg.enroll(9, nextKey, V2_COMPOSE, FAR, new bytes[](0));
+        assertEq(treg.accountOf(9), address(acc));
+        vm.prank(key);
+        vm.expectRevert(AgentAccount.NotKey.selector);
+        acc.execute(address(tnft), 0, abi.encodeCall(tnft.mint, (bytes32(uint256(3)))));
+        vm.prank(nextKey);
+        acc.execute(address(tnft), 0, abi.encodeCall(tnft.mint, (bytes32(uint256(3)))));
+        assertEq(tnft.balanceOf(address(acc)), 3);
+        assertEq(tnft.ownerOf(1), address(acc));
+    }
+
+    function test_OnlyTheAttestersReplaceTheVerifier() public {
+        AttestedAgentRegistry treg = _registry(address(verifier));
+        address next = address(_verifier(V2_CODE));
+        bytes32 digest = treg.hashVerifier(next, keccak256("review"));
+        bytes[] memory one = new bytes[](1);
+        one[0] = _sign(A1, digest);
+        vm.expectRevert(AttestedAgentRegistry.NotEnoughAttesters.selector);
+        treg.setEnrollmentVerifier(next, keccak256("review"), one);
+        vm.expectRevert(AttestedAgentRegistry.BadAttester.selector);
+        treg.setEnrollmentVerifier(next, keccak256("review"), _attest(A1, HUMAN_PK, digest));
+        // Signatures given for one verifier do not install another one, nor another evidence.
+        bytes[] memory sigs = _attest(A1, A2, digest);
+        vm.expectRevert(AttestedAgentRegistry.BadAttester.selector);
+        treg.setEnrollmentVerifier(address(verifier), keccak256("review"), sigs);
+        vm.expectRevert(AttestedAgentRegistry.BadAttester.selector);
+        treg.setEnrollmentVerifier(next, keccak256("other"), sigs);
+
+        treg.setEnrollmentVerifier(next, keccak256("review"), sigs);
+        assertEq(treg.enrollmentVerifier(), next);
+        // The attesters go back to the first verifier; the earlier decision cannot be replayed.
+        _replace(treg, address(verifier));
+        vm.expectRevert(AttestedAgentRegistry.BadAttester.selector);
+        treg.setEnrollmentVerifier(next, keccak256("review"), sigs);
+        assertEq(treg.enrollmentVerifier(), address(verifier));
+    }
+
+    function test_DeploymentAnnouncesItsVerifier() public {
+        vm.expectEmit();
+        emit AttestedAgentRegistry.EnrollmentVerifierSet(address(verifier), bytes32(0));
+        _registry(address(verifier));
+    }
+
+    function test_WithoutVerifierEnrollmentsAreSignedAgain() public {
+        AttestedAgentRegistry treg = _registry(address(verifier));
+        _replace(treg, address(0));
+        address key = vm.addr(ENCLAVE_KEY);
+        vm.prank(SPONSOR1);
+        vm.expectRevert(AttestedAgentRegistry.NotEnoughAttesters.selector);
+        treg.enroll{value: BOND}(9, key, COMPOSE, FAR, new bytes[](0));
+        _enroll(treg, SPONSOR1, 9, key, BOND);
+        assertEq(treg.keyOf(9), key);
+    }
+
     /// The event-log verifier accepts the same production quote, with its ten real events.
     function test_EventLogVerifierAcceptsTheSameQuote() public {
         bytes memory events = vm.parseBytes(vm.readFile("test/experimental/phala/event-digests.hex"));

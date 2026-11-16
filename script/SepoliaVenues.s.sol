@@ -83,6 +83,7 @@ contract SepoliaVenues is AgentScript {
         _agentDoes(k2, ACC2, address(loan), abi.encodeCall(loan.fund, (IERC721(address(NFT)), t1, IERC20(address(USD)), 10e6, 11e6, 1 days)));
         _agentDoes(k1, ACC1, address(USD), abi.encodeCall(USD.approve, (address(loan), 11e6)));
         _agentDoes(k1, ACC1, address(loan), abi.encodeCall(loan.repay, (IERC721(address(NFT)), t1)));
+        _agentDoes(k2, ACC2, address(loan), abi.encodeCall(loan.withdraw, (IERC20(address(USD)))));
 
         // Loan left to default: one-minute term; agent 2 claims the token in step 2.
         uint256 t2 = abi.decode(_agentDoes(k1, ACC1, address(NFT), abi.encodeCall(NFT.mint, (keccak256("loan, defaulted")))), (uint256));

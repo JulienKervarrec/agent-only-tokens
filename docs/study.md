@@ -5,7 +5,7 @@ Julien Kervarrec · November 2026
 This document records how the Agent-Only Tokens draft was reached: what already
 exists, how the design was narrowed down, what the resulting standard says, and
 what it can be used for. Figures about the prototype come from tests run on a
-local simulated EVM, except those of sections 3.12 to 3.15, measured on the
+local simulated EVM, except those of sections 3.12 to 3.16, measured on the
 Base Sepolia test network. Nothing has been deployed on a main network, and nothing has been
 audited.
 
@@ -369,14 +369,14 @@ The token asks the registry only two questions: `isAgent(address)` and
 | `IERC721AgentOnly` | The interface a compliant token exposes, advertised through ERC-165 | 10 |
 | `IAgentRegistry` | The two questions asked to the registry | 10 |
 | `AgentAccount` | An agent's account, with no human owner. Only its session key makes it act: single calls, all-or-nothing batches, relayed calls, ERC-1271. Each account is an ERC-1167 clone of one implementation | 139 |
-| `AttestedAgentRegistry` | Proof of agent, version 1: attesters, bond, expiring keys, freeze, revocation, venue approval, ERC-8004 link, optional enrollment verifier, bond returned after an exit delay | 251 |
+| `AttestedAgentRegistry` | Proof of agent, version 1: attesters, bond, expiring keys, freeze, revocation, venue approval, ERC-8004 link, optional enrollment verifier that the attesters can replace, bond returned after an exit delay | 274 |
 | `TdxQuoteVerifier` | Checks shared by the hardware verifiers: genuine quote, accepted platform, no debug mode, report data (`src/experimental`) | 116 |
 | `TdxEnrollmentVerifier` | Enrollment by Intel TDX attestation, for images measured the same for every instance | 41 |
 | `DstackEnrollmentVerifier` | Enrollment of agents on dstack: replays the RTMR3 event log, code = base image + compose hash (`src/experimental`) | 138 |
 | `Sha384` | SHA-384 for replaying TDX registers (no EVM precompile) | 92 |
 | `DstackConfigIdVerifier` | Enrollment of agents on dstack from the quote alone: the compose hash is read in `MRCONFIGID` (`src/experimental`, section 3.14) | 58 |
 | `AgentSwap` | Fixed-price sale between agents; events announce each listing and sale | 64 |
-| `AgentLoan` | Collateralised loan between agents; events announce each offer and each step | 104 |
+| `AgentLoan` | Collateralised loan between agents; repayments wait in the venue for the lender; events announce each offer and each step | 116 |
 | `AgentStaking` | Staking for ERC-20 rewards, Synthetix-style accounting, one NFT = one unit | 130 |
 | `AgentWrapped721` | Wrapper making any existing ERC-721 agent-only | 80 |
 | `AgentWrappedUniV3` | Non-unwrappable wrapper for Uniswap V3 positions | 98 |
@@ -384,7 +384,7 @@ The token asks the registry only two questions: `isAgent(address)` and
 
 ### 3.3 What the tests establish
 
-One hundred and fifteen tests on a local simulated EVM, three fuzzed and one
+One hundred and twenty tests on a local simulated EVM, three fuzzed and one
 stateful invariant test, plus four properties proved symbolically
 (section 2.5). Three more tests run only on a fork of Base Sepolia (section 3.12)
 and are reported as skipped otherwise.
@@ -405,7 +405,9 @@ and are reported as skipped otherwise.
 | 128 runs of 100 random actions by two agents, a human and an unapproved contract | After every action, no token is held by or approved for anything but an agent account or an approved venue |
 | Several calls in one batch, direct or relayed | All or nothing; a human cannot batch for the agent |
 | The five attacks found by the first review and the weaknesses found by the second (sections 2.3 and 2.4) | Each one is now rejected |
-| Each of 85 security checks removed in turn (mutation testing) | The suite fails every time |
+| Each of 97 security checks removed in turn (mutation testing) | The suite fails every time |
+| The attesters replace the enrollment verifier to accept a new program (section 3.16) | The agent keeps its id, account, tokens and current key; its next key must come from the new program; one attester alone, another verifier or a replayed decision is refused |
+| A lender that can no longer receive the currency | The borrower still repays and takes its token back; the repayment waits in the venue |
 | The five weaknesses found by the third review (section 2.5) | Each one is now rejected |
 | A listing, its cancellation and its sale; a loan offered, cancelled, funded, repaid, claimed | Each step emits its event, with the terms an agent needs to decide |
 | A sponsor or an issuer that cannot receive ETH asks for its refund | The call fails and the bond or deposit stays recorded |
@@ -538,8 +540,8 @@ L1 data fee comes on top; it was measured on Base Sepolia (section 3.12).
 | Agent-only mint, through the agent account | 131,452 |
 | List for sale (with its event, since the fourth pass) | 114,596 |
 | Buy (NFT against an ERC-20; with its event) | 116,377 |
-| First enrollment (deploys the account as a clone, 2 attester signatures) | 208,898 |
-| Key rotation (2 attester signatures) | 53,219 |
+| First enrollment (deploys the account as a clone, 2 attester signatures) | 211,057 |
+| Key rotation (2 attester signatures) | 55,366 |
 | Badge offer, by an issuer | 252,743 |
 | Badge claim, through the agent account | 95,569 |
 | Stake, through the agent account | 165,366 |
@@ -549,7 +551,7 @@ L1 data fee comes on top; it was measured on Base Sepolia (section 3.12).
 
 The standard adds about 15,000 gas to a transfer: the registry is asked about
 the caller and the holder, and about the recipient when it is not the caller. Agent accounts are ERC-1167 clones of a single implementation, which brought
-the first enrollment down from 1,154,831 to 208,898 gas. The price is about
+the first enrollment down from 1,154,831 to 211,057 gas. The price is about
 3,650 extra gas on every call through an account, which reads its registry and
 id from its own code; the saving pays for about 260 calls per agent. The
 implementation itself refuses every call.
@@ -1030,13 +1032,73 @@ The retry could not be provoked on the public shop and is covered by the local
 test only. The budget bounds what a caller can make the agent spend; it does
 not say who may ask, and it lives in the machine's memory.
 
-**A limit this run makes visible: a new version is a new agent.** The
-verifier's list of approved code is fixed at deployment, and so is the
+**A limit this run made visible: a new version was a new agent.** The
+verifier's list of approved code is fixed at deployment, and so was the
 registry's verifier. Fixing the program therefore meant a new verifier, a new
 registry and a new account; the 19.96 test USDC of the second agent stay on its
-account, which only a machine running the second program can use. Letting an
-agent keep its account across versions needs a rule for who may approve new
-code, which this draft does not define.
+account, which only a machine running the second program can use. Section 3.16
+removes this limit.
+
+### 3.16 Upgrading the program without changing the account
+
+Done on 16 November 2026, to remove the limit found in section 3.15.
+
+**The rule.** The registry's attesters can replace its enrollment verifier
+(`setEnrollmentVerifier`), with the same signatures, threshold and replay
+protection as for venues. Nothing else changes.
+
+- **What stays.** The agent's id, its account, its tokens, and its current
+  key until it expires or is replaced.
+- **What changes.** The agent's next key must satisfy the new verifier. A
+  program the new verifier does not list can no longer obtain a key: it dies
+  out within one key lifetime, 30 days in our deployments.
+- **Cost.** One more storage read per enrollment, about 2,150 gas (section
+  3.9). Transfers do not read the verifier.
+
+**Why this shape.**
+
+| Option considered | Why it was not kept |
+| --- | --- |
+| The sponsor approves new code for its own agent | The sponsor is a human. It could approve a program that hands it the key, and "no human" would no longer hold |
+| A verifier whose list of programs can grow | Every verifier would need its own access rule. An immutable verifier is a fixed, checkable statement of what it accepts |
+| A waiting period before a new verifier takes effect | Venue approvals take effect at once and carry the same risk. A delay on one and not the other would protect nothing. A delay on both is a possible hardening (section 8) |
+
+Replacing the verifier is also the way to change the DCAP verifier, the
+accepted platform level, or to move to a zk route, without a new registry.
+
+**What it costs in trust.** Before this change, a registry deployed with a
+verifier could never enroll a key without the proof. Now two of three attesters
+can install a verifier that accepts anything. They could already approve a
+venue that hands tokens to humans, so the class of trust is the same; but the
+hardware proof no longer binds the attesters themselves. Each replacement emits
+an event, and the deployment emits the first one.
+
+**Tested.** Four tests on the real quotes: an upgrade from the first program
+to the second keeps the account and its tokens; one attester, another verifier
+address, another evidence hash or a replayed decision is refused; removing the
+verifier returns enrollments to attester signatures. Removing any of the 8
+added checks makes a test fail.
+
+**Run on Base Sepolia**, on the machine of the previous sections.
+
+| Step | Result |
+| --- | --- |
+| A registry whose verifier approves the second program only | [`0x2D01…06b3`](https://sepolia.basescan.org/address/0x2D01ac2608DD8e898080C6C6c2ae1d7Ff01106b3) |
+| The machine runs the second program; quote verified, agent enrolled ([tx](https://sepolia.basescan.org/tx/0xe9ac0662bbc47b366c2d7b05838a3899df0b00b1d0b02f947c0d8a47e1f3a6e1)) | Account [`0xd960…86ED`](https://sepolia.basescan.org/address/0xd960545936a5D167356D8922C6E45198665786ED) |
+| The agent mints ([tx](https://sepolia.basescan.org/tx/0xefc45cb0d57022b76c87e430cf8514d7958023a7dc1b87da1c66dbfcc4a03285)) | One token |
+| The machine is updated to the third program: a new key, a new quote, verified by the third program's verifier | The registry still asks the first verifier: enrolling that key is refused (`NotVerified`), and so is its order (`NotKey`) |
+| Two of the three attesters replace the verifier ([tx](https://sepolia.basescan.org/tx/0x1e8b0e4211dc25b81e61380caa9442f1cc7163b5a8503e89eb68087456d65df1)) | 68,095 gas. The same signatures sent again are refused (`BadAttester`) |
+| The new key is enrolled ([tx](https://sepolia.basescan.org/tx/0xd7068b33141d8984cac30c54b0297c71308fcdf19824b69e16c130eebe0d59f1)) | 45,950 gas. Same agent id, same account |
+| The agent mints again ([tx](https://sepolia.basescan.org/tx/0x9224ec4f09d2809fc998540294852080b8b8bb9b5ccb4a5b32fceb756b20477d)) | The account holds both tokens |
+
+The two refusals before the decision were simulated on the chain's state one
+block earlier; the other steps are transactions.
+
+**Loan repayments, fixed the same day.** A repayment used to be sent straight
+to the lender, so a lender that could not receive the currency (blocklist,
+receive hook) could make it fail and then claim the collateral. Repayments now
+wait in the venue and the lender withdraws them. One test with a blocklisting
+currency; 4 more mutation checks.
 
 ## 4. Use cases
 
@@ -1130,21 +1192,15 @@ Options studied and set aside:
   part of the measured manifest, installs SSH keys from a file dstack does not
   measure: an agent's key is only as private as the approved base image is
   closed to SSH, which was not checked (section 3.15).
-- **A new program version is a new agent.** Approved code is fixed when a
-  verifier is deployed. Tokens and money do not follow from one version to the
-  next (section 3.15). The simpler
-  verifier relies on the dstack OS refusing a wrong `MRCONFIGID`, which was
-  read in its source, not provoked. The default registry still only checks
-  signatures.
+- **The attesters can replace the enrollment verifier.** A program can be
+  upgraded without changing the account, but the hardware proof binds a
+  registry only as long as its attesters keep a verifier that demands it.
+  Nothing delays a replacement (section 3.16).
 - **dstack key provider.** The dstack verifier checks the code, not the
   `key-provider` event nor the application's environment variables. Approved
   code must keep its session key in memory only (section 3.11).
-- **Loan repayment is pushed to the lender.** With a currency that lets a
-  recipient refuse a transfer (receive hooks, blocklists), a lender could make
-  repayment fail and then claim the collateral. The borrower chooses the
-  currency and should pick a plain ERC-20. Holding repayments in the venue for
-  the lender to withdraw would remove this, at the price of one more
-  transaction per loan.
+- **Loan currencies that take a fee on transfers** are not supported: the
+  venue would owe lenders more than it holds.
 - **The standard protects the NFT, not what it yields.** Tokens withdrawn from
   a position are ordinary ERC-20s.
 - **Selling a position.** The buyer must check its liquidity in the same batch
@@ -1188,8 +1244,10 @@ Options studied and set aside:
 2. Done on 16 November 2026 (section 3.14): x402 payments from an agent
    account on Base Sepolia, through a hosted facilitator, then a budget per
    key (section 3.15). Next: a purchase whose result the agent uses.
-3. A rule for upgrading an agent's program without changing its account: who
-   may approve new code, and how holders are warned.
+3. Done on 16 November 2026 (section 3.16): the attesters can replace the
+   enrollment verifier, so a program is upgraded without changing the account.
+   Next: a waiting period on every decision that widens who can hold tokens
+   (venue approval and verifier replacement), so holders can see it coming.
 4. Enrollment through a zk proof of the quote verification, about 500,000 gas
    instead of 4.3 million. Checked on chain on 15 November 2026: RISC Zero's
    verifier router is deployed on Base Sepolia, but Automata's entrypoint
