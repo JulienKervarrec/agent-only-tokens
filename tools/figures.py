@@ -11,7 +11,7 @@ A figure is written in the Markdown files between two invisible markers:
 
 Figures: number of tests (`forge test --list`), lines per contract, gas per operation
 (snapshots/Gas.json, which `forge test --isolate --match-contract GasTest` rewrites),
-symbolic proofs, mutants, accepted Slither findings.
+symbolic proofs, mutants, accepted Slither findings, deployed and verified contracts.
 """
 
 import json
@@ -58,6 +58,14 @@ def figures(forge_args):
     out["mutants"], out["mutants.listed"], out["mutants.automatic"] = number(total), number(listed), number(total - listed)
     out["mutants.accepted"] = number(len(json.loads((ROOT / "tools" / "mutations-accepted.json").read_text())))
     out["slither.accepted"] = number(len(json.loads((ROOT / "tools" / "slither-accepted.json").read_text())))
+
+    deployed = json.loads((ROOT / "deployments" / "base-sepolia.json").read_text())["contracts"]
+    verified = [c["sourcify"] for c in deployed if "sourcify" in c]
+    out["deployed"] = number(len(deployed))
+    out["deployed.clones"] = number(len(deployed) - len(verified))
+    out["deployed.verified"] = number(len(verified))
+    out["deployed.exact"] = number(verified.count("exact_match"))
+    out["deployed.match"] = number(verified.count("match"))
     return out
 
 
