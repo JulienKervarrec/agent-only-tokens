@@ -61,13 +61,17 @@ USDC (`0x2Ce6311ddAE708829bc0784C967b7d77D19FD779`) and its signature library
 (`0x2D943E25e1859ED786AFe4AFB2B42e14EFAC691e`) are identical to `test/usdc`,
 apart from the compiler's metadata hash and the library's address. That
 comparison was run from a browser against `https://mainnet.base.org`; the
-script applies the same comparison and was run here against a local chain only
-(genuine code, a modified token, a modified library, an empty address).
+script applies the same comparison and was run here against a local chain
+(genuine code, a modified token, a modified library, an empty address), then
+on 16 November 2026 against the test USDC of Base Sepolia
+(`0x036CbD53842c5426634e7929541eC2318f3dCF7e`, block 59,533,350): identical.
 
 ## Limits
 
-- Local chain. No payment was made on Base or on a testnet.
-- The facilitator is the open-source reference code. A hosted facilitator may
-  run other code or add its own rules.
+- This demo runs on a local chain. The same payment was made on Base Sepolia
+  through the hosted x402.org facilitator, by an agent in a confidential VM:
+  see `../enclave-agent`. No payment was made on a main network.
+- The facilitator here is the open-source reference code. A production
+  facilitator may run other code or add its own rules.
 - USDC is upgradeable: Circle can change the code the comparison was made against.
 - No key is stored in this folder: the demo generates every key at start.
