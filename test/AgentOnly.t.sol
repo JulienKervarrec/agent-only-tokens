@@ -23,6 +23,20 @@ contract MockUSDC is ERC20 {
     }
 }
 
+/// A currency whose issuer can stop an address from receiving it, as some stablecoins can.
+contract BlocklistToken is MockUSDC {
+    mapping(address => bool) public blocked;
+
+    function setBlocked(address who, bool value) external {
+        blocked[who] = value;
+    }
+
+    function _update(address from, address to, uint256 value) internal override {
+        require(!blocked[to], "blocked");
+        super._update(from, to, value);
+    }
+}
+
 /// Stands in for the ERC-8004 identity registry: a plain ERC-721.
 contract MockIdentity is ERC721 {
     constructor() ERC721("Agent Identity", "AID") {}
@@ -275,7 +289,14 @@ contract AgentOnlyTest is AgentOnlyBase {
         _do(K1, acc1, address(usdc), abi.encodeCall(usdc.approve, (address(loan), 440)));
         _do(K1, acc1, address(loan), abi.encodeCall(loan.repay, (nft, id)));
         assertEq(nft.ownerOf(id), address(acc1));
+        // The repayment waits in the venue; the lender collects it, once.
+        assertEq(usdc.balanceOf(address(acc2)), 600);
+        assertEq(loan.owed(usdc, address(acc2)), 440);
+        _do(K2, acc2, address(loan), abi.encodeCall(loan.withdraw, (usdc)));
         assertEq(usdc.balanceOf(address(acc2)), 1_040);
+        _do(K2, acc2, address(loan), abi.encodeCall(loan.withdraw, (usdc)));
+        assertEq(usdc.balanceOf(address(acc2)), 1_040);
+        assertEq(usdc.balanceOf(address(loan)), 0);
 
         // Second loan, not repaid: the lender claims the token after the due date.
         _do(K1, acc1, address(nft), abi.encodeCall(nft.approve, (address(loan), id)));
@@ -688,6 +709,36 @@ contract AgentOnlyTest is AgentOnlyBase {
         vm.expectEmit(address(swap));
         emit AgentSwap.Sold(nft, id, address(acc2), usdc, 300);
         _do(K2, acc2, address(swap), abi.encodeCall(swap.buy, (nft, id, usdc, 300)));
+    }
+
+    function test_LenderThatCannotReceiveDoesNotBlockRepayment() public {
+        BlocklistToken token = new BlocklistToken();
+        token.mint(address(acc1), 100);
+        token.mint(address(acc2), 400);
+        uint256 id = _mint(K1, acc1);
+        _do(K1, acc1, address(nft), abi.encodeCall(nft.approve, (address(loan), id)));
+        _do(K1, acc1, address(loan), abi.encodeCall(loan.offer, (nft, id, token, 400, 440, 900)));
+        _do(K2, acc2, address(token), abi.encodeCall(token.approve, (address(loan), 400)));
+        _do(K2, acc2, address(loan), abi.encodeCall(loan.fund, (nft, id, token, 400, 440, 900)));
+
+        // The lender can no longer receive the currency. The borrower still repays and gets
+        // its token back; the lender has nothing left to claim.
+        token.setBlocked(address(acc2), true);
+        _do(K1, acc1, address(token), abi.encodeCall(token.approve, (address(loan), 440)));
+        _do(K1, acc1, address(loan), abi.encodeCall(loan.repay, (nft, id)));
+        assertEq(nft.ownerOf(id), address(acc1));
+        vm.warp(NOW + 901);
+        vm.prank(vm.addr(K2));
+        vm.expectRevert(AgentLoan.NotParty.selector);
+        acc2.execute(address(loan), 0, abi.encodeCall(loan.claim, (nft, id)));
+
+        // Its money waits for it.
+        vm.prank(vm.addr(K2));
+        vm.expectRevert("blocked");
+        acc2.execute(address(loan), 0, abi.encodeCall(loan.withdraw, (token)));
+        token.setBlocked(address(acc2), false);
+        _do(K2, acc2, address(loan), abi.encodeCall(loan.withdraw, (token)));
+        assertEq(token.balanceOf(address(acc2)), 440);
     }
 
     function test_LoanEventsAnnounceEachStep() public {
