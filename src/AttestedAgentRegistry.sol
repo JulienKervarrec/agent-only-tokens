@@ -61,6 +61,7 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
     event FrozenSet(uint256 indexed agentId, bool frozen);
     event Revoked(uint256 indexed agentId);
     event Retired(uint256 indexed agentId);
+    event BondWithdrawn(uint256 indexed agentId, uint256 amount);
     event VenueSet(address indexed venue, bool approved, bytes32 evidenceHash);
 
     error BadConfig();
@@ -232,6 +233,7 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
         if (block.timestamp < a.retiredAt + EXIT_DELAY) revert TooEarly();
         uint256 refund = a.bondHeld;
         a.bondHeld = 0;
+        emit BondWithdrawn(agentId, refund);
         (bool sent,) = msg.sender.call{value: refund}("");
         if (!sent) revert RefundFailed();
     }

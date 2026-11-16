@@ -21,6 +21,13 @@ contract AgentSwap is ReentrancyGuard {
 
     mapping(IERC721 => mapping(uint256 => Listing)) public listings;
 
+    // Listings cannot be enumerated on-chain: these events are how an agent finds what is for sale.
+    event Listed(
+        IERC721 indexed nft, uint256 indexed id, address indexed seller, address buyer, IERC20 currency, uint256 price
+    );
+    event Cancelled(IERC721 indexed nft, uint256 indexed id);
+    event Sold(IERC721 indexed nft, uint256 indexed id, address indexed buyer, IERC20 currency, uint256 price);
+
     error NotOwner();
     error NotListed();
     error NotBuyer();
@@ -29,11 +36,13 @@ contract AgentSwap is ReentrancyGuard {
     function list(IERC721 nft, uint256 id, IERC20 currency, uint256 price, address buyer) external {
         if (nft.ownerOf(id) != msg.sender) revert NotOwner();
         listings[nft][id] = Listing(msg.sender, buyer, currency, price);
+        emit Listed(nft, id, msg.sender, buyer, currency, price);
     }
 
     function cancel(IERC721 nft, uint256 id) external {
         if (listings[nft][id].seller != msg.sender) revert NotOwner();
         delete listings[nft][id];
+        emit Cancelled(nft, id);
     }
 
     /// The buyer states the currency and price it agreed to: the seller cannot change them
@@ -48,6 +57,7 @@ contract AgentSwap is ReentrancyGuard {
         // not come back to life if the token returns to the seller. `setApprovalForAll` is not enough.
         if (nft.getApproved(id) != address(this)) revert NotListed();
         delete listings[nft][id];
+        emit Sold(nft, id, msg.sender, l.currency, l.price);
         if (l.price != 0) l.currency.safeTransferFrom(msg.sender, l.seller, l.price);
         nft.transferFrom(l.seller, msg.sender, id);
     }

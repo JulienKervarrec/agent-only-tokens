@@ -24,6 +24,21 @@ contract AgentLoan is ReentrancyGuard {
 
     mapping(IERC721 => mapping(uint256 => Loan)) public loans;
 
+    // Loans cannot be enumerated on-chain: these events are how an agent finds offers to fund.
+    event Offered(
+        IERC721 indexed nft,
+        uint256 indexed id,
+        address indexed borrower,
+        IERC20 currency,
+        uint256 principal,
+        uint256 repayAmount,
+        uint64 duration
+    );
+    event Cancelled(IERC721 indexed nft, uint256 indexed id);
+    event Funded(IERC721 indexed nft, uint256 indexed id, address indexed lender, uint64 due);
+    event Repaid(IERC721 indexed nft, uint256 indexed id);
+    event Claimed(IERC721 indexed nft, uint256 indexed id, address indexed lender);
+
     error NotParty();
     error BadState();
     error NotDue();
@@ -36,6 +51,7 @@ contract AgentLoan is ReentrancyGuard {
     {
         if (loans[nft][id].borrower != address(0)) revert BadState();
         loans[nft][id] = Loan(msg.sender, address(0), currency, principal, repayAmount, duration, 0);
+        emit Offered(nft, id, msg.sender, currency, principal, repayAmount, duration);
         nft.transferFrom(msg.sender, address(this), id);
     }
 
@@ -45,6 +61,7 @@ contract AgentLoan is ReentrancyGuard {
         if (l.borrower != msg.sender) revert NotParty();
         if (l.lender != address(0)) revert BadState();
         delete loans[nft][id];
+        emit Cancelled(nft, id);
         nft.transferFrom(address(this), msg.sender, id);
     }
 
@@ -61,6 +78,7 @@ contract AgentLoan is ReentrancyGuard {
         }
         l.lender = msg.sender;
         l.due = uint64(block.timestamp) + l.duration;
+        emit Funded(nft, id, msg.sender, l.due);
         l.currency.safeTransferFrom(msg.sender, l.borrower, l.principal);
     }
 
@@ -70,6 +88,7 @@ contract AgentLoan is ReentrancyGuard {
         if (l.borrower != msg.sender) revert NotParty();
         if (l.lender == address(0)) revert BadState();
         delete loans[nft][id];
+        emit Repaid(nft, id);
         l.currency.safeTransferFrom(msg.sender, l.lender, l.repay);
         nft.transferFrom(address(this), msg.sender, id);
     }
@@ -79,6 +98,7 @@ contract AgentLoan is ReentrancyGuard {
         if (l.lender != msg.sender) revert NotParty();
         if (block.timestamp <= l.due) revert NotDue();
         delete loans[nft][id];
+        emit Claimed(nft, id, msg.sender);
         nft.transferFrom(address(this), msg.sender, id);
     }
 }

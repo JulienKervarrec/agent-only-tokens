@@ -49,6 +49,7 @@ contract AgentReputationBadge is ERC721AgentOnly, IERC5192 {
 
     event IssuerRegistered(address indexed issuer, uint256 deposit);
     event IssuerRetired(address indexed issuer);
+    event DepositWithdrawn(address indexed issuer, uint256 amount);
     event Offered(
         uint256 indexed offerId, address indexed issuer, address indexed agent, bytes32 category, bytes32 evidenceHash
     );
@@ -66,6 +67,7 @@ contract AgentReputationBadge is ERC721AgentOnly, IERC5192 {
     error NoSuchOffer();
     error TooEarly();
     error BadInput();
+    error RefundFailed();
 
     constructor(IAgentRegistry registry_, uint256 issuerDeposit_, uint32 dailyQuota_, uint64 exitDelay_)
         ERC721("Agent Reputation Badge", "ARB")
@@ -101,8 +103,9 @@ contract AgentReputationBadge is ERC721AgentOnly, IERC5192 {
         if (block.timestamp < i.retiredAt + exitDelay) revert TooEarly();
         uint256 amount = i.deposit;
         i.deposit = 0;
+        emit DepositWithdrawn(msg.sender, amount);
         (bool ok,) = msg.sender.call{value: amount}("");
-        require(ok);
+        if (!ok) revert RefundFailed();
     }
 
     function isActiveIssuer(address account) public view returns (bool) {
