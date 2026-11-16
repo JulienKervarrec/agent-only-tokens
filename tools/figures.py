@@ -49,15 +49,28 @@ def figures(forge_args):
     for name, gas in json.loads((ROOT / "snapshots" / "Gas.json").read_text()).items():
         out[f"gas.{name[:2]}"] = number(int(gas))
 
+    gas = json.loads((ROOT / "snapshots" / "Gas.json").read_text())
+    after = [int(v) for k, v in gas.items() if k.startswith("15")]
+    rotation = [int(v) for k, v in gas.items() if k.startswith("08")]
+    if after and rotation:
+        out["gas.takeover"] = number(after[0] - rotation[0])
+
+    tests = "".join(p.read_text() for p in (ROOT / "test").rglob("*.sol") if "halmos" not in p.parts)
+    out["tests.fuzz"] = number(len(re.findall(r"function test\w*\(\w", tests)))
+    out["tests.invariant"] = number(len(re.findall(r"function invariant_", tests)))
+
     halmos = "".join(p.read_text() for p in (ROOT / "test" / "halmos").glob("*.sol"))
     out["proofs"] = number(len(re.findall(r"function check_", halmos)))
+    out["proofs.notice"] = number(len(re.findall(r"function check_\w*(?:Notice|Halted)\(", halmos)))
 
     mutants = subprocess.run([sys.executable, "tools/mutate.py", "--list"], cwd=ROOT, capture_output=True, text=True, check=True)
     total = int(mutants.stdout.split()[-2])
     listed = len(json.loads((ROOT / "tools" / "mutations.json").read_text()))
     out["mutants"], out["mutants.listed"], out["mutants.automatic"] = number(total), number(listed), number(total - listed)
     out["mutants.accepted"] = number(len(json.loads((ROOT / "tools" / "mutations-accepted.json").read_text())))
-    out["slither.accepted"] = number(len(json.loads((ROOT / "tools" / "slither-accepted.json").read_text())))
+    slither = json.loads((ROOT / "tools" / "slither-accepted.json").read_text())
+    out["slither.accepted"] = number(len(slither))
+    out["slither.findings"] = number(sum(v.get("count", 1) if isinstance(v, dict) else 1 for v in slither.values()))
 
     deployed = json.loads((ROOT / "deployments" / "base-sepolia.json").read_text())["contracts"]
     verified = [c["sourcify"] for c in deployed if "sourcify" in c]

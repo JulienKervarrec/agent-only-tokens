@@ -4,12 +4,15 @@
   "arbitrary-send-eth: TdxQuoteVerifier._approve": "Refund of the DCAP fee the caller itself paid in the same call; the verifier holds no other ETH.",
   "assembly: AgentAccount._call": "Bubbles up the revert data of a failed call unchanged.",
   "assembly: Sha384._block": "SHA-384 compression in assembly: the plain Solidity version cost 2.8 million gas per event log. Checked against a reference implementation and NIST vectors.",
-  "assembly: Sha384.rotr": "Same.",
+  "assembly: Sha384.rotr": "Part of the SHA-384 compression written in assembly (see Sha384._block).",
   "assembly: TdxQuoteVerifier._hashBody": "Hashes a slice of the verifier's output without copying it.",
   "assembly: TdxQuoteVerifier._word": "Reads one word of the verifier's output; bounds are checked by the callers.",
   "calls-loop: AgentAccount._call": "executeBatch is all or nothing by design: one failing call reverts the batch.",
   "calls-loop: ERC721AgentOnly._allowed": "The loop is OpenZeppelin's safe batch path; each element asks the registry, a contract fixed at deployment.",
-  "calls-loop: ERC721AgentOnly._update": "Same.",
+  "calls-loop: ERC721AgentOnly._update": {
+    "count": 2,
+    "reason": "The loop is OpenZeppelin's safe batch path; each element asks the registry (isAgent, isVenue), a contract fixed at deployment."
+  },
   "cyclomatic-complexity: AttestedAgentRegistry.enroll": "One function for first enrollment and rotation, so that both go through the same checks.",
   "divide-before-multiply: AgentStaking.notifyRewardAmount": "Synthetix StakingRewards arithmetic: the rate is rounded down, the dust stays in the contract.",
   "incorrect-equality: AgentStaking._payReward": "Skips an empty payment; nothing depends on the equality.",
@@ -18,14 +21,12 @@
   "low-level-calls: AgentReputationBadge.withdrawDeposit": "ETH refund to the caller; state is updated first and success is checked.",
   "low-level-calls: AttestedAgentRegistry.withdrawBond": "ETH refund to the sponsor; state is updated first and success is checked.",
   "low-level-calls: TdxQuoteVerifier._approve": "ETH refund to the caller; success is checked.",
-  "missing-zero-check: AttestedAgentRegistry.constructor.enrollmentVerifier_": "address(0) is a meaningful value: attesters sign enrollments.",
-  "missing-zero-check: AttestedAgentRegistry.setEnrollmentVerifier.verifier": "Same.",
   "reentrancy-benign: DstackConfigIdVerifier.attest": "The only external call goes to the DCAP verifier fixed at deployment; the approval is written after it has answered.",
-  "reentrancy-benign: DstackEnrollmentVerifier.attest": "Same.",
-  "reentrancy-benign: TdxEnrollmentVerifier.attest": "Same.",
-  "reentrancy-events: DstackConfigIdVerifier.attest": "Same.",
-  "reentrancy-events: DstackEnrollmentVerifier.attest": "Same.",
-  "reentrancy-events: TdxEnrollmentVerifier.attest": "Same.",
+  "reentrancy-benign: DstackEnrollmentVerifier.attest": "The only external call goes to the DCAP verifier fixed at deployment; the approval is written after it has answered.",
+  "reentrancy-benign: TdxEnrollmentVerifier.attest": "The only external call goes to the DCAP verifier fixed at deployment; the approval is written after it has answered.",
+  "reentrancy-events: DstackConfigIdVerifier.attest": "The only external call goes to the DCAP verifier fixed at deployment; the approval is written after it has answered.",
+  "reentrancy-events: DstackEnrollmentVerifier.attest": "The only external call goes to the DCAP verifier fixed at deployment; the approval is written after it has answered.",
+  "reentrancy-events: TdxEnrollmentVerifier.attest": "The only external call goes to the DCAP verifier fixed at deployment; the approval is written after it has answered.",
   "timestamp: AgentAccount.executeBySig": "Deadlines, key lifetimes and delays are counted in hours or days; a validator shifting a timestamp by seconds gains nothing.",
   "timestamp: AgentLoan.claim": "Deadlines, key lifetimes and delays are counted in hours or days; a validator shifting a timestamp by seconds gains nothing.",
   "timestamp: AgentReputationBadge.offer": "Deadlines, key lifetimes and delays are counted in hours or days; a validator shifting a timestamp by seconds gains nothing.",
@@ -35,8 +36,10 @@
   "timestamp: AgentStaking.notifyRewardAmount": "Deadlines, key lifetimes and delays are counted in hours or days; a validator shifting a timestamp by seconds gains nothing.",
   "timestamp: AttestedAgentRegistry._verifierNow": "Deadlines, key lifetimes and delays are counted in hours or days; a validator shifting a timestamp by seconds gains nothing.",
   "timestamp: AttestedAgentRegistry.enroll": "Deadlines, key lifetimes and delays are counted in hours or days; a validator shifting a timestamp by seconds gains nothing.",
+  "timestamp: AttestedAgentRegistry.haltEnrollments": "Deadlines, key lifetimes and delays are counted in hours or days; a validator shifting a timestamp by seconds gains nothing.",
   "timestamp: AttestedAgentRegistry.isVenue": "Deadlines, key lifetimes and delays are counted in hours or days; a validator shifting a timestamp by seconds gains nothing.",
   "timestamp: AttestedAgentRegistry.keyOf": "Deadlines, key lifetimes and delays are counted in hours or days; a validator shifting a timestamp by seconds gains nothing.",
+  "timestamp: AttestedAgentRegistry.setEnrollmentVerifier": "Deadlines, key lifetimes and delays are counted in hours or days; a validator shifting a timestamp by seconds gains nothing.",
   "timestamp: AttestedAgentRegistry.setFrozen": "False positive: the function compares the sponsor, not a time.",
   "timestamp: AttestedAgentRegistry.setVenue": "Deadlines, key lifetimes and delays are counted in hours or days; a validator shifting a timestamp by seconds gains nothing.",
   "timestamp: AttestedAgentRegistry.withdrawBond": "Deadlines, key lifetimes and delays are counted in hours or days; a validator shifting a timestamp by seconds gains nothing.",
@@ -48,5 +51,8 @@
   "unused-return: AgentAccount._isKey": "The third value of tryRecover only details an error already read from the second.",
   "unused-return: AgentWrappedUniV3.requireLiquidity": "Only the liquidity of the position is needed.",
   "unused-return: AttestedAgentRegistry._requireAttesters": "The third value of tryRecover only details an error already read from the second.",
-  "unused-state: TdxQuoteVerifier.RTMR3": "Offset shared by the verifiers that inherit from it; one of them does not read RTMR3."
+  "unused-state: TdxQuoteVerifier.RTMR3": {
+    "count": 2,
+    "reason": "Offset shared by the verifiers that inherit from it; two of them do not read RTMR3."
+  }
 }

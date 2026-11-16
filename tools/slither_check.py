@@ -5,9 +5,10 @@
     python3 tools/slither_check.py slither.json
 
 Each finding is named by its detector and the place it points at (contract, function,
-variable), not by line numbers, so that the list survives edits. A finding that is not in
-tools/slither-accepted.json makes the check fail; so does an accepted finding that Slither
-no longer reports, so that the list stays true.
+variable), not by line numbers, so that the list survives edits. tools/slither-accepted.json
+gives, for each name, the reason it is accepted and how many findings carry that name
+(`count`, 1 when absent). The check fails when Slither reports a name that is not listed, more
+findings under a name than accepted, or fewer, so that the list stays true.
 """
 
 import json
@@ -43,13 +44,14 @@ def main():
         for name in sorted(found):
             print(name)
         return
-    new = sorted(k for k in found if k not in accepted)
-    gone = sorted(k for k in accepted if k not in found)
+    allowed = {k: (v.get("count", 1) if isinstance(v, dict) else 1) for k, v in accepted.items()}
+    new = sorted(k for k in found if found[k] > allowed.get(k, 0))
+    gone = sorted(k for k in allowed if found.get(k, 0) < allowed[k])
     for name in new:
-        print(f"NEW: {name}")
+        print(f"NEW: {name} ({found[name]} reported, {allowed.get(name, 0)} accepted)")
     for name in gone:
-        print(f"NO LONGER REPORTED: {name}")
-    print(f"{sum(found.values())} findings, {len(found)} distinct, {len(accepted)} accepted, "
+        print(f"NO LONGER REPORTED: {name} ({found.get(name, 0)} reported, {allowed[name]} accepted)")
+    print(f"{sum(found.values())} findings, {sum(allowed.values())} accepted, "
           f"{len(new)} new, {len(gone)} no longer reported")
     sys.exit(1 if new or gone else 0)
 

@@ -164,32 +164,32 @@
   {
     "file": "src/AttestedAgentRegistry.sol",
     "name": "verifier digest leaves out the verifier",
-    "find": "abi.encode(VERIFIER_TYPEHASH, verifier, evidenceHash, verifierNonce)",
-    "replace": "abi.encode(VERIFIER_TYPEHASH, address(0), evidenceHash, verifierNonce)"
+    "find": "abi.encode(VERIFIER_TYPEHASH, verifier, evidenceHash, verifierNonce, deadline)",
+    "replace": "abi.encode(VERIFIER_TYPEHASH, address(0), evidenceHash, verifierNonce, deadline)"
   },
   {
     "file": "src/AttestedAgentRegistry.sol",
     "name": "verifier digest leaves out the evidence",
-    "find": "abi.encode(VERIFIER_TYPEHASH, verifier, evidenceHash, verifierNonce)",
-    "replace": "abi.encode(VERIFIER_TYPEHASH, verifier, bytes32(0), verifierNonce)"
+    "find": "abi.encode(VERIFIER_TYPEHASH, verifier, evidenceHash, verifierNonce, deadline)",
+    "replace": "abi.encode(VERIFIER_TYPEHASH, verifier, bytes32(0), verifierNonce, deadline)"
   },
   {
     "file": "src/AttestedAgentRegistry.sol",
     "name": "verifier digest leaves out the nonce",
-    "find": "abi.encode(VERIFIER_TYPEHASH, verifier, evidenceHash, verifierNonce)",
-    "replace": "abi.encode(VERIFIER_TYPEHASH, verifier, evidenceHash, uint256(0))"
+    "find": "abi.encode(VERIFIER_TYPEHASH, verifier, evidenceHash, verifierNonce, deadline)",
+    "replace": "abi.encode(VERIFIER_TYPEHASH, verifier, evidenceHash, uint256(0), deadline)"
   },
   {
     "file": "src/AttestedAgentRegistry.sol",
     "name": "halt digest leaves out the evidence",
-    "find": "abi.encode(HALT_TYPEHASH, evidenceHash, verifierNonce)",
-    "replace": "abi.encode(HALT_TYPEHASH, bytes32(0), verifierNonce)"
+    "find": "abi.encode(HALT_TYPEHASH, evidenceHash, haltNonce, deadline)",
+    "replace": "abi.encode(HALT_TYPEHASH, bytes32(0), haltNonce, deadline)"
   },
   {
     "file": "src/AttestedAgentRegistry.sol",
     "name": "halt digest leaves out the nonce",
-    "find": "abi.encode(HALT_TYPEHASH, evidenceHash, verifierNonce)",
-    "replace": "abi.encode(HALT_TYPEHASH, evidenceHash, uint256(0))"
+    "find": "abi.encode(HALT_TYPEHASH, evidenceHash, haltNonce, deadline)",
+    "replace": "abi.encode(HALT_TYPEHASH, evidenceHash, uint256(0), deadline)"
   },
   {
     "file": "src/AttestedAgentRegistry.sol",
@@ -200,8 +200,8 @@
   {
     "file": "src/AttestedAgentRegistry.sol",
     "name": "verifier nonce not incremented on a halt",
-    "find": "        verifierNonce += 1;\n        (_verifier,) = _verifierNow();",
-    "replace": "        (_verifier,) = _verifierNow();"
+    "find": "        verifierNonce += 1; // a replacement signed earlier and not yet used dies with the halt\n",
+    "replace": ""
   },
   {
     "file": "src/AttestedAgentRegistry.sol",
@@ -254,7 +254,7 @@
   {
     "file": "src/AttestedAgentRegistry.sol",
     "name": "no event on a halt",
-    "find": "        emit EnrollmentsHalted(evidenceHash);\n",
+    "find": "        emit EnrollmentsHalted(_verifier, evidenceHash);\n",
     "replace": ""
   },
   {
@@ -508,5 +508,41 @@
     "name": "a revocation is not stored",
     "find": "        b.revoked = true;\n",
     "replace": ""
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "verifier digest leaves out the deadline",
+    "find": "abi.encode(VERIFIER_TYPEHASH, verifier, evidenceHash, verifierNonce, deadline)",
+    "replace": "abi.encode(VERIFIER_TYPEHASH, verifier, evidenceHash, verifierNonce, uint64(0))"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "halt digest leaves out the deadline",
+    "find": "abi.encode(HALT_TYPEHASH, evidenceHash, haltNonce, deadline)",
+    "replace": "abi.encode(HALT_TYPEHASH, evidenceHash, haltNonce, uint64(0))"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "halt counter not incremented",
+    "find": "        haltNonce += 1;\n",
+    "replace": ""
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a halt keeps showing the cancelled verifier",
+    "find": "        announcedVerifier = address(0);\n",
+    "replace": ""
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a halt does not stop a verifier that took over by announcement",
+    "find": "        announcedVerifierAt = 0;",
+    "replace": "        if (block.timestamp < announcedVerifierAt) announcedVerifierAt = 0;"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "the event of a venue approved again gives a new date",
+    "find": "        emit VenueSet(venue, approved, evidenceHash, since);",
+    "replace": "        emit VenueSet(venue, approved, evidenceHash, approved ? uint64(block.timestamp) + noticeDelay : 0);"
   }
 ]

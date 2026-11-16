@@ -8,8 +8,14 @@ Two kinds of mutants:
   - listed: the changes written in tools/mutations.json (a state update dropped, a field left
     out of a signed digest, a comparison weakened...).
 
-A mutant that the suite does not catch makes this script fail, unless it is listed with a
-reason in tools/mutations-accepted.json (a change that cannot alter behaviour).
+A mutant counts as caught only when forge reports a failing test. A mutant that the suite does
+not catch makes this script fail, unless it is listed with a reason in
+tools/mutations-accepted.json (a change that cannot alter behaviour; entries are named without
+their line number). So does a mutant that does not compile, or a run that ends any other way.
+
+What it does not do: it does not run the symbolic proofs, it does not mutate assembly or
+checks written as `return`, and the listed changes are chosen by hand. It shows that a removed
+check is noticed, not that no check is missing.
 
     python3 tools/mutate.py              run everything
     python3 tools/mutate.py --list       print the mutants, run nothing
@@ -40,6 +46,11 @@ def strip_comments(text):
         return re.sub(r"[^\n]", " ", m.group(0))
 
     return re.sub(r"//[^\n]*|/\*.*?\*/", blank, text, flags=re.S)
+
+
+def unnumbered(name):
+    """`File.sol:12 guard...` -> `File.sol guard...`: accepted mutants are named without a line."""
+    return re.sub(r"^(\S+):\d+ ", r"\1 ", name)
 
 
 def line_of(text, pos):
@@ -121,15 +132,23 @@ def run(tmp, mutants, forge_args):
     for rel, name, source in mutants:
         original = (tmp / rel).read_text()
         (tmp / rel).write_text(source)
-        proc = subprocess.run(
-            ["forge", "test", "--fail-fast", *forge_args], cwd=tmp, env=env, capture_output=True, text=True
-        )
+        try:
+            proc = subprocess.run(
+                ["forge", "test", "--fail-fast", *forge_args], cwd=tmp, env=env, capture_output=True, text=True,
+                timeout=900,
+            )
+            out, code = proc.stdout + proc.stderr, proc.returncode
+        except subprocess.TimeoutExpired:
+            out, code = "", None
         (tmp / rel).write_text(original)
-        out = proc.stdout + proc.stderr
         if "Compiler run failed" in out or "Compilation failed" in out:
             verdict = "invalid"
-        else:
-            verdict = "caught" if proc.returncode != 0 else "missed"
+        elif code == 0:
+            verdict = "missed"
+        elif code is not None and ("[FAIL" in out or "Suite result: FAILED" in out):
+            verdict = "caught"
+        else:  # forge crashed, timed out or failed for another reason: not a proof of anything
+            verdict = "error"
         print(f"{verdict.upper():8}{name}", flush=True)
         results.append((name, verdict))
     return results
@@ -167,16 +186,19 @@ def main():
         shutil.rmtree(d, ignore_errors=True)
 
     accepted = json.loads((ROOT / "tools" / "mutations-accepted.json").read_text())
-    missed = [n for n, v in results if v == "missed" and n not in accepted]
+    not_caught = {unnumbered(n) for n, v in results if v == "missed"}
+    missed = [n for n, v in results if v == "missed" and unnumbered(n) not in accepted]
     invalid = [n for n, v in results if v == "invalid"]
-    stale = [n for n in accepted if not args.only and (n, "missed") not in results]
+    errors = [n for n, v in results if v == "error"]
+    stale = [n for n in accepted if not args.only and n not in not_caught]
     caught = sum(v == "caught" for _, v in results)
-    print(f"\n{len(results)} mutants: {caught} caught, {len(results) - caught - len(invalid)} not caught "
-          f"({len(missed)} unexplained), {len(invalid)} do not compile")
-    for title, names in (("NOT CAUGHT", missed), ("DOES NOT COMPILE", invalid), ("ACCEPTED BUT NO LONGER MISSED", stale)):
+    print(f"\n{len(results)} mutants: {caught} caught, {len(not_caught)} not caught "
+          f"({len(missed)} unexplained), {len(invalid)} do not compile, {len(errors)} could not be judged")
+    for title, names in (("NOT CAUGHT", missed), ("DOES NOT COMPILE", invalid), ("COULD NOT BE JUDGED", errors),
+                         ("ACCEPTED BUT NO LONGER MISSED", stale)):
         for n in names:
             print(f"{title}: {n}")
-    sys.exit(1 if missed or invalid or stale else 0)
+    sys.exit(1 if missed or invalid or errors or stale else 0)
 
 
 if __name__ == "__main__":
