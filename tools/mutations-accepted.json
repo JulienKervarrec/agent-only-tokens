@@ -1,0 +1,4 @@
+{
+  "AttestedAgentRegistry.sol:331 guard no longer fires on: err != ECDSA.RecoverError.NoError": "On any error OpenZeppelin's tryRecover returns address(0), which is never an attester (the constructor refuses it) and never above `last`. The explicit check is kept for the reader.",
+  "AgentReputationBadge.sol:87 guard no longer fires on: msg.value == 0": "The constructor refuses a zero issuerDeposit, so `msg.value != issuerDeposit` already refuses 0. Kept for the reader."
+}

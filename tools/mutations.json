@@ -1,0 +1,512 @@
+[
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a frozen agent keeps its key",
+    "find": "if (a.frozen || a.closed || block.timestamp >= a.keyExpiry) return address(0);",
+    "replace": "if (a.closed || block.timestamp >= a.keyExpiry) return address(0);"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a closed agent keeps its key",
+    "find": "if (a.frozen || a.closed || block.timestamp >= a.keyExpiry) return address(0);",
+    "replace": "if (a.frozen || block.timestamp >= a.keyExpiry) return address(0);"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a key never expires",
+    "find": "if (a.frozen || a.closed || block.timestamp >= a.keyExpiry) return address(0);",
+    "replace": "if (a.frozen || a.closed) return address(0);"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a key is still valid at its expiry time",
+    "find": "if (a.frozen || a.closed || block.timestamp >= a.keyExpiry) return address(0);",
+    "replace": "if (a.frozen || a.closed || block.timestamp > a.keyExpiry) return address(0);"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "an account stays an agent without a valid key",
+    "find": "return id != 0 && keyOf(id) != address(0);",
+    "replace": "return id != 0;"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "enrollment digest leaves out agentId",
+    "find": "abi.encode(ENROLL_TYPEHASH, agentId, sessionKey, evidenceHash, sponsor, nonce, deadline)",
+    "replace": "abi.encode(ENROLL_TYPEHASH, uint256(0), sessionKey, evidenceHash, sponsor, nonce, deadline)"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "enrollment digest leaves out sessionKey",
+    "find": "abi.encode(ENROLL_TYPEHASH, agentId, sessionKey, evidenceHash, sponsor, nonce, deadline)",
+    "replace": "abi.encode(ENROLL_TYPEHASH, agentId, address(0), evidenceHash, sponsor, nonce, deadline)"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "enrollment digest leaves out evidenceHash",
+    "find": "abi.encode(ENROLL_TYPEHASH, agentId, sessionKey, evidenceHash, sponsor, nonce, deadline)",
+    "replace": "abi.encode(ENROLL_TYPEHASH, agentId, sessionKey, bytes32(0), sponsor, nonce, deadline)"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "enrollment digest leaves out sponsor",
+    "find": "abi.encode(ENROLL_TYPEHASH, agentId, sessionKey, evidenceHash, sponsor, nonce, deadline)",
+    "replace": "abi.encode(ENROLL_TYPEHASH, agentId, sessionKey, evidenceHash, address(0), nonce, deadline)"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "enrollment digest leaves out nonce",
+    "find": "abi.encode(ENROLL_TYPEHASH, agentId, sessionKey, evidenceHash, sponsor, nonce, deadline)",
+    "replace": "abi.encode(ENROLL_TYPEHASH, agentId, sessionKey, evidenceHash, sponsor, uint256(0), deadline)"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "enrollment digest leaves out deadline",
+    "find": "abi.encode(ENROLL_TYPEHASH, agentId, sessionKey, evidenceHash, sponsor, nonce, deadline)",
+    "replace": "abi.encode(ENROLL_TYPEHASH, agentId, sessionKey, evidenceHash, sponsor, nonce, uint64(0))"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "enrollment nonce not incremented",
+    "find": "        a.enrollments += 1;\n",
+    "replace": ""
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "sponsor not recorded",
+    "find": "            a.sponsor = msg.sender;\n",
+    "replace": ""
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "bond not recorded",
+    "find": "            a.bondHeld = msg.value;\n",
+    "replace": ""
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "verifier given at deployment not stored",
+    "find": "        _verifier = enrollmentVerifier_;\n",
+    "replace": ""
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "the same attester counts twice",
+    "find": "signer <= last",
+    "replace": "signer < last"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "signature order not tracked",
+    "find": "            last = signer;\n",
+    "replace": ""
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "venue digest leaves out the venue",
+    "find": "abi.encode(VENUE_TYPEHASH, venue, approved, evidenceHash, venueNonce[venue])",
+    "replace": "abi.encode(VENUE_TYPEHASH, address(0), approved, evidenceHash, venueNonce[venue])"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "venue digest leaves out the decision",
+    "find": "abi.encode(VENUE_TYPEHASH, venue, approved, evidenceHash, venueNonce[venue])",
+    "replace": "abi.encode(VENUE_TYPEHASH, venue, true, evidenceHash, venueNonce[venue])"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "venue digest leaves out the evidence",
+    "find": "abi.encode(VENUE_TYPEHASH, venue, approved, evidenceHash, venueNonce[venue])",
+    "replace": "abi.encode(VENUE_TYPEHASH, venue, approved, bytes32(0), venueNonce[venue])"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "venue digest leaves out the nonce",
+    "find": "abi.encode(VENUE_TYPEHASH, venue, approved, evidenceHash, venueNonce[venue])",
+    "replace": "abi.encode(VENUE_TYPEHASH, venue, approved, evidenceHash, uint256(0))"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "venue nonce not incremented",
+    "find": "        venueNonce[venue] += 1;\n",
+    "replace": ""
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a venue is in force without notice",
+    "find": "if (since == 0) since = uint64(block.timestamp) + noticeDelay;",
+    "replace": "if (since == 0) since = uint64(block.timestamp);"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "approving a venue again moves its date",
+    "find": "if (since == 0) since = uint64(block.timestamp) + noticeDelay;",
+    "replace": "since = uint64(block.timestamp) + noticeDelay;"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a venue ignores its date",
+    "find": "return since != 0 && block.timestamp >= since;",
+    "replace": "return since != 0;"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a removal does not remove",
+    "find": "        if (approved) {\n            since = venueSince[venue];",
+    "replace": "        if (true) {\n            since = venueSince[venue];"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "no event on a venue decision",
+    "find": "        emit VenueSet(venue, approved, evidenceHash, since);\n",
+    "replace": ""
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "verifier digest leaves out the verifier",
+    "find": "abi.encode(VERIFIER_TYPEHASH, verifier, evidenceHash, verifierNonce)",
+    "replace": "abi.encode(VERIFIER_TYPEHASH, address(0), evidenceHash, verifierNonce)"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "verifier digest leaves out the evidence",
+    "find": "abi.encode(VERIFIER_TYPEHASH, verifier, evidenceHash, verifierNonce)",
+    "replace": "abi.encode(VERIFIER_TYPEHASH, verifier, bytes32(0), verifierNonce)"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "verifier digest leaves out the nonce",
+    "find": "abi.encode(VERIFIER_TYPEHASH, verifier, evidenceHash, verifierNonce)",
+    "replace": "abi.encode(VERIFIER_TYPEHASH, verifier, evidenceHash, uint256(0))"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "halt digest leaves out the evidence",
+    "find": "abi.encode(HALT_TYPEHASH, evidenceHash, verifierNonce)",
+    "replace": "abi.encode(HALT_TYPEHASH, bytes32(0), verifierNonce)"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "halt digest leaves out the nonce",
+    "find": "abi.encode(HALT_TYPEHASH, evidenceHash, verifierNonce)",
+    "replace": "abi.encode(HALT_TYPEHASH, evidenceHash, uint256(0))"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "verifier nonce not incremented on a replacement",
+    "find": "        verifierNonce += 1;\n        (_verifier, _halted) = _verifierNow();",
+    "replace": "        (_verifier, _halted) = _verifierNow();"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "verifier nonce not incremented on a halt",
+    "find": "        verifierNonce += 1;\n        (_verifier,) = _verifierNow();",
+    "replace": "        (_verifier,) = _verifierNow();"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a verifier is in force without notice",
+    "find": "announcedVerifierAt = uint64(block.timestamp) + noticeDelay;",
+    "replace": "announcedVerifierAt = uint64(block.timestamp);"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "an announced verifier ignores its date",
+    "find": "if (announcedVerifierAt != 0 && block.timestamp >= announcedVerifierAt)",
+    "replace": "if (announcedVerifierAt != 0)"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "the verifier in force is forgotten on a new announcement",
+    "find": "        (_verifier, _halted) = _verifierNow();\n",
+    "replace": ""
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "the verifier in force is forgotten on a halt",
+    "find": "        (_verifier,) = _verifierNow();\n",
+    "replace": ""
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a halt halts nothing",
+    "find": "        _halted = true;\n",
+    "replace": ""
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a halt keeps the pending announcement",
+    "find": "        announcedVerifierAt = 0;\n",
+    "replace": ""
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a verifier taking over does not lift the halt",
+    "find": "return (announcedVerifier, false);",
+    "replace": "return (announcedVerifier, _halted);"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "no event on a verifier announcement",
+    "find": "        emit EnrollmentVerifierSet(verifier, evidenceHash, announcedVerifierAt);\n",
+    "replace": ""
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "no event on a halt",
+    "find": "        emit EnrollmentsHalted(evidenceHash);\n",
+    "replace": ""
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "no event for the verifier at deployment",
+    "find": "        emit EnrollmentVerifierSet(enrollmentVerifier_, bytes32(0), uint64(block.timestamp));\n",
+    "replace": ""
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "revocation digest leaves out the agent",
+    "find": "abi.encode(REVOKE_TYPEHASH, agentId)",
+    "replace": "abi.encode(REVOKE_TYPEHASH, uint256(0))"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a revoked agent is not closed",
+    "find": "        a.closed = true;\n        a.bondHeld = 0;",
+    "replace": "        a.bondHeld = 0;"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a revoked agent keeps its bond",
+    "find": "        a.closed = true;\n        a.bondHeld = 0;",
+    "replace": "        a.closed = true;"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a retired agent is not closed",
+    "find": "        a.closed = true;\n        a.retiredAt = uint64(block.timestamp);",
+    "replace": "        a.retiredAt = uint64(block.timestamp);"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "the bond can be withdrawn twice",
+    "find": "        uint256 refund = a.bondHeld;\n        a.bondHeld = 0;",
+    "replace": "        uint256 refund = a.bondHeld;"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "freezing is not stored",
+    "find": "        _agents[agentId].frozen = frozen;\n",
+    "replace": ""
+  },
+  {
+    "file": "src/AgentAccount.sol",
+    "name": "a relayed order can be replayed",
+    "find": "execDigest(target, value, data, nonce++, deadline)",
+    "replace": "execDigest(target, value, data, nonce, deadline)"
+  },
+  {
+    "file": "src/AgentAccount.sol",
+    "name": "order digest leaves out the target",
+    "find": "abi.encode(EXECUTE_TYPEHASH, target, value, keccak256(data), nonce_, deadline)",
+    "replace": "abi.encode(EXECUTE_TYPEHASH, address(0), value, keccak256(data), nonce_, deadline)"
+  },
+  {
+    "file": "src/AgentAccount.sol",
+    "name": "order digest leaves out the value",
+    "find": "abi.encode(EXECUTE_TYPEHASH, target, value, keccak256(data), nonce_, deadline)",
+    "replace": "abi.encode(EXECUTE_TYPEHASH, target, uint256(0), keccak256(data), nonce_, deadline)"
+  },
+  {
+    "file": "src/AgentAccount.sol",
+    "name": "order digest leaves out the data",
+    "find": "abi.encode(EXECUTE_TYPEHASH, target, value, keccak256(data), nonce_, deadline)",
+    "replace": "abi.encode(EXECUTE_TYPEHASH, target, value, bytes32(0), nonce_, deadline)"
+  },
+  {
+    "file": "src/AgentAccount.sol",
+    "name": "order digest leaves out the nonce",
+    "find": "abi.encode(EXECUTE_TYPEHASH, target, value, keccak256(data), nonce_, deadline)",
+    "replace": "abi.encode(EXECUTE_TYPEHASH, target, value, keccak256(data), uint256(0), deadline)"
+  },
+  {
+    "file": "src/AgentAccount.sol",
+    "name": "order digest leaves out the deadline",
+    "find": "abi.encode(EXECUTE_TYPEHASH, target, value, keccak256(data), nonce_, deadline)",
+    "replace": "abi.encode(EXECUTE_TYPEHASH, target, value, keccak256(data), nonce_, uint64(0))"
+  },
+  {
+    "file": "src/AgentAccount.sol",
+    "name": "any valid signature counts as the key",
+    "find": "err == ECDSA.RecoverError.NoError && key != address(0) && signer == key",
+    "replace": "err == ECDSA.RecoverError.NoError && key != address(0)"
+  },
+  {
+    "file": "src/AgentAccount.sol",
+    "name": "message digest leaves out the message",
+    "find": "abi.encode(MESSAGE_TYPEHASH, hash)",
+    "replace": "abi.encode(MESSAGE_TYPEHASH, bytes32(0))"
+  },
+  {
+    "file": "src/AgentAccount.sol",
+    "name": "the account accepts a signature on the raw hash",
+    "find": "_isKey(messageDigest(hash), sig)",
+    "replace": "_isKey(hash, sig)"
+  },
+  {
+    "file": "src/AgentAccount.sol",
+    "name": "a failed call is swallowed",
+    "find": "revert(add(ret, 32), mload(ret))",
+    "replace": "pop(mload(ret))"
+  },
+  {
+    "file": "src/ERC721AgentOnly.sol",
+    "name": "a push counts as a pull",
+    "find": "bool pull = to == caller;",
+    "replace": "bool pull = true;"
+  },
+  {
+    "file": "src/ERC721AgentOnly.sol",
+    "name": "any caller counts as a venue",
+    "find": "venue = agentRegistry.isVenue(caller);",
+    "replace": "venue = true;"
+  },
+  {
+    "file": "src/AgentSwap.sol",
+    "name": "a listing survives its sale",
+    "find": "        delete listings[nft][id];\n        emit Sold",
+    "replace": "        emit Sold"
+  },
+  {
+    "file": "src/AgentSwap.sol",
+    "name": "a listing survives its cancellation",
+    "find": "        delete listings[nft][id];\n        emit Cancelled",
+    "replace": "        emit Cancelled"
+  },
+  {
+    "file": "src/AgentSwap.sol",
+    "name": "a sale without payment",
+    "find": "        if (l.price != 0) l.currency.safeTransferFrom(msg.sender, l.seller, l.price);\n",
+    "replace": ""
+  },
+  {
+    "file": "src/AgentLoan.sol",
+    "name": "repayment not credited to the lender",
+    "find": "        owed[l.currency][l.lender] += l.repay;\n",
+    "replace": ""
+  },
+  {
+    "file": "src/AgentLoan.sol",
+    "name": "repayment pushed to the lender",
+    "find": "l.currency.safeTransferFrom(msg.sender, address(this), l.repay);",
+    "replace": "l.currency.safeTransferFrom(msg.sender, l.lender, l.repay);"
+  },
+  {
+    "file": "src/AgentLoan.sol",
+    "name": "credit not cleared on withdrawal",
+    "find": "        owed[currency][msg.sender] = 0;\n",
+    "replace": ""
+  },
+  {
+    "file": "src/AgentLoan.sol",
+    "name": "withdrawal sends nothing",
+    "find": "        currency.safeTransfer(msg.sender, amount);\n",
+    "replace": ""
+  },
+  {
+    "file": "src/AgentLoan.sol",
+    "name": "a loan survives its repayment",
+    "find": "        delete loans[nft][id];\n        owed",
+    "replace": "        owed"
+  },
+  {
+    "file": "src/AgentLoan.sol",
+    "name": "a loan survives its claim",
+    "find": "        delete loans[nft][id];\n        emit Claimed",
+    "replace": "        emit Claimed"
+  },
+  {
+    "file": "src/AgentLoan.sol",
+    "name": "a loan is due at once",
+    "find": "l.due = uint64(block.timestamp) + l.duration;",
+    "replace": "l.due = uint64(block.timestamp);"
+  },
+  {
+    "file": "src/AgentLoan.sol",
+    "name": "the lender can claim at the due time",
+    "find": "if (block.timestamp <= l.due) revert NotDue();",
+    "replace": "if (block.timestamp < l.due) revert NotDue();"
+  },
+  {
+    "file": "src/AgentLoan.sol",
+    "name": "the principal is not paid",
+    "find": "        l.currency.safeTransferFrom(msg.sender, l.borrower, l.principal);\n",
+    "replace": ""
+  },
+  {
+    "file": "src/AgentStaking.sol",
+    "name": "staker not recorded",
+    "find": "        stakerOf[tokenId] = msg.sender;\n",
+    "replace": ""
+  },
+  {
+    "file": "src/AgentStaking.sol",
+    "name": "a stake survives its unstake",
+    "find": "        delete stakerOf[tokenId];\n",
+    "replace": ""
+  },
+  {
+    "file": "src/AgentStaking.sol",
+    "name": "rewards can be claimed twice",
+    "find": "        rewards[msg.sender] = 0;\n",
+    "replace": ""
+  },
+  {
+    "file": "src/AgentStaking.sol",
+    "name": "stake count not decreased",
+    "find": "        stakedBy[msg.sender]--;\n",
+    "replace": ""
+  },
+  {
+    "file": "src/AgentStaking.sol",
+    "name": "rewards not checkpointed",
+    "find": "            paidPerStake[agent] = rewardPerStakeStored;\n",
+    "replace": ""
+  },
+  {
+    "file": "src/AgentReputationBadge.sol",
+    "name": "evidence can be used twice",
+    "find": "        evidenceUsed[msg.sender][evidenceHash] = true;\n",
+    "replace": ""
+  },
+  {
+    "file": "src/AgentReputationBadge.sol",
+    "name": "daily quota not counted",
+    "find": "        i.offersToday++;\n",
+    "replace": ""
+  },
+  {
+    "file": "src/AgentReputationBadge.sol",
+    "name": "an offer survives its claim",
+    "find": "        delete offeredTo[offerId];\n        badgeId = offerId;",
+    "replace": "        badgeId = offerId;"
+  },
+  {
+    "file": "src/AgentReputationBadge.sol",
+    "name": "a retired issuer stays active",
+    "find": "return i.deposit != 0 && i.retiredAt == 0;",
+    "replace": "return i.deposit != 0;"
+  },
+  {
+    "file": "src/AgentReputationBadge.sol",
+    "name": "the deposit can be withdrawn twice",
+    "find": "        uint256 amount = i.deposit;\n        i.deposit = 0;",
+    "replace": "        uint256 amount = i.deposit;"
+  },
+  {
+    "file": "src/AgentReputationBadge.sol",
+    "name": "a revocation is not stored",
+    "find": "        b.revoked = true;\n",
+    "replace": ""
+  }
+]
