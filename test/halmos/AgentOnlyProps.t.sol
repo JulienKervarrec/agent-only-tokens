@@ -193,12 +193,14 @@ contract RegistryProps is Test {
     // ------------------------------------------------------------ notice delay
 
     uint256 constant ATTESTER = 0xA77E57E2;
+    uint64 constant NEVER = type(uint64).max; // deadline of the attesters' signatures
 
+    /// Keys last one second more than the notice delay, the shortest life the registry accepts.
     function _registry(uint64 start, uint64 delay, address verifier) internal returns (AttestedAgentRegistry) {
         vm.warp(start);
         address[] memory att = new address[](1);
         att[0] = vm.addr(ATTESTER);
-        return new AttestedAgentRegistry(att, 1, 0, 30 days, delay, IERC721(address(0)), verifier);
+        return new AttestedAgentRegistry(att, 1, 0, delay + 1, delay, IERC721(address(0)), verifier);
     }
 
     function _signed(bytes32 digest) internal pure returns (bytes[] memory sigs) {
@@ -207,20 +209,20 @@ contract RegistryProps is Test {
         sigs[0] = abi.encodePacked(r, s, v);
     }
 
-    /// Two decisions on a venue, of any kind, at any two times, with any notice delay: at any
-    /// later time the venue is in force only if the last decision approved it and the delay has
-    /// passed since it was first approved without being removed.
-    function check_VenueOnlyAfterItsNotice(
-        uint64 delay,
-        uint64 t1,
-        uint64 t2,
-        uint64 t3,
-        address venue,
-        bool first,
-        bool second
-    ) public {
+    /// A verifier to announce: a contract, or address(0) for "attesters sign".
+    function _verifier(bool none) internal returns (address) {
+        return none ? address(0) : address(new YesVerifier());
+    }
+
+    /// Two decisions on a venue, each an approval or a removal, at any two times, with any
+    /// notice delay: at any later time the venue is in force only if the last decision approved
+    /// it and the delay has passed since the approval that still stands.
+    function check_VenueOnlyAfterItsNotice(uint64 delay, uint64 t1, uint64 t2, uint64 t3, bool first, bool second)
+        public
+    {
         vm.assume(0 < t1 && t1 <= t2 && t2 <= t3 && uint256(t3) + delay < type(uint64).max);
         AttestedAgentRegistry reg = _registry(t1, delay, address(0));
+        address venue = address(new YesVerifier()); // any contract: a venue must hold code
         assert(!reg.isVenue(venue));
         reg.setVenue(venue, first, 0, _signed(reg.hashVenue(venue, first, 0)));
         vm.warp(t2);
@@ -231,24 +233,27 @@ contract RegistryProps is Test {
     }
 
     /// Any first decision on the verifier (a replacement or a halt), then a replacement: until
-    /// its notice has passed, what was in force stays in force; afterwards the new verifier is.
+    /// its notice has passed, the registry reports the same verifier and the same halt as just
+    /// before it; afterwards the new verifier is in force and nothing is halted.
     function check_VerifierOnlyAfterItsNotice(
         uint64 delay,
         uint64 t1,
         uint64 t2,
         uint64 t3,
-        address v1,
         bool haltFirst,
-        address v2
+        bool firstIsNone,
+        bool secondIsNone
     ) public {
         vm.assume(0 < t1 && t1 <= t2 && t2 <= t3 && uint256(t3) + delay < type(uint64).max);
         AttestedAgentRegistry reg = _registry(t1, delay, address(0));
-        if (haltFirst) reg.haltEnrollments(0, _signed(reg.hashHalt(0)));
-        else reg.setEnrollmentVerifier(v1, 0, _signed(reg.hashVerifier(v1, 0)));
+        address v1 = _verifier(firstIsNone);
+        address v2 = _verifier(secondIsNone);
+        if (haltFirst) reg.haltEnrollments(0, NEVER, _signed(reg.hashHalt(0, NEVER)));
+        else reg.setEnrollmentVerifier(v1, 0, NEVER, _signed(reg.hashVerifier(v1, 0, NEVER)));
         vm.warp(t2);
         address before = reg.enrollmentVerifier();
         bool haltedBefore = reg.enrollmentHalted();
-        reg.setEnrollmentVerifier(v2, 0, _signed(reg.hashVerifier(v2, 0)));
+        reg.setEnrollmentVerifier(v2, 0, NEVER, _signed(reg.hashVerifier(v2, 0, NEVER)));
         vm.warp(t3);
         if (t3 >= uint256(t2) + delay) {
             assert(reg.enrollmentVerifier() == v2 && !reg.enrollmentHalted());
@@ -258,23 +263,26 @@ contract RegistryProps is Test {
     }
 
     /// With a verifier that approves everything, and whatever was announced before: once the
-    /// attesters have halted enrollments, none passes at any later time, whatever its arguments.
+    /// attesters have halted enrollments, the registry reports the halt at any later time and
+    /// no enrollment passes, whatever its arguments.
     function check_NoEnrollmentWhileHalted(
         uint64 delay,
         uint64 t1,
         uint64 t2,
         uint64 t3,
-        address v1,
+        bool announcedIsNone,
         uint256 agentId,
         address key,
         address sponsor
     ) public {
         vm.assume(0 < t1 && t1 <= t2 && t2 <= t3 && uint256(t3) + delay < type(uint64).max);
         AttestedAgentRegistry reg = _registry(t1, delay, address(new YesVerifier()));
-        reg.setEnrollmentVerifier(v1, 0, _signed(reg.hashVerifier(v1, 0)));
+        address v1 = _verifier(announcedIsNone);
+        reg.setEnrollmentVerifier(v1, 0, NEVER, _signed(reg.hashVerifier(v1, 0, NEVER)));
         vm.warp(t2);
-        reg.haltEnrollments(0, _signed(reg.hashHalt(0)));
+        reg.haltEnrollments(0, NEVER, _signed(reg.hashHalt(0, NEVER)));
         vm.warp(t3);
+        assert(reg.enrollmentHalted());
         vm.prank(sponsor);
         (bool ok,) = address(reg)
             .call(abi.encodeCall(AttestedAgentRegistry.enroll, (agentId, key, 0, type(uint64).max, new bytes[](0))));
