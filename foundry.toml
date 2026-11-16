@@ -19,6 +19,7 @@ fs_permissions = [
     { access = "read", path = "./test/usdc" },
     { access = "read", path = "./test/experimental/tdx" },
     { access = "read", path = "./test/experimental/dstack" },
+    { access = "read", path = "./test/experimental/phala" },
 ]
 
 [fuzz]
