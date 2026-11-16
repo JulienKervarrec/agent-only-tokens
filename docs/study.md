@@ -5,7 +5,7 @@ Julien Kervarrec · November 2026
 This document records how the Agent-Only Tokens draft was reached: what already
 exists, how the design was narrowed down, what the resulting standard says, and
 what it can be used for. Figures about the prototype come from tests run on a
-local simulated EVM, except those of sections 3.12 to 3.14, measured on the
+local simulated EVM, except those of sections 3.12 to 3.15, measured on the
 Base Sepolia test network. Nothing has been deployed on a main network, and nothing has been
 audited.
 
@@ -872,8 +872,8 @@ key can be rotated by a new quote without touching the account.
   before the program. Approving a compose hash approves that script too.
 
 **Limits.** One machine, one provider, one day. The pre-launch script was not
-reviewed and is not archived here, so the compose hash cannot be recomputed
-from this repository. The base image was read from the quote, not rebuilt from
+reviewed and not archived at the time; both were done afterwards (section
+3.15). The base image was read from the quote, not rebuilt from
 dstack's sources. The key provider (Phala KMS) is not checked; the program
 keeps its key in memory, so it does not depend on it. The mint policy names no
 collection, and anyone who can reach the machine can ask for such an order.
@@ -965,9 +965,78 @@ Refusals are answers of the facilitator; the other steps are transactions.
 facilitator. The first request to the shop came back as HTTP 502 and the
 program does not retry; the next one passed. Anyone who can reach the machine
 can make the agent buy that page, up to its balance: the policy bounds the
-destination and the amount per purchase, not the frequency. The limits of
-section 3.13 on the manifest, the pre-launch script and the base image apply
-unchanged.
+destination and the amount per purchase, not the frequency. Section 3.15
+fixes these three points. The base image was not rebuilt, as in section 3.13.
+
+### 3.15 The manifest rebuilt, the pre-launch script read, and a third program
+
+Done on 16 November 2026, after the run of section 3.14. Files:
+`examples/enclave-agent/manifest` and `examples/enclave-agent/v3`.
+
+**The compose hash can be recomputed from this repository.** dstack measures a
+manifest that the provider builds from the compose file, its default
+pre-launch script and its settings. That script is public
+([Dstack-TEE/dstack-examples](https://github.com/Dstack-TEE/dstack-examples/blob/3811c903df9643b68d5510b0a63828384ab2c1c3/phala-cloud-prelaunch-script/prelaunch.sh), commit `3811c90`, Apache 2.0): its SHA-256
+is the one our machines reported. A short script rebuilds the manifest and
+gives, byte for byte, the three compose hashes measured in sections 3.13 and
+3.14. For the third program the hash was computed first, and the machine then
+measured the same value.
+
+**What the pre-launch script does.** It was read in full (406 lines). It runs
+inside the machine before the program: registry login, removal of unused
+images, image pull, root password, SSH keys for root.
+
+- **Environment variables.** Everything it takes from them is unavailable in
+  our runs, because `allowed_envs` is empty and part of the measured manifest.
+- **An unmeasured file.** It adds to root's authorized keys the SSH keys
+  listed in `/dstack/user_config`, which the host supplies and dstack stores
+  without measuring. In the boot log of our third run, none was installed
+  ("total 0 keys"). A quote does not carry that count.
+- **Consequence.** The secrecy of an agent's key rests on the approved base
+  image being closed to SSH. Our runs used the production image, which the
+  provider presents that way and which is part of the approved identity; a
+  development image has other measurements and is refused. We did not check
+  the production image ourselves.
+
+**The third program** (222 lines) fixes the three defects noted in section
+3.14.
+
+| Defect | Change |
+| --- | --- |
+| Gave up after one error from the shop | Up to three tries when the shop or the network fails. A payment is sent again unchanged, so it can be settled once at most |
+| Its answer filled `paid` even when refused | `settled` is true only with the shop's receipt; `signed` is what the agent authorised |
+| Unbounded spending by any caller | A budget of 0.05 USDC for the life of the key. Every signed payment counts, settled or not. A restart clears the count and destroys the key; a new key pays only after the sponsor enrolls it |
+
+It was tested on a local chain against the x402 reference facilitator and a
+shop that fails on purpose: seven checks out of seven.
+
+**The run**, on the machine of section 3.14 restarted with the new
+compose file.
+
+| Step | Result |
+| --- | --- |
+| Compose hash computed from the repository before deployment | `494249cb…00a3`; the provider, then the machine, gave the same value |
+| Code identity computed from that hash | Found in the machine's quote |
+| `DstackConfigIdVerifier.attest` ([tx](https://sepolia.basescan.org/tx/0xb45304401f2764824fffd3af7efccda99c89353e94110ea695926cfebab008b2)) | 3,719,408 gas |
+| `enroll`, no attester signature ([tx](https://sepolia.basescan.org/tx/0x4fc2101c5ef4e9d7ab1f1c06b50af27904d95eed6963ef61448b55a25727378e)) | 199,370 gas; the account appears at the address computed beforehand |
+| The agent buys while its account is empty | Refused by the facilitator (`invalid_exact_evm_insufficient_balance`); `settled` is false and the budget is charged |
+| Four more attempts, then two more | The four are refused the same way and bring the budget to zero; the program then refuses to sign (`budget spent`) |
+| Machine stopped, account funded with 20 test USDC, machine restarted | A new key and a fresh count; it buys before being enrolled and is refused (`invalid_exact_evm_signature`) |
+| New quote, rotation ([tx](https://sepolia.basescan.org/tx/0x7697a4575335cf7cdd6b5502d1c999fc82bc4403103150c56d3df820efd1fcf7)) | 43,670 gas |
+| Four purchases ([first](https://sepolia.basescan.org/tx/0xeb9af69f1d33e8939ae407097ea5c54b93b9d151fbbe0993920faa368c63dbfa), [fourth](https://sepolia.basescan.org/tx/0x2ca56538e4a2332da6737acb1be2e93f8e2bfe3384ff576d800006fd8d1875d8)) | Paid, `settled` true each time; 19.96 USDC left |
+| Two more attempts | The program refuses to sign (`budget spent`): four payments settled and one refused had used the budget of that key |
+
+The retry could not be provoked on the public shop and is covered by the local
+test only. The budget bounds what a caller can make the agent spend; it does
+not say who may ask, and it lives in the machine's memory.
+
+**A limit this run makes visible: a new version is a new agent.** The
+verifier's list of approved code is fixed at deployment, and so is the
+registry's verifier. Fixing the program therefore meant a new verifier, a new
+registry and a new account; the 19.96 test USDC of the second agent stay on its
+account, which only a machine running the second program can use. Letting an
+agent keep its account across versions needs a rule for who may approve new
+code, which this draft does not define.
 
 ## 4. Use cases
 
@@ -1055,10 +1124,15 @@ Options studied and set aside:
 
 - **Trust in attesters**, for agents and venues. Attesters are fixed at
   deployment.
-- **Hardware attestation.** Two agents were enrolled by attestation, on Base
-  Sepolia, from two machines of one provider (sections 3.13 and 3.14). The
-  provider's pre-launch script, part of the measured manifest, was not
-  reviewed, and the base image was not rebuilt from source. The simpler
+- **Hardware attestation.** Three agents were enrolled by attestation, on Base
+  Sepolia, from two machines of one provider (sections 3.13 to 3.15). The
+  base image was not rebuilt from source. The provider's pre-launch script,
+  part of the measured manifest, installs SSH keys from a file dstack does not
+  measure: an agent's key is only as private as the approved base image is
+  closed to SSH, which was not checked (section 3.15).
+- **A new program version is a new agent.** Approved code is fixed when a
+  verifier is deployed. Tokens and money do not follow from one version to the
+  next (section 3.15). The simpler
   verifier relies on the dstack OS refusing a wrong `MRCONFIGID`, which was
   read in its source, not provoked. The default registry still only checks
   signatures.
@@ -1107,18 +1181,21 @@ Options studied and set aside:
 
 1. Done on 16 November 2026 (sections 3.13 and 3.14): quotes produced by two
    real dstack machines for our keys, two agents enrolled by attestation, and
-   a verifier reading the compose hash from `MRCONFIGID`. Next on that path:
-   a reviewed and archived manifest, a base image rebuilt from dstack's
-   sources, and the same build on two machines at once.
+   a verifier reading the compose hash from `MRCONFIGID`. The manifest was
+   then rebuilt and the pre-launch script read (section 3.15). Next on that
+   path: a base image rebuilt from dstack's sources and checked for SSH, a
+   pre-launch script of our own, and the same build on two machines at once.
 2. Done on 16 November 2026 (section 3.14): x402 payments from an agent
-   account on Base Sepolia, through a hosted facilitator. Next: a purchase
-   whose result the agent uses, and a spending limit over time.
-3. Enrollment through a zk proof of the quote verification, about 500,000 gas
+   account on Base Sepolia, through a hosted facilitator, then a budget per
+   key (section 3.15). Next: a purchase whose result the agent uses.
+3. A rule for upgrading an agent's program without changing its account: who
+   may approve new code, and how holders are warned.
+4. Enrollment through a zk proof of the quote verification, about 500,000 gas
    instead of 4.3 million. Checked on chain on 15 November 2026: RISC Zero's
    verifier router is deployed on Base Sepolia, but Automata's entrypoint
    there has no zk program configured, so its `verifyAndAttestWithZKProof`
    cannot be used as it is.
-4. Publication of the idea on [Ethereum Magicians](https://ethereum-magicians.org/),
+5. Publication of the idea on [Ethereum Magicians](https://ethereum-magicians.org/),
    then a pull request to [ethereum/ERCs](https://github.com/ethereum/ERCs)
    once a second implementation passes the same tests.
 
@@ -1160,6 +1237,8 @@ unless stated otherwise.
 | dstack logs the key provider in RTMR3 and tells verifiers to check it against what they expect | Read in its attestation guide on 16 November 2026 (section 2.1 and conclusion). Our verifier does not check it (section 3.11) | [dstack attestation](https://github.com/Dstack-TEE/dstack/blob/master/docs/attestation-tdx.md) |
 | A Phala Cloud machine's quote is accepted by Automata's verifier on Base Sepolia, and dstack writes `compose-hash` before `boot-mr-done` | Confirmed on 16 November 2026 by transaction (section 3.13) | [BaseScan](https://sepolia.basescan.org/tx/0x3bde5e7d3ccf206d60290a8b9de98ae72ea5d79f2fc6368141c3e652613b9fcf) |
 | dstack writes the compose hash into `MRCONFIGID` (format `01`) and its OS refuses to boot when the field does not match the manifest; an all-zero field is tolerated | Read in the source at commit `350a0a7` on 16 November 2026. The field's content was confirmed on the quotes of two production machines; the refusal to boot was not provoked | [config_id_verifier.rs](https://github.com/Dstack-TEE/dstack/blob/350a0a73ffdb6041bda69118f13d81591870b565/dstack/dstack-util/src/system_setup/config_id_verifier.rs) |
+| The pre-launch script our machines ran is the public one, version 0.0.21 | Confirmed on 16 November 2026: same SHA-256 (`c452d712…0765`) as the file at commit `3811c90`, and the manifest rebuilt with it gives the four compose hashes measured | [prelaunch.sh](https://github.com/Dstack-TEE/dstack-examples/blob/3811c903df9643b68d5510b0a63828384ab2c1c3/phala-cloud-prelaunch-script/prelaunch.sh) |
+| dstack does not measure `user_config` | Read in its documentation at commit `350a0a7` (`docs/security/cvm-boundaries.md`), 16 November 2026. Not tested | [dstack](https://github.com/Dstack-TEE/dstack/blob/350a0a73ffdb6041bda69118f13d81591870b565/docs/security/cvm-boundaries.md) |
 | The hosted x402.org facilitator accepts a payer that is a contract and settles its payment | Confirmed on 16 November 2026 by four payments on Base Sepolia from an agent account (section 3.14) | [BaseScan](https://sepolia.basescan.org/tx/0x89e0a73920d855494cbad29a8ec0035a4e07c84da12e409b6c1e2f74aade5ea0) |
 | The test USDC on Base Sepolia is `FiatTokenV2_2` | Confirmed on 16 November 2026 at block 59,533,350: the implementation `0xd74cc5d436923b8ba2c179b4bca2841d8a52c5b5` and its signature library are byte-identical to the code these tests use, apart from the metadata hash and the library address | `examples/x402/check-usdc.mjs` |
 | Two machines of the same provider running the same dstack image give the same attributes, MRTD and RTMR0 to RTMR2 | Confirmed on 16 November 2026 by comparing the quotes of the two runs, byte for byte | `test/experimental/phala` |
