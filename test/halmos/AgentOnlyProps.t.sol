@@ -58,7 +58,8 @@ contract AgentOnlyProps is Test {
         if (action % 6 == 0) {
             (ok,) = address(nft).call(abi.encodeCall(IERC721.transferFrom, (A, target, id)));
         } else if (action % 6 == 1) {
-            (ok,) = address(nft).call(abi.encodeWithSignature("safeTransferFrom(address,address,uint256)", A, target, id));
+            (ok,) =
+                address(nft).call(abi.encodeWithSignature("safeTransferFrom(address,address,uint256)", A, target, id));
         } else if (action % 6 == 2) {
             (ok,) = address(nft).call(abi.encodeCall(IERC721.approve, (target, id)));
         } else if (action % 6 == 3) {
@@ -73,8 +74,15 @@ contract AgentOnlyProps is Test {
     /// Rule 1: after any successful action, every holder and every approved operator of the
     /// token is an agent or a venue.
     function check_HoldersAndOperatorsAreAgents(
-        bool aAgent, bool aVenue, bool bAgent, bool bVenue, bool cAgent, bool cVenue,
-        uint8 action, uint8 who, uint8 towards
+        bool aAgent,
+        bool aVenue,
+        bool bAgent,
+        bool bVenue,
+        bool cAgent,
+        bool cVenue,
+        uint8 action,
+        uint8 who,
+        uint8 towards
     ) public {
         _setUp(aAgent, aVenue, bAgent, bVenue, cAgent, cVenue);
         address caller = _pick(who);
@@ -97,8 +105,15 @@ contract AgentOnlyProps is Test {
 
     /// Rule 2: an account that is neither agent nor venue changes nothing.
     function check_NonAgentsCannotAct(
-        bool aAgent, bool aVenue, bool bAgent, bool bVenue, bool cAgent, bool cVenue,
-        uint8 action, uint8 who, uint8 towards
+        bool aAgent,
+        bool aVenue,
+        bool bAgent,
+        bool bVenue,
+        bool cAgent,
+        bool cVenue,
+        uint8 action,
+        uint8 who,
+        uint8 towards
     ) public {
         _setUp(aAgent, aVenue, bAgent, bVenue, cAgent, cVenue);
         address caller = _pick(who);
@@ -109,8 +124,15 @@ contract AgentOnlyProps is Test {
     /// Rule 3: a token only changes holder if the new holder pulled it, or a venue moved it.
     /// And a token whose holder is no longer recognised does not move, except by itself.
     function check_NoUnsolicitedTokensAndFrozenTokensStay(
-        bool aAgent, bool aVenue, bool bAgent, bool bVenue, bool cAgent, bool cVenue,
-        uint8 action, uint8 who, uint8 towards
+        bool aAgent,
+        bool aVenue,
+        bool bAgent,
+        bool bVenue,
+        bool cAgent,
+        bool cVenue,
+        uint8 action,
+        uint8 who,
+        uint8 towards
     ) public {
         _setUp(aAgent, aVenue, bAgent, bVenue, cAgent, cVenue);
         address caller = _pick(who);
@@ -138,22 +160,124 @@ contract Verifier1271 {
     }
 }
 
+/// A verifier that approves everything: with it in force, only a halt can stop an enrollment.
+contract YesVerifier {
+    function isValidSignature(bytes32, bytes calldata) external pure returns (bytes4) {
+        return 0x1626ba7e;
+    }
+}
+
 contract RegistryProps is Test {
     function check_EnrollmentNeedsTheVerifiersApproval(
-        bytes32 approvedDigest, uint256 agentId, address key, bytes32 evidence, uint64 deadline, address sponsor
+        bytes32 approvedDigest,
+        uint256 agentId,
+        address key,
+        bytes32 evidence,
+        uint64 deadline,
+        address sponsor
     ) public {
         Verifier1271 verifier = new Verifier1271();
         address[] memory att = new address[](1);
         att[0] = address(0xA77E);
         AttestedAgentRegistry reg =
-            new AttestedAgentRegistry(att, 1, 0, 30 days, IERC721(address(0)), address(verifier));
+            new AttestedAgentRegistry(att, 1, 0, 30 days, 7 days, IERC721(address(0)), address(verifier));
         verifier.approve(approvedDigest);
 
         bytes32 digest = reg.hashEnrollment(agentId, key, evidence, sponsor, 0, deadline); // fresh registry: nonce 0
         vm.prank(sponsor);
-        (bool ok,) = address(reg).call(
-            abi.encodeCall(AttestedAgentRegistry.enroll, (agentId, key, evidence, deadline, new bytes[](0)))
-        );
+        (bool ok,) = address(reg)
+            .call(abi.encodeCall(AttestedAgentRegistry.enroll, (agentId, key, evidence, deadline, new bytes[](0))));
         if (ok) assert(digest == approvedDigest);
+    }
+
+    // ------------------------------------------------------------ notice delay
+
+    uint256 constant ATTESTER = 0xA77E57E2;
+
+    function _registry(uint64 start, uint64 delay, address verifier) internal returns (AttestedAgentRegistry) {
+        vm.warp(start);
+        address[] memory att = new address[](1);
+        att[0] = vm.addr(ATTESTER);
+        return new AttestedAgentRegistry(att, 1, 0, 30 days, delay, IERC721(address(0)), verifier);
+    }
+
+    function _signed(bytes32 digest) internal pure returns (bytes[] memory sigs) {
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ATTESTER, digest);
+        sigs = new bytes[](1);
+        sigs[0] = abi.encodePacked(r, s, v);
+    }
+
+    /// Two decisions on a venue, of any kind, at any two times, with any notice delay: at any
+    /// later time the venue is in force only if the last decision approved it and the delay has
+    /// passed since it was first approved without being removed.
+    function check_VenueOnlyAfterItsNotice(
+        uint64 delay,
+        uint64 t1,
+        uint64 t2,
+        uint64 t3,
+        address venue,
+        bool first,
+        bool second
+    ) public {
+        vm.assume(0 < t1 && t1 <= t2 && t2 <= t3 && uint256(t3) + delay < type(uint64).max);
+        AttestedAgentRegistry reg = _registry(t1, delay, address(0));
+        assert(!reg.isVenue(venue));
+        reg.setVenue(venue, first, 0, _signed(reg.hashVenue(venue, first, 0)));
+        vm.warp(t2);
+        reg.setVenue(venue, second, 0, _signed(reg.hashVenue(venue, second, 0)));
+        vm.warp(t3);
+        uint256 approvedAt = first ? t1 : t2;
+        assert(reg.isVenue(venue) == (second && t3 >= approvedAt + delay));
+    }
+
+    /// Any first decision on the verifier (a replacement or a halt), then a replacement: until
+    /// its notice has passed, what was in force stays in force; afterwards the new verifier is.
+    function check_VerifierOnlyAfterItsNotice(
+        uint64 delay,
+        uint64 t1,
+        uint64 t2,
+        uint64 t3,
+        address v1,
+        bool haltFirst,
+        address v2
+    ) public {
+        vm.assume(0 < t1 && t1 <= t2 && t2 <= t3 && uint256(t3) + delay < type(uint64).max);
+        AttestedAgentRegistry reg = _registry(t1, delay, address(0));
+        if (haltFirst) reg.haltEnrollments(0, _signed(reg.hashHalt(0)));
+        else reg.setEnrollmentVerifier(v1, 0, _signed(reg.hashVerifier(v1, 0)));
+        vm.warp(t2);
+        address before = reg.enrollmentVerifier();
+        bool haltedBefore = reg.enrollmentHalted();
+        reg.setEnrollmentVerifier(v2, 0, _signed(reg.hashVerifier(v2, 0)));
+        vm.warp(t3);
+        if (t3 >= uint256(t2) + delay) {
+            assert(reg.enrollmentVerifier() == v2 && !reg.enrollmentHalted());
+        } else {
+            assert(reg.enrollmentVerifier() == before && reg.enrollmentHalted() == haltedBefore);
+        }
+    }
+
+    /// With a verifier that approves everything, and whatever was announced before: once the
+    /// attesters have halted enrollments, none passes at any later time, whatever its arguments.
+    function check_NoEnrollmentWhileHalted(
+        uint64 delay,
+        uint64 t1,
+        uint64 t2,
+        uint64 t3,
+        address v1,
+        uint256 agentId,
+        address key,
+        address sponsor
+    ) public {
+        vm.assume(0 < t1 && t1 <= t2 && t2 <= t3 && uint256(t3) + delay < type(uint64).max);
+        AttestedAgentRegistry reg = _registry(t1, delay, address(new YesVerifier()));
+        reg.setEnrollmentVerifier(v1, 0, _signed(reg.hashVerifier(v1, 0)));
+        vm.warp(t2);
+        reg.haltEnrollments(0, _signed(reg.hashHalt(0)));
+        vm.warp(t3);
+        vm.prank(sponsor);
+        (bool ok,) = address(reg)
+            .call(abi.encodeCall(AttestedAgentRegistry.enroll, (agentId, key, 0, type(uint64).max, new bytes[](0))));
+        assert(!ok);
     }
 }
