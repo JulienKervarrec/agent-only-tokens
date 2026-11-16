@@ -4,6 +4,7 @@ pragma solidity ^0.8.24;
 import {Test} from "forge-std/Test.sol";
 import {IDcapAttestation, TdxQuoteVerifier} from "../../src/experimental/TdxQuoteVerifier.sol";
 import {TdxEnrollmentVerifier} from "../../src/experimental/TdxEnrollmentVerifier.sol";
+import {DstackConfigIdVerifier} from "../../src/experimental/DstackConfigIdVerifier.sol";
 
 /// Our TDX verifier against the real Automata DCAP verifier deployed on Base Sepolia, on a fork.
 /// Skipped unless BASE_SEPOLIA_RPC is set:
@@ -46,10 +47,39 @@ contract AutomataBaseSepoliaTest is Test {
         TdxEnrollmentVerifier lax = _verifier(1 | (1 << 4));
         vm.prank(payer, payer); // payer is also tx.origin
         bytes32 digest = lax.attest{value: 0.001 ether}(quote);
+        uint256 gasUsed = vm.lastCallGas().gasTotalUsed;
         assertEq(digest, bytes32(0)); // the sample quote carries empty report data
         assertTrue(lax.attested(bytes32(0)));
         assertEq(payer.balance, 1 ether); // no fee kept on Base Sepolia; the value came back
-        emit log_named_uint("attest through the real DCAP verifier, gas", vm.lastCallGas().gasTotalUsed);
+        emit log_named_uint("attest through the real DCAP verifier, gas", gasUsed);
+    }
+
+    /// A quote from a production dstack machine (test/experimental/phala), through the real DCAP
+    /// verifier and the verifier that reads the code from MRCONFIGID.
+    function test_RealVerifierAcceptsAProductionDstackQuote() public {
+        vm.skip(!forked);
+        bytes memory phala = vm.parseBytes(vm.readFile("test/experimental/phala/quote.hex"));
+        bytes32 code;
+        assembly ("memory-safe") {
+            code := keccak256(add(add(phala, 0x20), 168), 352) // attributes .. RTMR2 of the report body
+        }
+        bytes32[] memory approved = new bytes32[](1);
+        approved[0] = code;
+        DstackConfigIdVerifier v = new DstackConfigIdVerifier(DCAP, 1, approved); // up to date only
+        bytes32 digest = v.attest(phala);
+        assertEq(digest, 0x6b8374eb8ae21bf4744c04bf503a96b5e6ce48eba2a8fb671fa6481293f9f631);
+        emit log_named_uint("attest by config id through the real DCAP verifier, gas", vm.lastCallGas().gasTotalUsed);
+
+        // The modified build on the same machine: genuine for Intel, unknown code for us.
+        bytes memory modified = vm.parseBytes(vm.readFile("test/experimental/phala/quote-modified.hex"));
+        vm.expectPartialRevert(TdxQuoteVerifier.UnknownCode.selector);
+        v.attest(modified);
+
+        // The second program, on another machine, under the identity computed before it existed.
+        bytes memory other = vm.parseBytes(vm.readFile("test/experimental/phala/quote-other-machine.hex"));
+        approved[0] = 0x4b20b334ade6c2ee3c6fa18a95edb4d037506b747fe79343d004a3c8e9b472fc;
+        bytes32 second = new DstackConfigIdVerifier(DCAP, 1, approved).attest(other);
+        assertEq(second, 0x6d6d84cf892cd35cea63ce53c8acf809497daaf1282ce1970b0044456a52296f);
     }
 
     function test_RealVerifierRejectsAnAlteredQuote() public {
