@@ -1,5 +1,7 @@
 # Agent-Only Tokens
 
+[![tests](https://github.com/JulienKervarrec/agent-only-tokens/actions/workflows/test.yml/badge.svg)](https://github.com/JulienKervarrec/agent-only-tokens/actions/workflows/test.yml)
+
 A research prototype for an ERC-721 extension whose tokens can only be held and
 moved by AI agent accounts. No human-held wallet can mint, receive, transfer,
 list, pledge or burn them, including on secondary markets.
@@ -61,6 +63,8 @@ interface IAgentRegistry {
 | `src/AgentWrapped721.sol` | Wrapper that makes any existing ERC-721 agent-only | 80 |
 | `src/AgentWrappedUniV3.sol` | Non-unwrappable wrapper for Uniswap V3 liquidity positions | 98 |
 | `src/AgentReputationBadge.sol` | Reputation badges: agent-only and soulbound (ERC-5192). An issuer offers, the agent claims; issuers post a refundable deposit and have a daily quota | 218 |
+| `examples/enclave-agent/` | The agent program that ran in a real TDX machine, the quotes it produced and the record of the first enrollment by hardware attestation | |
+| `.github/workflows/test.yml` | Runs the tests and the symbolic proofs on every push | |
 | `examples/x402/` | x402 demo: an agent account buys from a paid API through the x402 reference facilitator, on a local chain. Includes the 28-line signer adapter and a script comparing this repository's USDC code with the one deployed on a chain | |
 | `archive/` | Two earlier tracks that were set aside (signed-intent core in Solidity, Rust model) | |
 
@@ -248,11 +252,12 @@ and id from its own code). The saving pays for about 260 calls per agent.
 
 - "No human" rests on the attesters, who also approve venues. A dishonest
   approved venue could wrap tokens for humans. Attesters are fixed at deployment.
-- Hardware attestation: the real DCAP verifier was run on Base Sepolia only,
-  with a sample quote; no real machine has produced a quote for one of our
-  keys, so no agent was enrolled by attestation. TDX 1.5 reports and the cheaper
-  zk route are not supported. The default registry still only checks attester
-  signatures.
+- Hardware attestation: one agent was enrolled by attestation, on Base Sepolia,
+  from one machine of one provider (see "First agent enrolled by hardware
+  attestation"). The manifest dstack hashes includes the provider's pre-launch
+  script, which was not reviewed, and the base image was taken from the quote,
+  not rebuilt. TDX 1.5 reports and the cheaper zk route are not supported. The
+  default registry still only checks attester signatures.
 - dstack: the verifier identifies the code (base image and compose hash) and
   does not look at the `key-provider` event, nor at the environment variables
   given to the application. Approved code must therefore keep its session key
@@ -367,6 +372,34 @@ Addresses, fees per transaction and limits: section 3.12 of the study. Scripts
 in `script/`; the fork test in `test/fork` runs with
 `BASE_SEPOLIA_RPC=https://sepolia.base.org FOUNDRY_EVM_VERSION=osaka forge test --match-path 'test/fork/*'`
 (the P-256 precompile Automata uses needs that EVM version locally).
+
+## First agent enrolled by hardware attestation, 16 November 2026
+
+A real machine produced a quote for one of our keys, and the chain accepted it.
+
+- **The agent.** A 149-line program with no dependency
+  (`examples/enclave-agent`) ran in an Intel TDX confidential VM on Phala
+  Cloud (dstack 0.5.12, production image). It created its session key in
+  memory and asked the processor for a quote over its own enrollment digest.
+- **The proof.** On Base Sepolia, Automata's DCAP verifier found the quote
+  genuine and the platform up to date. `DstackEnrollmentVerifier` replayed the
+  machine's ten RTMR3 events, recognised the approved code and recorded the
+  digest ([tx](https://sepolia.basescan.org/tx/0x3bde5e7d3ccf206d60290a8b9de98ae72ea5d79f2fc6368141c3e652613b9fcf),
+  4.78 million gas). The registry then enrolled the key with no attester
+  signature ([tx](https://sepolia.basescan.org/tx/0x2001f551c48d9b8b279bcfd5a4347bce5a2b1e6dabf4e1c748e8ea719ffeeca2)).
+- **The agent acts.** It signed a mint order, a relayer sent it, and the
+  agent's account holds the token
+  ([tx](https://sepolia.basescan.org/tx/0x28c4cf5995942e47404d73444b91c485b5045189c9124986e972cc5cbe880c64)).
+  Neither the account nor the key ever held ETH.
+- **Rotation and emergency stop.** After a restart the machine had a new key;
+  a new quote rotated it on chain. Frozen by its sponsor, the agent's fresh
+  order was refused, then accepted once unfrozen.
+- **A modified build is refused.** The same machine running a changed program
+  still gets a genuine quote from Intel, and our verifier refuses it:
+  `UnknownCode`, or `BadEventLog` if it lies about its compose hash.
+
+Addresses, every step and the limits of this run: `examples/enclave-agent`
+and section 3.13 of the study.
 
 ## x402 payments
 
