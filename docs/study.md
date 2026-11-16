@@ -5,7 +5,7 @@ Julien Kervarrec · November 2026
 This document records how the Agent-Only Tokens draft was reached: what already
 exists, how the design was narrowed down, what the resulting standard says, and
 what it can be used for. Figures about the prototype come from tests run on a
-local simulated EVM, except those of sections 3.12 to 3.16, measured on the
+local simulated EVM, except those of sections 3.12 to 3.17, measured on the
 Base Sepolia test network. Nothing has been deployed on a main network, and nothing has been
 audited.
 
@@ -341,6 +341,56 @@ The lesson: **a venue must be discoverable.** A mapping keyed by token cannot
 be listed from outside; without events an agent can only act on offers it was
 told about off-chain.
 
+### 2.7 Fifth pass: systematic mutation testing
+
+On 16 November 2026 the hand-picked list of mutation checks was replaced by a
+tool, `tools/mutate.py`, which builds the list from the code:
+
+- every `if (...) revert` guard under `src/` is disabled in turn, and for a
+  guard written `a || b` each alternative is dropped in turn;
+- every unconditional revert is removed in turn;
+- the <!--f:mutants.listed-->85<!--/f--> changes written in `tools/mutations.json` are applied in turn: a
+  state update dropped, a field left out of a signed digest, a comparison
+  weakened, an event removed.
+
+That makes <!--f:mutants-->212<!--/f--> mutants. A mutant the test suite does not catch fails the
+tool, unless it is listed with a reason in `tools/mutations-accepted.json`.
+
+**First run: 63 of the 212 mutants went unnoticed.** Sections 2.4 to 2.6 say
+that every added line has a test that fails without it. That was true of the
+checks picked by hand, 97 in the end, and of those only.
+
+| What the 63 were | Count | What was done |
+| --- | --- | --- |
+| A check with no test | 61 | <!--f:tests.Guards-->21<!--/f--> tests in `test/Guards.t.sol`, three new and one extended in `test/experimental`. Each passed on the unchanged contracts: no flaw, but no net either |
+| A check that a second check makes redundant | 2 | Kept for the reader and listed with the reason: the explicit error test on a recovered signature (a failed recovery yields the zero address, which is never an attester), and the zero-deposit test of an issuer (the required deposit is never zero) |
+
+Among the 61: only the borrower cancels or repays a loan, and a funded loan
+cannot be cancelled; the bond of a live agent cannot be withdrawn; only the
+sponsor rotates, freezes or retires its agent; one attester does not count
+twice; attester signatures given for one evidence, deadline, venue, decision
+or agent do not serve another; a relayed order cannot be sent to another
+target or carry another value; a claimed badge cannot be cancelled.
+
+Two more checks joined the automated ones the same day. Slither runs against a
+list of accepted findings with the reason for each
+(`tools/slither-accepted.json`, <!--f:slither.accepted-->50<!--/f--> entries): a new finding fails the check.
+And the figures of sections 3.2, 3.3 and 3.9 are compared with the repository
+by `tools/figures.py`.
+
+The code of the deployed contracts can now be read. Of the <!--f:deployed-->36<!--/f--> contracts
+deployed on Base Sepolia for the tests, <!--f:deployed.clones-->8<!--/f--> are agent accounts, clones
+of an implementation. The other <!--f:deployed.verified-->28<!--/f--> are verified on Sourcify:
+<!--f:deployed.exact-->25<!--/f--> match their source exactly, <!--f:deployed.match-->3<!--/f--> on code only (their sources
+differed by comments). `deployments/base-sepolia.json` names, for each one, the
+commit of the repository that compiles to it; nine of them run earlier
+versions of the code, which were found by recompiling the history.
+
+The lesson: **a list of checks picked by hand measures the author's memory,
+not the code.** A trap of the same kind was found in the Slither command: the
+path filter `test` also matched `AttestedAgentRegistry.sol`, and hid every
+finding in the registry.
+
 ## 3. The standard
 
 **A classic ERC-721 plus three rules, 70 lines in the reference implementation.
@@ -365,29 +415,29 @@ The token asks the registry only two questions: `isAgent(address)` and
 
 | Contract | Role | Lines |
 | --- | --- | --- |
-| `ERC721AgentOnly` | The standard: the three rules | 70 |
-| `IERC721AgentOnly` | The interface a compliant token exposes, advertised through ERC-165 | 10 |
-| `IAgentRegistry` | The two questions asked to the registry | 10 |
-| `AgentAccount` | An agent's account, with no human owner. Only its session key makes it act: single calls, all-or-nothing batches, relayed calls, ERC-1271. Each account is an ERC-1167 clone of one implementation | 139 |
-| `AttestedAgentRegistry` | Proof of agent, version 1: attesters, bond, expiring keys, freeze, revocation, venue approval, ERC-8004 link, optional enrollment verifier that the attesters can replace, bond returned after an exit delay | 274 |
-| `TdxQuoteVerifier` | Checks shared by the hardware verifiers: genuine quote, accepted platform, no debug mode, report data (`src/experimental`) | 116 |
-| `TdxEnrollmentVerifier` | Enrollment by Intel TDX attestation, for images measured the same for every instance | 41 |
-| `DstackEnrollmentVerifier` | Enrollment of agents on dstack: replays the RTMR3 event log, code = base image + compose hash (`src/experimental`) | 138 |
-| `Sha384` | SHA-384 for replaying TDX registers (no EVM precompile) | 92 |
-| `DstackConfigIdVerifier` | Enrollment of agents on dstack from the quote alone: the compose hash is read in `MRCONFIGID` (`src/experimental`, section 3.14) | 58 |
-| `AgentSwap` | Fixed-price sale between agents; events announce each listing and sale | 64 |
-| `AgentLoan` | Collateralised loan between agents; repayments wait in the venue for the lender; events announce each offer and each step | 116 |
-| `AgentStaking` | Staking for ERC-20 rewards, Synthetix-style accounting, one NFT = one unit | 130 |
-| `AgentWrapped721` | Wrapper making any existing ERC-721 agent-only | 80 |
-| `AgentWrappedUniV3` | Non-unwrappable wrapper for Uniswap V3 positions | 98 |
-| `AgentReputationBadge` | Soulbound reputation badges (ERC-5192): an issuer offers, the named agent claims, the issuer can revoke | 218 |
+| `ERC721AgentOnly` | The standard: the three rules | <!--f:lines.ERC721AgentOnly-->70<!--/f--> |
+| `IERC721AgentOnly` | The interface a compliant token exposes, advertised through ERC-165 | <!--f:lines.IERC721AgentOnly-->10<!--/f--> |
+| `IAgentRegistry` | The two questions asked to the registry | <!--f:lines.IAgentRegistry-->10<!--/f--> |
+| `AgentAccount` | An agent's account, with no human owner. Only its session key makes it act: single calls, all-or-nothing batches, relayed calls, ERC-1271. Each account is an ERC-1167 clone of one implementation | <!--f:lines.AgentAccount-->139<!--/f--> |
+| `AttestedAgentRegistry` | Proof of agent, version 1: attesters, bond, expiring keys, freeze, revocation, venue approval, ERC-8004 link, optional enrollment verifier that the attesters can replace, bond returned after an exit delay, notice delay on approvals and replacements, enrollment halt (section 3.17) | <!--f:lines.AttestedAgentRegistry-->335<!--/f--> |
+| `TdxQuoteVerifier` | Checks shared by the hardware verifiers: genuine quote, accepted platform, no debug mode, report data (`src/experimental`) | <!--f:lines.TdxQuoteVerifier-->116<!--/f--> |
+| `TdxEnrollmentVerifier` | Enrollment by Intel TDX attestation, for images measured the same for every instance | <!--f:lines.TdxEnrollmentVerifier-->41<!--/f--> |
+| `DstackEnrollmentVerifier` | Enrollment of agents on dstack: replays the RTMR3 event log, code = base image + compose hash (`src/experimental`) | <!--f:lines.DstackEnrollmentVerifier-->138<!--/f--> |
+| `Sha384` | SHA-384 for replaying TDX registers (no EVM precompile) | <!--f:lines.Sha384-->92<!--/f--> |
+| `DstackConfigIdVerifier` | Enrollment of agents on dstack from the quote alone: the compose hash is read in `MRCONFIGID` (`src/experimental`, section 3.14) | <!--f:lines.DstackConfigIdVerifier-->58<!--/f--> |
+| `AgentSwap` | Fixed-price sale between agents; events announce each listing and sale | <!--f:lines.AgentSwap-->64<!--/f--> |
+| `AgentLoan` | Collateralised loan between agents; repayments wait in the venue for the lender; events announce each offer and each step | <!--f:lines.AgentLoan-->116<!--/f--> |
+| `AgentStaking` | Staking for ERC-20 rewards, Synthetix-style accounting, one NFT = one unit | <!--f:lines.AgentStaking-->130<!--/f--> |
+| `AgentWrapped721` | Wrapper making any existing ERC-721 agent-only | <!--f:lines.AgentWrapped721-->80<!--/f--> |
+| `AgentWrappedUniV3` | Non-unwrappable wrapper for Uniswap V3 positions | <!--f:lines.AgentWrappedUniV3-->98<!--/f--> |
+| `AgentReputationBadge` | Soulbound reputation badges (ERC-5192): an issuer offers, the named agent claims, the issuer can revoke | <!--f:lines.AgentReputationBadge-->218<!--/f--> |
 
 ### 3.3 What the tests establish
 
-One hundred and twenty tests on a local simulated EVM, three fuzzed and one
-stateful invariant test, plus four properties proved symbolically
-(section 2.5). Three more tests run only on a fork of Base Sepolia (section 3.12)
-and are reported as skipped otherwise.
+<!--f:tests-->162<!--/f--> tests on a local simulated EVM, four of them fuzzed and one a
+stateful invariant test, plus <!--f:proofs-->7<!--/f--> properties proved symbolically
+(sections 2.5 and 3.17). <!--f:tests.fork-->3<!--/f--> more tests run only on a fork of Base Sepolia
+(section 3.12) and are reported as skipped otherwise.
 
 | Scenario | Result |
 | --- | --- |
@@ -405,7 +455,9 @@ and are reported as skipped otherwise.
 | 128 runs of 100 random actions by two agents, a human and an unapproved contract | After every action, no token is held by or approved for anything but an agent account or an approved venue |
 | Several calls in one batch, direct or relayed | All or nothing; a human cannot batch for the agent |
 | The five attacks found by the first review and the weaknesses found by the second (sections 2.3 and 2.4) | Each one is now rejected |
-| Each of 97 security checks removed in turn (mutation testing) | The suite fails every time |
+| <!--f:mutants-->212<!--/f--> mutants built from the code: every guard disabled, every listed change applied (mutation testing, section 2.7) | Each one is caught by the suite, or is one of the <!--f:mutants.accepted-->2<!--/f--> that cannot change behaviour |
+| A venue is approved, or the enrollment verifier replaced (section 3.17) | Nothing changes before the notice delay has passed; removing the venue or announcing again cancels |
+| The attesters halt enrollments (section 3.17) | No new agent and no new key at once; agents keep their current key; enrollments resume one notice delay after a verifier is announced |
 | The attesters replace the enrollment verifier to accept a new program (section 3.16) | The agent keeps its id, account, tokens and current key; its next key must come from the new program; one attester alone, another verifier or a replayed decision is refused |
 | A lender that can no longer receive the currency | The borrower still repays and takes its token back; the repayment waits in the venue |
 | The five weaknesses found by the third review (section 2.5) | Each one is now rejected |
@@ -528,30 +580,32 @@ This draft matches the tested prototype. Nobody else has reviewed it yet.
 
 ### 3.9 Gas
 
-Execution gas per transaction, measured locally with `forge test --isolate`, so
-that each call pays for its first access to storage. On an L2 such as Base the
+Execution gas per transaction, measured by `test/Gas.t.sol` with
+`forge test --isolate`, so that each call pays for its first access to
+storage. The figures are kept in `snapshots/Gas.json`; the automated checks
+fail when a change moves one of them. On an L2 such as Base the
 L1 data fee comes on top; it was measured on Base Sepolia (section 3.12).
 
 | Operation | Gas |
 | --- | --- |
-| Plain ERC-721 `transferFrom`, for reference | 55,582 |
-| Agent-only `transferFrom`, called directly | 70,432 |
-| Agent-only `transferFrom`, through the agent account | 80,284 |
-| Agent-only mint, through the agent account | 131,452 |
-| List for sale (with its event, since the fourth pass) | 114,596 |
-| Buy (NFT against an ERC-20; with its event) | 116,377 |
-| First enrollment (deploys the account as a clone, 2 attester signatures) | 211,057 |
-| Key rotation (2 attester signatures) | 55,366 |
-| Badge offer, by an issuer | 252,743 |
-| Badge claim, through the agent account | 95,569 |
-| Stake, through the agent account | 165,366 |
-| Claim staking rewards | 116,689 |
-| Unstake with rewards | 133,562 |
-| Approval, through the agent account (since the third review) | 73,206 |
+| Plain ERC-721 `transferFrom`, for reference | <!--f:gas.01-->55,162<!--/f--> |
+| Agent-only `transferFrom`, called directly | <!--f:gas.02-->70,450<!--/f--> |
+| Agent-only `transferFrom`, through the agent account | <!--f:gas.03-->80,281<!--/f--> |
+| Agent-only mint, through the agent account | <!--f:gas.04-->131,453<!--/f--> |
+| List for sale (with its event, since the fourth pass) | <!--f:gas.05-->114,575<!--/f--> |
+| Buy (NFT against an ERC-20; with its event) | <!--f:gas.06-->116,444<!--/f--> |
+| First enrollment (deploys the account as a clone, 2 attester signatures) | <!--f:gas.07-->211,162<!--/f--> |
+| Key rotation (2 attester signatures) | <!--f:gas.08-->55,483<!--/f--> |
+| Badge offer, by an issuer | <!--f:gas.09-->252,996<!--/f--> |
+| Badge claim, through the agent account | <!--f:gas.10-->95,570<!--/f--> |
+| Stake, through the agent account | <!--f:gas.11-->165,450<!--/f--> |
+| Claim staking rewards | <!--f:gas.12-->116,668<!--/f--> |
+| Unstake with rewards | <!--f:gas.13-->133,612<!--/f--> |
+| Approval, through the agent account (since the third review) | <!--f:gas.14-->72,914<!--/f--> |
 
 The standard adds about 15,000 gas to a transfer: the registry is asked about
 the caller and the holder, and about the recipient when it is not the caller. Agent accounts are ERC-1167 clones of a single implementation, which brought
-the first enrollment down from 1,154,831 to 211,057 gas. The price is about
+the first enrollment down from 1,154,831 to <!--f:gas.07-->211,162<!--/f--> gas. The price is about
 3,650 extra gas on every call through an account, which reads its registry and
 id from its own code; the saving pays for about 260 calls per agent. The
 implementation itself refuses every call.
@@ -1100,6 +1154,115 @@ receive hook) could make it fail and then claim the collateral. Repayments now
 wait in the venue and the lender withdraws them. One test with a blocklisting
 currency; 4 more mutation checks.
 
+### 3.17 A notice delay on what widens, and a halt
+
+Done on 16 November 2026, to remove the limit left by section 3.16: nothing
+delayed the attesters' decisions.
+
+**The problem.** Two of three attesters could approve a venue that hands
+tokens to humans, or a verifier that accepts any key, and use it in the same
+block. Holders had no way to see it coming.
+
+**The rule.**
+
+- **A decision that widens what the registry accepts waits.** Approving a venue
+  (`setVenue`) or replacing the enrollment verifier (`setEnrollmentVerifier`)
+  is an announcement. It takes effect `noticeDelay` seconds later. The delay is
+  fixed at deployment and public.
+- **A decision that narrows is immediate**: removing a venue, revoking an
+  agent, and halting enrollments (`haltEnrollments`, new).
+- **Until the date, nothing changes.** An announced venue is a stranger to
+  every token. The verifier in force stays in force, so agents keep rotating
+  their keys under the old rule during the notice.
+- **Cancelling.** Removing a venue cancels its pending approval. A new
+  verifier announcement replaces the pending one, so announcing the verifier
+  in force cancels it. Approving again a venue already approved does not move
+  its date.
+- **The halt.** With a delay on replacements, attesters could no longer react
+  at once to a verifier found to accept too much. The halt is that reaction: no
+  enrollment and no key rotation from that transaction on. It cancels a pending
+  announcement. Lifting it is a widening: enrollments resume when a verifier
+  announced after the halt takes over, one notice delay later. Agents keep
+  acting with their current key until it expires.
+
+**Why this shape.**
+
+| Option considered | Why it was not kept |
+| --- | --- |
+| Two transactions: announce, then apply after the delay | Someone has to send the second one. Here the registry stores a date and compares it with the block time when asked: one transaction, and the effect cannot be forgotten or sent late |
+| A fixed delay in the code, like the exit delay | A test on a public chain would take a week, and a collection may want a longer notice. The delay is chosen at deployment; a collection reads `noticeDelay` before adopting a registry |
+| Delaying removals too | A removal protects holders; delaying it would only help an attacker |
+| No halt: revoke the agents wrongly enrolled, one by one | Revocation is final and forfeits a bond; it does not stop the next wrong enrollment |
+| Going back to attester-signed enrollments at once, as the emergency stop | It would also be an instant way around the delay: attesters could then enroll any key |
+| The halt as a special verifier address | An explicit flag is easier to read and to prove than a magic value |
+
+**What a holder gains, and what not.** The delay does not stop dishonest
+attesters. It makes their move visible `noticeDelay` seconds before it counts
+(events `VenueSet` and `EnrollmentVerifierSet` carry the date), which gives
+time to sell, to stop using a venue, or to raise the alarm. A halt gives
+dishonest attesters nothing they did not have: they could already revoke every
+agent.
+
+**Cost.** The verifier in force, the halt flag and the pending date share one
+storage slot, so an enrollment reads a single slot when nothing is due: about
+330 gas more than before (section 3.9). `isVenue` still reads one slot.
+
+**Proved.** Three symbolic proofs, for every delay, every time and every order
+of two decisions: a venue is in force only if the last decision approved it and
+the delay has passed since it was first approved without being removed; after
+any first decision and a replacement, what was in force stays in force until
+the notice has passed, and the new verifier is in force afterwards; with a
+verifier that approves everything, no enrollment passes after a halt, whatever
+its arguments. Each proof was checked against the contract with the matching
+rule broken on purpose (a date ignored, a halt not read, an announcement not
+cancelled): each one then fails.
+
+**Tested.** <!--f:tests.Notice-->13<!--/f--> tests: the token refuses an announced venue until its
+date, then accepts it; removal before the date; approval repeated; a verifier
+replaced while agents keep enrolling under the old one; a second announcement
+replacing the first; a halt, what it stops and what it leaves alone; a
+replacement signed before a halt and sent after it; a registry with a delay of
+zero, where decisions are immediate as before.
+
+**Run on Base Sepolia**, with a delay of 120 seconds, registry
+[`0x75Fd…BfcA`](https://sepolia.basescan.org/address/0x75Fd5D6Ce8384c864FefE7bf8990c2AAe070BfcA),
+collection [`0xfF92…AE93`](https://sepolia.basescan.org/address/0xfF92968f440FD8E559f2B35B615F119A94A4AE93),
+sale venue [`0xF7a4…f6dA`](https://sepolia.basescan.org/address/0xF7a44e0FdDBbfF0dB28fe52cd934aDE2185Ff6dA).
+Two agents enrolled by two attesters; the hardware verifier announced is the
+one of section 3.15.
+
+| Step | Result |
+| --- | --- |
+| Agent 1 is enrolled ([tx](https://sepolia.basescan.org/tx/0xcbc046fe84bb5ce4e40824d61f2f99377f3cbb7f9106ece3e86cd41ce37521b2)) and mints a token, relayed ([tx](https://sepolia.basescan.org/tx/0x02f2c3f7585330164389abca9718b74513c21b7f0fd471cefb463919564890c2)) | 211,414 and 161,029 gas |
+| Two attesters approve the sale venue ([tx](https://sepolia.basescan.org/tx/0x6ff4967d7614f00a04ba667774713af19e89dcdabf0d43a7c5d888cc6662a387)) | 86,628 gas. `venueSince` is 120 seconds ahead, `isVenue` false |
+| Two attesters announce the hardware verifier ([tx](https://sepolia.basescan.org/tx/0x46577206f5f6737b3afc3c2e15562b25dce89dee2468d587810e858989d5c8b7)) | 108,408 gas. `enrollmentVerifier` unchanged |
+| During the notice, agent 1 approves the venue for its token | Refused (`NotAgent`) |
+| During the notice, agent 2 is enrolled by two attesters ([tx](https://sepolia.basescan.org/tx/0x462ffb2c6b4513fa996e61865e185c14ba0cc8daa8031561e0aa080ed7ed7a45)) | Accepted |
+| 120 seconds after the announcements | `isVenue` true, `enrollmentVerifier` is the hardware verifier, with no transaction |
+| Agent 1 approves the venue ([tx](https://sepolia.basescan.org/tx/0xccb1631b7e33e0576e526506772142736e164d309866cf90acdefb71d80faf23)) and lists its token ([tx](https://sepolia.basescan.org/tx/0xb1668f16775cb00f020f979f4a9e9b0448405e8f8713f513d6a1321262a4db69)) | Accepted |
+| A key rotation signed by the attesters | Refused (`NotVerified`) |
+| Two attesters halt enrollments ([tx](https://sepolia.basescan.org/tx/0x4eff299009e27ed45faf07e417dd2d7e678c81a77fece6e444141464c2e6ff6b)) | 52,588 gas. A key rotation is refused (`Halted`); account 1 is still an agent |
+| While halted, agent 2 buys the token, relayed ([tx](https://sepolia.basescan.org/tx/0x843701c5b5822e36d233f5623aec88261db5d599d7548de741b5635c6064a20f)) | Accepted |
+| Two attesters announce that attesters sign enrollments again ([tx](https://sepolia.basescan.org/tx/0x657a06dfea8b76f332c9a8401ac527635de8e061429dbce53997ce1e6a4492df)) | 52,068 gas. During the notice a key rotation is still refused (`Halted`) |
+| 120 seconds later, agent 2 gets a new key ([tx](https://sepolia.basescan.org/tx/0xc121b456680d977317752a98db63151e0a5d896e24b9231893042b90d22cbca2)) | 57,819 gas |
+| The halt signatures, sent again | Refused (`BadAttester`) |
+
+The refusals were simulated on the chain's state at that moment; the other
+steps are transactions.
+
+**Limits.**
+
+- A registry deployed with a delay of zero behaves as before. Nothing forces a
+  deployer to choose a delay; `noticeDelay` is there to be read.
+- A halt stops rotations too. If it lasts longer than a key's remaining life,
+  that agent is without a key until enrollments resume. Its tokens stay in its
+  account.
+- The delay is the same for venues and verifiers, and cannot be changed after
+  deployment.
+- The attesters themselves are still fixed at deployment (next step).
+- The registry of section 3.16 predates this change: its replacement was
+  immediate.
+
 ## 4. Use cases
 
 The standard is content-agnostic: the token can be anything an ERC-721 can be.
@@ -1135,13 +1298,14 @@ given to the model.
 | Approval or `permit` drainer | Approvals only go to agents and approved venues. The account's key only signs EIP-712 typed data bound to that account | Sign typed data only; no generic `sign(bytes)` |
 | EIP-7702 delegation trap | Eligibility never depends on the presence of code | Refuse that message type |
 | Replay of a relayed call | Per-account nonce and deadline, in typed data bound to the chain and the account | |
-| Replay of an attester decision | Counter per agent for enrollments, per venue for approvals and removals | |
+| Replay of an attester decision | Counter per agent for enrollments, per venue for approvals and removals, one for verifier replacements and halts | |
 | Off-chain message reused as an order | Orders and messages are distinct EIP-712 types | |
 | Seller or borrower changing terms at the last moment | The buyer or lender states the terms it agreed to | Never rely on a listing read in an earlier block |
 | Stolen or leaked session key | Keys expire and are replaced at the next enrollment; the sponsor can freeze, and a frozen holder's tokens do not move, even through a listing left behind | Keep the key inside the attested runtime |
 | False proof of agent | Attesters can revoke; the bond is forfeited | |
-| Compromised attester | A threshold of signatures is required | |
-| Dishonest approved venue | Nothing once approved | Attesters must review venue code before approving |
+| Compromised attester | A threshold of signatures is required; what a quorum approves takes effect only after a public notice delay (section 3.17) | Watch the registry's `VenueSet` and `EnrollmentVerifierSet` events |
+| Verifier found to accept too much | Attesters halt enrollments at once; agents already enrolled can be revoked | |
+| Dishonest approved venue | Nothing once in force; its approval was visible for the notice delay, and its removal is immediate | Attesters must review venue code before approving |
 | Sybil and spam | Refundable bond per agent | |
 | Operator with physical access to the TEE | Outside the reference registry | Enroll only hardware hosted where the operator has no physical access; see next section |
 
@@ -1185,7 +1349,8 @@ Options studied and set aside:
 ## 7. Limits and what was not done
 
 - **Trust in attesters**, for agents and venues. Attesters are fixed at
-  deployment.
+  deployment. Their approvals wait for a notice delay (section 3.17): that
+  makes a dishonest quorum visible in time, it does not stop it.
 - **Hardware attestation.** Three agents were enrolled by attestation, on Base
   Sepolia, from two machines of one provider (sections 3.13 to 3.15). The
   base image was not rebuilt from source. The provider's pre-launch script,
@@ -1195,7 +1360,10 @@ Options studied and set aside:
 - **The attesters can replace the enrollment verifier.** A program can be
   upgraded without changing the account, but the hardware proof binds a
   registry only as long as its attesters keep a verifier that demands it.
-  Nothing delays a replacement (section 3.16).
+  A replacement waits for the notice delay, unless the registry was deployed
+  with a delay of zero (section 3.17).
+- **A halt stops key rotations too.** A halt longer than a key's remaining
+  life leaves that agent without a key until enrollments resume.
 - **dstack key provider.** The dstack verifier checks the code, not the
   `key-provider` event nor the application's environment variables. Approved
   code must keep its session key in memory only (section 3.11).
@@ -1229,6 +1397,9 @@ Options studied and set aside:
   code must only quote enrollment digests of keys it created. The dstack
   verifier trusts that no application code runs before `boot-mr-done`. An
   application that logs more than 64 events cannot enroll.
+- **Mutation testing** shows that a removed check is noticed. It does not
+  show that the checks present are the right ones, nor that none is missing
+  (section 2.7).
 - **Not done.** Deployment on a main network, professional audit. The third review
   (section 2.5) uses an independent agent, symbolic proofs and fuzzing; it does
   not replace a human audit before real value is at stake.
@@ -1246,8 +1417,10 @@ Options studied and set aside:
    key (section 3.15). Next: a purchase whose result the agent uses.
 3. Done on 16 November 2026 (section 3.16): the attesters can replace the
    enrollment verifier, so a program is upgraded without changing the account.
-   Next: a waiting period on every decision that widens who can hold tokens
-   (venue approval and verifier replacement), so holders can see it coming.
+   Done the same day (section 3.17): a notice delay on every decision that
+   widens who can hold tokens, and an immediate halt of enrollments. Next:
+   attesters that can be replaced, with the same delay, and attesters that are
+   contracts (a multi-signature wallet).
 4. Enrollment through a zk proof of the quote verification, about 500,000 gas
    instead of 4.3 million. Checked on chain on 15 November 2026: RISC Zero's
    verifier router is deployed on Base Sepolia, but Automata's entrypoint
@@ -1304,6 +1477,7 @@ unless stated otherwise.
 | dstack extends RTMR3 as SHA-384(RTMR3 \|\| event digest) from zero; V1 digest = SHA-384(type LE \|\| ":" \|\| name \|\| ":" \|\| payload) | Read in `cc-eventlog/src/runtime_events.rs` (commit `b936f86`), then confirmed on 15 November 2026 by replaying the real event log of `verifier/fixtures/quote-report.json`, offline and in the tests | [dstack](https://github.com/Dstack-TEE/dstack) |
 | The USDC deployed on Base is `FiatTokenV2_2` | Confirmed on 14 November 2026 at block 57,208,253: the implementation `0x2Ce6311ddAE708829bc0784C967b7d77D19FD779` and its signature library are byte-identical to the code compiled from commit `fc85788`, apart from the metadata hash and the library address. Read through the public RPC `https://mainnet.base.org` | `examples/x402/check-usdc.mjs` |
 | The standard x402 client pays from an agent account once given the 28-line signer adapter | Confirmed by execution on 14 November 2026: packages `@x402/fetch` and `@x402/express` 2.31.0, local chain | `examples/x402/demo.mjs` |
+| Every contract cited in this document is at its address on Base Sepolia, with the code recorded | Confirmed on 16 November 2026 for the <!--f:deployed-->36<!--/f--> contracts of `deployments/base-sepolia.json` and the 3 external ones (code hash read on chain); checked again every night | `tools/deployments.py` |
 
 ## 10. Sources
 
