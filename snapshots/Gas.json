@@ -1,0 +1,16 @@
+{
+  "01 plain ERC-721 transferFrom": "55162",
+  "02 agent-only transferFrom, direct": "70450",
+  "03 agent-only transferFrom, through the account": "80281",
+  "04 mint, through the account": "131453",
+  "05 list for sale": "114575",
+  "06 buy": "116444",
+  "07 first enrollment": "211162",
+  "08 key rotation": "55483",
+  "09 badge offer": "252996",
+  "10 badge claim, through the account": "95570",
+  "11 stake, through the account": "165450",
+  "12 claim staking rewards": "116668",
+  "13 unstake with rewards": "133612",
+  "14 approval, through the account": "72914"
+}
