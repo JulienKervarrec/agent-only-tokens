@@ -32,7 +32,7 @@ contract AutomataBaseSepoliaTest is Test {
     }
 
     function test_RealVerifierAcceptsTheQuoteAndOurChecksApply() public {
-        if (!forked) return;
+        vm.skip(!forked);
         address payer = makeAddr("payer");
         vm.deal(payer, 1 ether);
 
@@ -53,7 +53,7 @@ contract AutomataBaseSepoliaTest is Test {
     }
 
     function test_RealVerifierRejectsAnAlteredQuote() public {
-        if (!forked) return;
+        vm.skip(!forked);
         bytes memory altered = quote;
         altered[48 + 136] ^= 0x01; // one bit of the boot measurement: the signature no longer matches
         TdxEnrollmentVerifier lax = _verifier(1 | (1 << 4));
