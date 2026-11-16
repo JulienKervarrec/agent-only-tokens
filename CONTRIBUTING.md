@@ -18,13 +18,17 @@ Foundry v1.5.1 and solc 0.8.28 are what the automated checks use.
 1. **The standard stays small.** `src/ERC721AgentOnly.sol` holds three rules.
    Anything else lives around it (registry, accounts, venues, verifiers) and can
    be replaced without touching it.
-2. **Every line added has a test that fails without it.** `tools/mutate.py`
-   checks this: it disables each guard in turn, applies the changes listed in
-   `tools/mutations.json`, and fails if the test suite does not notice.
-3. **Nothing is claimed without proof.** A figure in the documentation is either
+2. **Every check added has a test that fails without it.** `tools/mutate.py`
+   checks part of this: it disables each `if (...) revert` guard in turn,
+   applies the changes listed in `tools/mutations.json`, and fails if no test
+   notices. A line that is not a guard is covered only if you add its removal
+   to that list: do it for every state update, signed field and event.
+3. **A proof is run against the broken code.** A new or changed symbolic proof
+   must fail when the rule it states is removed from the contract.
+4. **Nothing is claimed without proof.** A figure in the documentation is either
    generated (`tools/figures.py`), a transaction on a public chain, or a source
    that was read.
-4. **No secret in the repository**: no private key, seed or API key, including
+5. **No secret in the repository**: no private key, seed or API key, including
    for test networks.
 
 ## Checks to run before a pull request

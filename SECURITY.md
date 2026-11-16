@@ -25,7 +25,7 @@ agent account and the venues are in scope. So is anything that lets a human-held
 key hold, receive or move an agent-only token, or lets an agent lose a token it
 did not give up.
 
-Known limits are listed in the README ("Known limits") and in section 6 of
+Known limits are listed in the README ("Known limits") and in section 7 of
 `docs/study.md`; a report that restates one of them is still welcome if it shows
 a consequence that is not written there.
 
