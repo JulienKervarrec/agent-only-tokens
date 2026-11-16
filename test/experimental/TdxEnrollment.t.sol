@@ -59,7 +59,7 @@ contract TdxEnrollmentTest is AgentOnlyBase {
 
         address[] memory att = new address[](3);
         (att[0], att[1], att[2]) = (vm.addr(A1), vm.addr(A2), vm.addr(A3));
-        treg = new AttestedAgentRegistry(att, 2, BOND, TTL, IERC721(address(0)), address(verifier));
+        treg = new AttestedAgentRegistry(att, 2, BOND, TTL, NOTICE, IERC721(address(0)), address(verifier));
         tnft = new AnyCollection(IAgentRegistry(address(treg)));
     }
 
@@ -152,7 +152,9 @@ contract TdxEnrollmentTest is AgentOnlyBase {
 
     function test_RefusesQuoteTheVerifierRejects() public {
         dcap.set(false, 0, 2);
-        vm.expectRevert(abi.encodeWithSelector(TdxQuoteVerifier.QuoteRejected.selector, bytes("signature check failed")));
+        vm.expectRevert(
+            abi.encodeWithSelector(TdxQuoteVerifier.QuoteRejected.selector, bytes("signature check failed"))
+        );
         verifier.attest(_quoteFor(keccak256("digest")));
     }
 
@@ -229,6 +231,22 @@ contract TdxEnrollmentTest is AgentOnlyBase {
         assertEq(address(v).balance, 0);
     }
 
+    /// A refund that cannot be delivered fails the attestation: the fee is not kept silently.
+    function test_FeeRefundThatCannotBeDeliveredFailsTheAttestation() public {
+        TdxEnrollmentVerifier v = new TdxEnrollmentVerifier(new RefundingDcap(), 1, _approvedReal());
+        PayerWithoutReceive payer = new PayerWithoutReceive();
+        bytes memory quote = _quoteFor(keccak256("digest"));
+        vm.expectRevert(TdxQuoteVerifier.RefundFailed.selector);
+        payer.attest{value: 10}(v, quote);
+    }
+
+    function test_RefusesTruncatedReports() public {
+        TdxEnrollmentVerifier v = new TdxEnrollmentVerifier(new TruncatingDcap(), 1, _approvedReal());
+        bytes memory quote = _quoteFor(keccak256("digest"));
+        vm.expectRevert(TdxQuoteVerifier.UnsupportedReport.selector);
+        v.attest(quote);
+    }
+
     function _approvedReal() internal pure returns (bytes32[] memory a) {
         a = new bytes32[](1);
         a[0] = REAL_CODE;
@@ -253,12 +271,33 @@ contract TdxEnrollmentTest is AgentOnlyBase {
         _enrollWith(SPONSOR1, 7, key, BOND, new bytes[](0));
         address account = treg.accountOf(7);
 
-        treg.setVenue(address(swap), true, keccak256("code"), _attest(A1, A2, treg.hashVenue(address(swap), true, keccak256("code"))));
+        treg.setVenue(
+            address(swap),
+            true,
+            keccak256("code"),
+            _attest(A1, A2, treg.hashVenue(address(swap), true, keccak256("code")))
+        );
+        assertFalse(treg.isVenue(address(swap)));
+        skip(NOTICE);
         assertTrue(treg.isVenue(address(swap)));
 
         // If a quote turns out to be forged, the attesters can still revoke the agent.
         treg.revoke(7, _attest(A1, A3, treg.hashRevocation(7)));
         assertFalse(treg.isAgent(account));
+    }
+}
+
+/// A DCAP verifier whose output announces a TDX 1.0 report but stops after 100 bytes of it.
+contract TruncatingDcap is IDcapAttestation {
+    function verifyAndAttestOnChain(bytes calldata quote) external payable returns (bool, bytes memory) {
+        return (true, abi.encodePacked(uint16(4), uint16(2), uint8(0), bytes6(0), quote[48:148]));
+    }
+}
+
+/// Pays for an attestation but cannot take ETH back.
+contract PayerWithoutReceive {
+    function attest(TdxEnrollmentVerifier v, bytes calldata quote) external payable {
+        v.attest{value: msg.value}(quote);
     }
 }
 

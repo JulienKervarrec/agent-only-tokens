@@ -39,7 +39,9 @@ contract Sha384Test is Test {
     function test_ReferenceVectors() public view {
         uint16[13] memory lengths = [0, 1, 3, 55, 56, 111, 112, 113, 127, 128, 129, 200, 300];
         bytes[13] memory expected = [
-            bytes(hex"38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"),
+            bytes(
+                hex"38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"
+            ),
             hex"8a6c69af6fb6247635f837958446fb8f10e39bd5fbc244f7e635176339a3be614f6394247f01dbe1126c178c7bd48cb5",
             hex"de5060203c58b419f136c17666d339a05705575827e3600f0475f6fb3089870aede26c5a0903dea5938bcded4ee9e619",
             hex"fc2728f452750d08b5dbad1aea53202e7fc19c06894d13e36c433b0444a899277c49f16e0577c03db0f0605578836ef6",
@@ -96,7 +98,7 @@ contract DstackEnrollmentTest is AgentOnlyBase {
         verifier = new DstackEnrollmentVerifier(dcap, 1, _one(REAL_CODE));
         address[] memory att = new address[](3);
         (att[0], att[1], att[2]) = (vm.addr(A1), vm.addr(A2), vm.addr(A3));
-        dreg = new AttestedAgentRegistry(att, 2, BOND, TTL, IERC721(address(0)), address(verifier));
+        dreg = new AttestedAgentRegistry(att, 2, BOND, TTL, NOTICE, IERC721(address(0)), address(verifier));
     }
 
     // ------------------------------------------------------------ helpers
@@ -244,6 +246,16 @@ contract DstackEnrollmentTest is AgentOnlyBase {
         verifier.attest(q4, events, 2, false, COMPOSE_HASH);
     }
 
+    /// An application that logs the approved compose hash after boot-mr-done, then a second
+    /// boot-mr-done of its own, so that the log looks complete.
+    function test_RefusesComposeEventBetweenTwoBootDone() public {
+        bytes memory events =
+            abi.encodePacked(_event(realEvents, 0), BOOT_DONE_V1, _event(realEvents, COMPOSE_INDEX), BOOT_DONE_V1);
+        bytes memory quote = _quoteWithEvents(events);
+        vm.expectRevert(DstackEnrollmentVerifier.BadEventLog.selector);
+        verifier.attest(quote, events, 2, false, COMPOSE_HASH);
+    }
+
     function test_RefusesEventLogThatDoesNotReplayToRtmr3() public {
         bytes memory events = realEvents;
         events[events.length - 1] ^= 0x01; // one bit of the last event
@@ -280,6 +292,17 @@ contract DstackEnrollmentTest is AgentOnlyBase {
         quote[RTMR3 + 47] ^= 0x01;
         vm.expectRevert(DstackEnrollmentVerifier.BadEventLog.selector);
         verifier.attest(quote, realEvents, COMPOSE_INDEX, false, COMPOSE_HASH);
+
+        // The same two cases with the difference in the first byte.
+        events = realEvents;
+        events[COMPOSE_INDEX * 48] ^= 0x01;
+        quote = _quoteWithEvents(events);
+        vm.expectRevert(DstackEnrollmentVerifier.BadEventLog.selector);
+        verifier.attest(quote, events, COMPOSE_INDEX, false, COMPOSE_HASH);
+        quote = realQuote;
+        quote[RTMR3] ^= 0x01;
+        vm.expectRevert(DstackEnrollmentVerifier.BadEventLog.selector);
+        verifier.attest(quote, realEvents, COMPOSE_INDEX, false, COMPOSE_HASH);
     }
 
     function test_RefusesMoreThan64Events() public {
@@ -303,7 +326,11 @@ contract DstackEnrollmentTest is AgentOnlyBase {
     /// cannot tell OS events from application events, so it is refused.
     function test_RefusesLogWithoutBootDoneAfterCompose() public {
         bytes memory events = abi.encodePacked(
-            _event(realEvents, 0), _event(realEvents, 1), _event(realEvents, COMPOSE_INDEX), keccak256("app"), bytes16(0)
+            _event(realEvents, 0),
+            _event(realEvents, 1),
+            _event(realEvents, COMPOSE_INDEX),
+            keccak256("app"),
+            bytes16(0)
         );
         bytes memory quote = _quoteWithEvents(events);
         vm.expectRevert(DstackEnrollmentVerifier.BadEventLog.selector);
