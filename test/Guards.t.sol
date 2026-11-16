@@ -69,6 +69,13 @@ contract GuardsTest is AgentOnlyBase {
         _deploy(att, 4, TTL);
         vm.expectRevert(AttestedAgentRegistry.BadConfig.selector); // keys that expire at once
         _deploy(att, 2, 0);
+        // Keys that do not outlive the notice delay: a halt could not be lifted before they all expire.
+        vm.expectRevert(AttestedAgentRegistry.BadConfig.selector);
+        _deploy(att, 2, NOTICE);
+        _deploy(att, 2, NOTICE + 1);
+        // A verifier that holds no code yet could be given any code later.
+        vm.expectRevert(AttestedAgentRegistry.BadConfig.selector);
+        new AttestedAgentRegistry(att, 2, BOND, TTL, NOTICE, IERC721(address(0)), address(0xBEEF));
 
         att[2] = att[0]; // the same attester twice would let it count for two
         vm.expectRevert(AttestedAgentRegistry.BadConfig.selector);
@@ -212,11 +219,12 @@ contract GuardsTest is AgentOnlyBase {
     }
 
     function test_AttesterSignaturesCoverEveryFieldOfAVenueDecision() public {
-        address venue = address(0xBEEF);
+        address venue = address(new AgentSwap());
+        address other = address(new AgentSwap());
         bytes32 why = keccak256("code");
         bytes[] memory approval = _attest(A1, A2, reg.hashVenue(venue, true, why));
         vm.expectRevert(AttestedAgentRegistry.BadAttester.selector); // another venue
-        reg.setVenue(address(0xBAD), true, why, approval);
+        reg.setVenue(other, true, why, approval);
         vm.expectRevert(AttestedAgentRegistry.BadAttester.selector); // another evidence
         reg.setVenue(venue, true, keccak256("other"), approval);
         vm.expectRevert(AttestedAgentRegistry.BadAttester.selector); // an approval used as a removal

@@ -88,6 +88,14 @@ contract GasTest is AgentOnlyBase {
         _measure("07 first enrollment");
         _enroll(reg, sponsor, 3, address(0x4444), 0);
         _measure("08 key rotation");
+
+        // Once a verifier announced by the attesters has taken over (here "attesters sign",
+        // announced again), every enrollment reads one more storage slot, for good.
+        bytes32 why = keccak256("review");
+        reg.setEnrollmentVerifier(address(0), why, FAR, _attest(A1, A2, reg.hashVerifier(address(0), why, FAR)));
+        skip(NOTICE);
+        _enroll(reg, sponsor, 3, address(0x5555), 0);
+        _measure("15 key rotation after an announced verifier took over");
     }
 
     function test_GasBadge() public {

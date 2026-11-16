@@ -42,11 +42,11 @@ contract NoticeTest is AgentOnlyBase {
     }
 
     function _announce(AttestedAgentRegistry r, address verifier) internal {
-        r.setEnrollmentVerifier(verifier, WHY, _attest(A1, A2, r.hashVerifier(verifier, WHY)));
+        r.setEnrollmentVerifier(verifier, WHY, FAR, _attest(A1, A2, r.hashVerifier(verifier, WHY, FAR)));
     }
 
     function _halt(AttestedAgentRegistry r) internal {
-        r.haltEnrollments(WHY, _attest(A1, A2, r.hashHalt(WHY)));
+        r.haltEnrollments(WHY, FAR, _attest(A1, A2, r.hashHalt(WHY, FAR)));
     }
 
     /// An enrollment approved by `v` alone, with no attester signature.
@@ -105,7 +105,10 @@ contract NoticeTest is AgentOnlyBase {
     }
 
     function test_ApprovingAVenueAgainDoesNotMoveItsDate() public {
-        // In force: approving it again does not suspend it.
+        // In force: approving it again does not suspend it, and the event still gives its date.
+        uint64 first = reg.venueSince(address(swap));
+        vm.expectEmit(address(reg));
+        emit AttestedAgentRegistry.VenueSet(address(swap), true, WHY, first);
         _setVenue(address(swap), true);
         assertTrue(reg.isVenue(address(swap)));
 
@@ -129,10 +132,10 @@ contract NoticeTest is AgentOnlyBase {
     }
 
     function testFuzz_NoVenueBeforeItsDate(uint64 delay, uint64 wait) public {
-        delay = uint64(bound(delay, 0, 3650 days));
-        wait = uint64(bound(wait, 0, 7300 days));
+        delay = uint64(bound(delay, 0, TTL - 1));
+        wait = uint64(bound(wait, 0, 2 * TTL));
         AttestedAgentRegistry r = _registry(delay, address(0));
-        address v = address(0xBEEF);
+        address v = address(swap);
         r.setVenue(v, true, WHY, _attest(A1, A2, r.hashVenue(v, true, WHY)));
         skip(wait);
         assertEq(r.isVenue(v), wait >= delay);
@@ -221,7 +224,7 @@ contract NoticeTest is AgentOnlyBase {
         assertFalse(reg.enrollmentHalted());
 
         vm.expectEmit(address(reg));
-        emit AttestedAgentRegistry.EnrollmentsHalted(WHY);
+        emit AttestedAgentRegistry.EnrollmentsHalted(address(0), WHY);
         _halt(reg);
         assertTrue(reg.enrollmentHalted());
 
@@ -242,6 +245,7 @@ contract NoticeTest is AgentOnlyBase {
         _do(K1, acc1, address(nft), abi.encodeCall(nft.approve, (address(acc2), id)));
 
         // The announcement made before the halt is cancelled: its date passes, nothing resumes.
+        assertEq(reg.announcedVerifier(), address(0));
         assertEq(reg.announcedVerifierAt(), 0);
         skip(NOTICE);
         assertTrue(reg.enrollmentHalted());
@@ -270,42 +274,126 @@ contract NoticeTest is AgentOnlyBase {
         assertEq(r.keyOf(3), vm.addr(K2));
     }
 
-    /// While halted, the registry still shows which verifier was stopped.
-    function test_HaltShowsTheVerifierThatWasInForce() public {
+    /// A verifier that took over by announcement is halted like any other, and the registry
+    /// still shows which verifier was stopped.
+    function test_HaltStopsAVerifierThatTookOverByAnnouncement() public {
         AttestedAgentRegistry r = _registry(NOTICE, address(0));
         StubVerifier v = new StubVerifier();
         _announce(r, address(v));
         skip(NOTICE);
+        _enrollBy(v, r, 3, vm.addr(K1));
+
+        vm.expectEmit(address(r));
+        emit AttestedAgentRegistry.EnrollmentsHalted(address(v), WHY);
         _halt(r);
+        assertTrue(r.enrollmentHalted());
         assertEq(r.enrollmentVerifier(), address(v));
+        v.approve(r.hashEnrollment(3, vm.addr(K2), WHY, SPONSOR3, 1, FAR));
+        vm.prank(SPONSOR3);
+        vm.expectRevert(AttestedAgentRegistry.Halted.selector);
+        r.enroll(3, vm.addr(K2), WHY, FAR, new bytes[](0));
+        skip(NOTICE);
+        assertTrue(r.enrollmentHalted());
+    }
+
+    /// Under a halt, any announcement lifts the halt when it takes over, even one that names
+    /// the halted verifier. Only another halt cancels a pending announcement.
+    function test_UnderAHaltOnlyAnotherHaltCancelsAnAnnouncement() public {
+        StubVerifier broken = new StubVerifier();
+        AttestedAgentRegistry r = _registry(NOTICE, address(broken));
+        _halt(r);
+        _announce(r, address(new StubVerifier()));
+        skip(NOTICE - 1);
+        _halt(r);
+        skip(NOTICE);
+        assertTrue(r.enrollmentHalted());
+        assertEq(r.announcedVerifier(), address(0));
+        assertEq(r.announcedVerifierAt(), 0);
+
+        _announce(r, address(broken));
+        skip(NOTICE);
+        assertFalse(r.enrollmentHalted());
+        assertEq(r.enrollmentVerifier(), address(broken));
+    }
+
+    // ------------------------------------------------------------ what a decision commits to
+
+    /// The notice is there for the code to be read: an address that holds none is refused,
+    /// or any code could be put there once the notice has passed.
+    function test_AVenueOrAVerifierWithoutCodeIsRefused() public {
+        address empty = address(0xBEEF);
+        bytes[] memory sigs = _attest(A1, A2, reg.hashVenue(empty, true, WHY));
+        vm.expectRevert(AttestedAgentRegistry.BadInput.selector);
+        reg.setVenue(empty, true, WHY, sigs);
+        sigs = _attest(A1, A2, reg.hashVerifier(empty, WHY, FAR));
+        vm.expectRevert(AttestedAgentRegistry.BadInput.selector);
+        reg.setEnrollmentVerifier(empty, WHY, FAR, sigs);
+        // "No verifier" is not an address without code: attesters sign enrollments again.
+        _announce(reg, address(0));
+    }
+
+    function test_SignaturesOnTheVerifierExpire() public {
+        uint64 soon = uint64(block.timestamp) + 1 hours;
+        StubVerifier v = new StubVerifier();
+        bytes[] memory replacement = _attest(A1, A2, reg.hashVerifier(address(v), WHY, soon));
+        bytes[] memory halt = _attest(A1, A2, reg.hashHalt(WHY, soon));
+        // A later deadline than the one signed is not accepted.
+        vm.expectRevert(AttestedAgentRegistry.BadAttester.selector);
+        reg.setEnrollmentVerifier(address(v), WHY, soon + 1, replacement);
+        vm.expectRevert(AttestedAgentRegistry.BadAttester.selector);
+        reg.haltEnrollments(WHY, soon + 1, halt);
+
+        skip(1 hours + 1);
+        vm.expectRevert(AttestedAgentRegistry.Expired.selector);
+        reg.setEnrollmentVerifier(address(v), WHY, soon, replacement);
+        vm.expectRevert(AttestedAgentRegistry.Expired.selector);
+        reg.haltEnrollments(WHY, soon, halt);
+        assertFalse(reg.enrollmentHalted());
+        assertEq(reg.announcedVerifierAt(), 0);
+    }
+
+    /// Someone holding a replacement the attesters signed and never sent cannot use it to
+    /// void a halt they have just signed: halts have their own counter.
+    function test_AnUnusedReplacementSentFirstDoesNotVoidAHalt() public {
+        address stale = address(new StubVerifier());
+        bytes[] memory replacement = _attest(A1, A2, reg.hashVerifier(stale, WHY, FAR));
+        bytes[] memory halt = _attest(A1, A2, reg.hashHalt(WHY, FAR));
+        vm.prank(human);
+        reg.setEnrollmentVerifier(stale, WHY, FAR, replacement);
+        reg.haltEnrollments(WHY, FAR, halt);
+        assertTrue(reg.enrollmentHalted());
+        skip(NOTICE);
+        assertTrue(reg.enrollmentHalted()); // the stale replacement was cancelled by the halt
+        assertEq(reg.haltNonce(), 1);
     }
 
     function test_OnlyTheAttestersHalt() public {
-        bytes32 digest = reg.hashHalt(WHY);
+        bytes32 digest = reg.hashHalt(WHY, FAR);
         bytes[] memory one = new bytes[](1);
         one[0] = _sign(A1, digest);
         vm.expectRevert(AttestedAgentRegistry.NotEnoughAttesters.selector);
-        reg.haltEnrollments(WHY, one);
+        reg.haltEnrollments(WHY, FAR, one);
         vm.expectRevert(AttestedAgentRegistry.BadAttester.selector);
-        reg.haltEnrollments(WHY, _attest(A1, HUMAN_PK, digest));
+        reg.haltEnrollments(WHY, FAR, _attest(A1, HUMAN_PK, digest));
         bytes[] memory sigs = _attest(A1, A2, digest);
         // Signatures given for one reason do not serve another, nor another kind of decision.
         vm.expectRevert(AttestedAgentRegistry.BadAttester.selector);
-        reg.haltEnrollments(keccak256("other"), sigs);
+        reg.haltEnrollments(keccak256("other"), FAR, sigs);
         vm.expectRevert(AttestedAgentRegistry.BadAttester.selector);
-        reg.setEnrollmentVerifier(address(0), WHY, sigs);
+        reg.setEnrollmentVerifier(address(0), WHY, FAR, sigs);
 
         // A replacement signed before the halt and not yet used dies with it.
-        bytes[] memory unused = _attest(A1, A2, reg.hashVerifier(address(0xBAD), WHY));
-        reg.haltEnrollments(WHY, sigs);
+        address unsent = address(new StubVerifier());
+        bytes[] memory unused = _attest(A1, A2, reg.hashVerifier(unsent, WHY, FAR));
+        reg.haltEnrollments(WHY, FAR, sigs);
         vm.expectRevert(AttestedAgentRegistry.BadAttester.selector);
-        reg.setEnrollmentVerifier(address(0xBAD), WHY, unused);
+        reg.setEnrollmentVerifier(unsent, WHY, FAR, unused);
         // Once lifted, the old halt cannot be replayed by anyone.
         _announce(reg, address(0));
         skip(NOTICE);
         vm.prank(human);
         vm.expectRevert(AttestedAgentRegistry.BadAttester.selector);
-        reg.haltEnrollments(WHY, sigs);
+        reg.haltEnrollments(WHY, FAR, sigs);
         assertFalse(reg.enrollmentHalted());
     }
 }

@@ -373,9 +373,9 @@ contract AgentOnlyTest is AgentOnlyBase {
 
         // Nor is a venue approved by them alone.
         bytes[] memory v = new bytes[](1);
-        v[0] = _sign(HUMAN_PK, reg.hashVenue(human, true, bytes32(0)));
+        v[0] = _sign(HUMAN_PK, reg.hashVenue(address(usdc), true, bytes32(0)));
         vm.expectRevert(AttestedAgentRegistry.NotEnoughAttesters.selector);
-        reg.setVenue(human, true, bytes32(0), v);
+        reg.setVenue(address(usdc), true, bytes32(0), v);
     }
 
     function test_FrozenAndRevokedAgentsStop() public {
@@ -425,7 +425,7 @@ contract AgentOnlyTest is AgentOnlyBase {
     // Each test below replays an attack that worked before the review of 13 November 2026.
 
     function test_VenueDecisionCannotBeReplayed() public {
-        address rogue = address(0xBAD);
+        address rogue = address(new AgentSwap());
         bytes[] memory approval = _attest(A1, A2, reg.hashVenue(rogue, true, keccak256("code")));
         reg.setVenue(rogue, true, keccak256("code"), approval);
         reg.setVenue(rogue, false, keccak256("code"), _attest(A1, A2, reg.hashVenue(rogue, false, keccak256("code"))));
