@@ -1,0 +1,46 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  forge:
+    name: Foundry tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.5.1
+      - run: git clone --depth 1 --branch v1.9.7 https://github.com/foundry-rs/forge-std lib/forge-std
+      - run: forge fmt --check src
+      - run: forge test
+
+  halmos:
+    name: Symbolic proofs (Halmos)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.5.1
+      - run: git clone --depth 1 --branch v1.9.7 https://github.com/foundry-rs/forge-std lib/forge-std
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install halmos==0.3.3
+      - run: halmos --match-contract "AgentOnlyProps|RegistryProps"
