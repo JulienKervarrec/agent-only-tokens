@@ -295,8 +295,8 @@
     {
       "address": "0x75Fd5D6Ce8384c864FefE7bf8990c2AAe070BfcA",
       "name": "AttestedAgentRegistry",
-      "role": "registry with a notice delay of 120 seconds; current source",
-      "run": "notice delay and halt, 16 November 2026 (study 3.17)",
+      "role": "registry with a notice delay of 120 seconds, as it was before the independent review (study 2.8)",
+      "run": "notice delay and halt, first run, 16 November 2026 (study 3.17)",
       "block": 59631146,
       "codeHash": "0x35bdd5c0d2fee24859fdcd2ca1f82b3ac048431d62ecc36e2aa4ad351bb8b169",
       "source": "2aea26f",
@@ -306,7 +306,7 @@
       "address": "0xC78d979f0782Ca57Aa738fe5B70F7Fd28f872222",
       "name": "AgentAccount (implementation)",
       "role": "account code that the clones of registry 0x75Fd…BfcA run",
-      "run": "notice delay and halt, 16 November 2026 (study 3.17)",
+      "run": "notice delay and halt, first run, 16 November 2026 (study 3.17)",
       "block": 59631146,
       "codeHash": "0x27bf3bd74b5e5faeb5f976f0ff82719a1d927bb2005cfdd95649c8091071093a",
       "source": "1eb3e2a",
@@ -316,7 +316,7 @@
       "address": "0xfF92968f440FD8E559f2B35B615F119A94A4AE93",
       "name": "DemoAgentCollection",
       "role": "collection of that run",
-      "run": "notice delay and halt, 16 November 2026 (study 3.17)",
+      "run": "notice delay and halt, first run, 16 November 2026 (study 3.17)",
       "block": 59631153,
       "codeHash": "0x9846b4c7fa75f3bd2d37863a597a1d5e9c6cd8a9aef2ff67990fb0c1b743ed4f",
       "source": "2aea26f",
@@ -326,7 +326,7 @@
       "address": "0xF7a44e0FdDBbfF0dB28fe52cd934aDE2185Ff6dA",
       "name": "AgentSwap",
       "role": "sale venue approved with notice",
-      "run": "notice delay and halt, 16 November 2026 (study 3.17)",
+      "run": "notice delay and halt, first run, 16 November 2026 (study 3.17)",
       "block": 59631166,
       "codeHash": "0x172a28eb433bf70bd7a2f7bf4bb0b6c8dcfdf90d808cb152546b235fb1ce5839",
       "source": "1eb3e2a",
@@ -336,7 +336,7 @@
       "address": "0xC13e9935Df74Ea52C9F060532f1Ff8ecCE52571a",
       "name": "AgentAccount (clone)",
       "role": "account of agent 1 of that run",
-      "run": "notice delay and halt, 16 November 2026 (study 3.17)",
+      "run": "notice delay and halt, first run, 16 November 2026 (study 3.17)",
       "block": 59631181,
       "codeHash": "0x276fc161d4bd212d4c851e2be4446116fdcd2f787ea0c2cb569b5eaffad41d5d"
     },
@@ -344,9 +344,65 @@
       "address": "0x712c13102B20CC9EbeD4511F38c1Aa19eb92a149",
       "name": "AgentAccount (clone)",
       "role": "account of agent 2 of that run",
-      "run": "notice delay and halt, 16 November 2026 (study 3.17)",
+      "run": "notice delay and halt, first run, 16 November 2026 (study 3.17)",
       "block": 59631354,
       "codeHash": "0xb4eaa2b81f0c0b82a632d8f5599c095864eb4d8f373db82a053607f59f7355f7"
+    },
+    {
+      "address": "0x6E9b127e0FB218CfD12fE0D45264F7e3D0A58134",
+      "name": "AttestedAgentRegistry",
+      "role": "registry with a notice delay of 120 seconds, corrected after the independent review; current source",
+      "run": "notice delay and halt, replayed after the independent review, 16 November 2026 (study 3.17)",
+      "block": 59720318,
+      "codeHash": "0xebd09ce508a994041388b3202431e1260de33aa3b43139ae319e92454dddb559",
+      "source": "fbf0fc1",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0x91f9128a98690704D31fEe96779BD2610bD29AB0",
+      "name": "AgentAccount (implementation)",
+      "role": "account code that the clones of registry 0x6E9b…8134 run",
+      "run": "notice delay and halt, replayed after the independent review, 16 November 2026 (study 3.17)",
+      "block": 59720318,
+      "codeHash": "0x147463e7a8b37fe2a99abde6e5999d44284049b70a8ca5f4eb34d5f2a8153ac3",
+      "source": "1eb3e2a",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0x3c8B4C944B481820334999d88B2EBa954c450210",
+      "name": "DemoAgentCollection",
+      "role": "collection of that run",
+      "run": "notice delay and halt, replayed after the independent review, 16 November 2026 (study 3.17)",
+      "block": 59720323,
+      "codeHash": "0xf2f6ec33309e05086d14e269171748fe036df64ce935149eebbd1a14bd8a975d",
+      "source": "fbf0fc1",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0x50F0a4Fb4747E045EDB3440A7E92931EC8c7A25b",
+      "name": "AgentSwap",
+      "role": "sale venue approved with notice",
+      "run": "notice delay and halt, replayed after the independent review, 16 November 2026 (study 3.17)",
+      "block": 59720337,
+      "codeHash": "0x172a28eb433bf70bd7a2f7bf4bb0b6c8dcfdf90d808cb152546b235fb1ce5839",
+      "source": "1eb3e2a",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0x70Dc971069A3B2B6881C784D9199393b3adfbccD",
+      "name": "AgentAccount (clone)",
+      "role": "account of agent 1 of that run",
+      "run": "notice delay and halt, replayed after the independent review, 16 November 2026 (study 3.17)",
+      "block": 59720350,
+      "codeHash": "0xde2e8b495bff8865b2ca982a2c95781a82b5d9d97c047dca7453e97a6c2a08c8"
+    },
+    {
+      "address": "0xB3949Ca5FA73ef53797Eba200025c3522a7d6963",
+      "name": "AgentAccount (clone)",
+      "role": "account of agent 2 of that run",
+      "run": "notice delay and halt, replayed after the independent review, 16 November 2026 (study 3.17)",
+      "block": 59720429,
+      "codeHash": "0xebea0199ec407def2aa464df8c0aecc78490b777992bf472b7d576e12c4ebd5a"
     }
   ],
   "external": [
