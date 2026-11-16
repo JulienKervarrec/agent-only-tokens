@@ -44,8 +44,8 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
     bytes32 private constant VENUE_TYPEHASH =
         keccak256("Venue(address venue,bool approved,bytes32 evidenceHash,uint256 nonce)");
     bytes32 private constant VERIFIER_TYPEHASH =
-        keccak256("Verifier(address verifier,bytes32 evidenceHash,uint256 nonce)");
-    bytes32 private constant HALT_TYPEHASH = keccak256("Halt(bytes32 evidenceHash,uint256 nonce)");
+        keccak256("Verifier(address verifier,bytes32 evidenceHash,uint256 nonce,uint64 deadline)");
+    bytes32 private constant HALT_TYPEHASH = keccak256("Halt(bytes32 evidenceHash,uint256 nonce,uint64 deadline)");
 
     uint256 public immutable threshold;
     uint256 public immutable bond; // anti-Sybil bond, in wei
@@ -58,9 +58,10 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
     // The first three share a storage slot: an enrollment reads one slot when nothing is due.
     address private _verifier; // in force until the announced one takes over
     bool private _halted; // no enrollment until the announced one takes over
-    uint64 public announcedVerifierAt; // 0: nothing announced
+    uint64 public announcedVerifierAt; // 0: nothing announced; in the past: it has taken over
     address public announcedVerifier;
-    uint256 public verifierNonce; // one signature set = one decision
+    uint256 public verifierNonce; // one signature set = one replacement; a halt voids the unused ones
+    uint256 public haltNonce; // one signature set = one halt
 
     mapping(address => bool) public isAttester;
     mapping(uint256 => Agent) private _agents;
@@ -77,7 +78,7 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
     event BondWithdrawn(uint256 indexed agentId, uint256 amount);
     event VenueSet(address indexed venue, bool approved, bytes32 evidenceHash, uint64 since);
     event EnrollmentVerifierSet(address indexed verifier, bytes32 evidenceHash, uint64 since);
-    event EnrollmentsHalted(bytes32 evidenceHash);
+    event EnrollmentsHalted(address indexed verifier, bytes32 evidenceHash);
 
     error BadConfig();
     error BadInput();
@@ -102,9 +103,9 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
         IERC721 identityRegistry_,
         address enrollmentVerifier_
     ) EIP712("AttestedAgentRegistry", "1") {
-        if (threshold_ == 0 || threshold_ > attesters.length || keyTtl_ == 0) {
-            revert BadConfig();
-        }
+        // Keys must outlive the notice delay, or a halt could not be lifted before every key expires.
+        if (threshold_ == 0 || threshold_ > attesters.length || noticeDelay_ >= keyTtl_) revert BadConfig();
+        if (enrollmentVerifier_ != address(0) && enrollmentVerifier_.code.length == 0) revert BadConfig();
         for (uint256 i; i < attesters.length; ++i) {
             if (attesters[i] == address(0) || isAttester[attesters[i]]) revert BadConfig();
             isAttester[attesters[i]] = true;
@@ -218,7 +219,9 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
 
     /// Attesters approve or remove a venue contract, after checking its code. An approval takes
     /// effect after `noticeDelay`; a removal is immediate, and also cancels a pending approval.
+    /// The venue must already hold its code: the notice is there for that code to be read.
     function setVenue(address venue, bool approved, bytes32 evidenceHash, bytes[] calldata sigs) external {
+        if (approved && venue.code.length == 0) revert BadInput();
         _requireAttesters(hashVenue(venue, approved, evidenceHash), sigs);
         venueNonce[venue] += 1;
         uint64 since;
@@ -240,10 +243,16 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
     /// example a new version of the agents' program. Nothing else changes: agents keep their id,
     /// account and current key, and their next key must satisfy the new verifier. With
     /// address(0), enrollments are signed by the attesters again.
-    /// The new verifier takes over after `noticeDelay`; until then the one in force stays. A new
-    /// announcement replaces the pending one: announcing the verifier in force cancels it.
-    function setEnrollmentVerifier(address verifier, bytes32 evidenceHash, bytes[] calldata sigs) external {
-        _requireAttesters(hashVerifier(verifier, evidenceHash), sigs);
+    /// The new verifier takes over after `noticeDelay`; until then the one in force stays. It
+    /// must already hold its code. A new announcement replaces the pending one: announcing the
+    /// verifier in force cancels it. Under a halt, only another halt cancels: any announcement
+    /// lifts the halt when it takes over.
+    function setEnrollmentVerifier(address verifier, bytes32 evidenceHash, uint64 deadline, bytes[] calldata sigs)
+        external
+    {
+        if (deadline < block.timestamp) revert Expired();
+        if (verifier != address(0) && verifier.code.length == 0) revert BadInput();
+        _requireAttesters(hashVerifier(verifier, evidenceHash, deadline), sigs);
         verifierNonce += 1;
         (_verifier, _halted) = _verifierNow();
         announcedVerifier = verifier;
@@ -253,24 +262,31 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
 
     /// Attesters stop all enrollments at once, for example when the verifier in force turns out
     /// to accept too much. A pending announcement is cancelled. Enrollments resume when a
-    /// verifier announced afterwards takes over. Agents keep their current key until it expires.
-    function haltEnrollments(bytes32 evidenceHash, bytes[] calldata sigs) external {
-        _requireAttesters(hashHalt(evidenceHash), sigs);
-        verifierNonce += 1;
+    /// verifier announced afterwards takes over. Agents keep their current key until it expires,
+    /// and cannot renew it meanwhile.
+    function haltEnrollments(bytes32 evidenceHash, uint64 deadline, bytes[] calldata sigs) external {
+        if (deadline < block.timestamp) revert Expired();
+        _requireAttesters(hashHalt(evidenceHash, deadline), sigs);
+        haltNonce += 1;
+        verifierNonce += 1; // a replacement signed earlier and not yet used dies with the halt
         (_verifier,) = _verifierNow();
         _halted = true;
+        announcedVerifier = address(0);
         announcedVerifierAt = 0;
-        emit EnrollmentsHalted(evidenceHash);
+        emit EnrollmentsHalted(_verifier, evidenceHash);
     }
 
-    /// Digests for the next decision on the verifier. They change after each decision, so that
-    /// an old one cannot be replayed.
-    function hashVerifier(address verifier, bytes32 evidenceHash) public view returns (bytes32) {
-        return _hashTypedDataV4(keccak256(abi.encode(VERIFIER_TYPEHASH, verifier, evidenceHash, verifierNonce)));
+    /// Digest for the next replacement of the verifier. It changes after each replacement and
+    /// each halt, so that an old decision cannot be replayed.
+    function hashVerifier(address verifier, bytes32 evidenceHash, uint64 deadline) public view returns (bytes32) {
+        return
+            _hashTypedDataV4(keccak256(abi.encode(VERIFIER_TYPEHASH, verifier, evidenceHash, verifierNonce, deadline)));
     }
 
-    function hashHalt(bytes32 evidenceHash) public view returns (bytes32) {
-        return _hashTypedDataV4(keccak256(abi.encode(HALT_TYPEHASH, evidenceHash, verifierNonce)));
+    /// Digest for the next halt. Halts have their own counter: a replacement sent first does not
+    /// void a halt already signed.
+    function hashHalt(bytes32 evidenceHash, uint64 deadline) public view returns (bytes32) {
+        return _hashTypedDataV4(keccak256(abi.encode(HALT_TYPEHASH, evidenceHash, haltNonce, deadline)));
     }
 
     /// The sponsor can freeze or unfreeze its agent.
