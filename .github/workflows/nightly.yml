@@ -1,0 +1,33 @@
+name: nightly
+
+# Every night: the tests that need the real chain, and the code at every recorded address.
+# They tell us when Automata's verifier, Intel's collateral or a deployed contract changes.
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fork:
+    name: Tests against Base Sepolia
+    runs-on: ubuntu-latest
+    env:
+      BASE_SEPOLIA_RPC: https://sepolia.base.org
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.5.1
+      - run: git clone --depth 1 --branch v1.9.7 https://github.com/foundry-rs/forge-std lib/forge-std
+      - run: forge test --match-path 'test/fork/*'
+        env:
+          FOUNDRY_EVM_VERSION: osaka
+      - name: Code at every recorded address
+        run: python3 tools/deployments.py --rpc "$BASE_SEPOLIA_RPC"
