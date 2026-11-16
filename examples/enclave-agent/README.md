@@ -271,8 +271,9 @@ shop that fails on purpose: seven checks out of seven (one failure before the
 payment request, two on the paid request, a shop that stays down, a refused
 payer, the budget reached, a restart, an offer above the cap).
 
-A new program is a new agent: verifier `0x7533…33a6` approves this identity
-only, registry `0x49C5…6F9B` requires that verifier, and the account is new.
+At the time, a new program was a new agent: verifier `0x7533…33a6` approves
+this identity only, registry `0x49C5…6F9B` requires that verifier, and the
+account is new. "Upgrading the program" below removes that constraint.
 
 ### The run
 
@@ -311,5 +312,29 @@ of this run. It is covered by the local test only.
 - `settled: false` means the shop gave no receipt. If a shop settled a payment
   and then failed to answer, the money would have moved; the budget counts it
   either way.
-- A new version is a new agent: the second agent's 19.96 test USDC stay on its
-  account, which only a machine running the second program can use.
+- The second agent's 19.96 test USDC stay on its account, which only a machine
+  running the second program can use: its registry predates the upgrade rule.
+
+## Upgrading the program
+
+The registry now lets its attesters replace the enrollment verifier
+(`setEnrollmentVerifier`). An agent can therefore move from one program to the
+next and keep its id, its account and its tokens. Run on the same machine,
+first with the second program, then with the third:
+
+| Step | Result |
+| --- | --- |
+| A registry whose verifier approves the second program only | [`0x2D01…06b3`](https://sepolia.basescan.org/address/0x2D01ac2608DD8e898080C6C6c2ae1d7Ff01106b3) |
+| The machine runs the second program; quote verified, agent enrolled ([tx](https://sepolia.basescan.org/tx/0xe9ac0662bbc47b366c2d7b05838a3899df0b00b1d0b02f947c0d8a47e1f3a6e1)) | Account [`0xd960…86ED`](https://sepolia.basescan.org/address/0xd960545936a5D167356D8922C6E45198665786ED) |
+| The agent mints ([tx](https://sepolia.basescan.org/tx/0xefc45cb0d57022b76c87e430cf8514d7958023a7dc1b87da1c66dbfcc4a03285)) | One token |
+| The machine is updated to the third program: a new key, a new quote, verified by the third program's verifier | The registry still asks the first verifier: enrolling that key is refused (`NotVerified`), and so is its order (`NotKey`) |
+| Two of the three attesters replace the verifier ([tx](https://sepolia.basescan.org/tx/0x1e8b0e4211dc25b81e61380caa9442f1cc7163b5a8503e89eb68087456d65df1)) | 68,095 gas. The same signatures sent again are refused (`BadAttester`) |
+| The new key is enrolled ([tx](https://sepolia.basescan.org/tx/0xd7068b33141d8984cac30c54b0297c71308fcdf19824b69e16c130eebe0d59f1)) | 45,950 gas. Same agent id, same account |
+| The agent mints again ([tx](https://sepolia.basescan.org/tx/0x9224ec4f09d2809fc998540294852080b8b8bb9b5ccb4a5b32fceb756b20477d)) | The account holds both tokens |
+
+Session keys: `0x91d2e66621c2d19eef5cc9a59b1d0c07a2fef310`, then
+`0x4fe28108aea6e09c3d490966e7e077ce0167a46b`. The two refusals before the
+decision were simulated on the chain's state one block earlier.
+`run-2026-11-16-upgrade/` holds the two quotes. The verifiers are those of the
+second and third runs, reused as they are: a verifier does not depend on a
+registry.
