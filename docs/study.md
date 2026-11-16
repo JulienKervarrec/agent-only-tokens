@@ -5,7 +5,7 @@ Julien Kervarrec · November 2026
 This document records how the Agent-Only Tokens draft was reached: what already
 exists, how the design was narrowed down, what the resulting standard says, and
 what it can be used for. Figures about the prototype come from tests run on a
-local simulated EVM, except those of sections 3.12 and 3.13, measured on the
+local simulated EVM, except those of sections 3.12 to 3.14, measured on the
 Base Sepolia test network. Nothing has been deployed on a main network, and nothing has been
 audited.
 
@@ -374,6 +374,7 @@ The token asks the registry only two questions: `isAgent(address)` and
 | `TdxEnrollmentVerifier` | Enrollment by Intel TDX attestation, for images measured the same for every instance | 41 |
 | `DstackEnrollmentVerifier` | Enrollment of agents on dstack: replays the RTMR3 event log, code = base image + compose hash (`src/experimental`) | 138 |
 | `Sha384` | SHA-384 for replaying TDX registers (no EVM precompile) | 92 |
+| `DstackConfigIdVerifier` | Enrollment of agents on dstack from the quote alone: the compose hash is read in `MRCONFIGID` (`src/experimental`, section 3.14) | 58 |
 | `AgentSwap` | Fixed-price sale between agents; events announce each listing and sale | 64 |
 | `AgentLoan` | Collateralised loan between agents; events announce each offer and each step | 104 |
 | `AgentStaking` | Staking for ERC-20 rewards, Synthetix-style accounting, one NFT = one unit | 130 |
@@ -383,9 +384,9 @@ The token asks the registry only two questions: `isAgent(address)` and
 
 ### 3.3 What the tests establish
 
-One hundred and two tests on a local simulated EVM, three fuzzed and one
+One hundred and fifteen tests on a local simulated EVM, three fuzzed and one
 stateful invariant test, plus four properties proved symbolically
-(section 2.5). Two more tests run only on a fork of Base Sepolia (section 3.12)
+(section 2.5). Three more tests run only on a fork of Base Sepolia (section 3.12)
 and are reported as skipped otherwise.
 
 | Scenario | Result |
@@ -404,10 +405,11 @@ and are reported as skipped otherwise.
 | 128 runs of 100 random actions by two agents, a human and an unapproved contract | After every action, no token is held by or approved for anything but an agent account or an approved venue |
 | Several calls in one batch, direct or relayed | All or nothing; a human cannot batch for the agent |
 | The five attacks found by the first review and the weaknesses found by the second (sections 2.3 and 2.4) | Each one is now rejected |
-| Each of 80 security checks removed in turn (mutation testing) | The suite fails every time |
+| Each of 85 security checks removed in turn (mutation testing) | The suite fails every time |
 | The five weaknesses found by the third review (section 2.5) | Each one is now rejected |
 | A listing, its cancellation and its sale; a loan offered, cancelled, funded, repaid, claimed | Each step emits its event, with the terms an agent needs to decide |
 | A sponsor or an issuer that cannot receive ETH asks for its refund | The call fails and the bond or deposit stays recorded |
+| Four quotes from our own machines, read by the verifier that needs the quote alone (section 3.14) | The approved build is accepted, before and after a restart and on another machine; a modified build, another base image and the other `MRCONFIGID` formats are refused |
 | A real dstack quote and its real event log (DCAP verifier replaced by a stand-in) | The log replays to the quote's RTMR3; the quote is accepted; an agent enrolls; another instance of the same application is accepted |
 | Another application, another base image, a compose hash the log does not hold, a compose-hash event written after `boot-mr-done`, a log that does not replay, more than 64 events | Quote rejected |
 | SHA-384 on 13 reference vectors and 2,000 random inputs against a plain-Solidity version | Identical |
@@ -601,9 +603,13 @@ x402 fetch client acting for an agent account.
   with the code these tests use: identical, apart from the compiler's metadata
   hash and the library's address. The comparison was run from a browser against
   the public RPC `https://mainnet.base.org`; `check-usdc.mjs` applies the same
-  comparison and was run against a local chain only.
+  comparison; it was run against a local chain, then, on 16 November 2026,
+  against the test USDC of Base Sepolia (identical too, block 59,533,350).
 
-What remains open: no payment was made on Base or on a testnet; a hosted
+On 16 November 2026 the payment was made on Base Sepolia, by an agent running
+in a confidential VM, through the hosted x402.org facilitator (section 3.14).
+
+What remains open: no payment was made on a main network; a production
 facilitator may run other code than the reference one, and the written
 [specification](https://github.com/x402-foundation/x402/blob/main/specs/schemes/exact/scheme_exact_evm.md) still describes a signature that recovers to the
 payer, so another facilitator may refuse a payer that is a contract; USDC is
@@ -673,9 +679,9 @@ What is not established:
   stand-in answers in its format, because the author's workspace refused to
   execute Automata's code. The real verifier was then called on Base Sepolia,
   in a transaction and on a fork (section 3.12).
-- **Only one real machine produced a quote for one of our keys** (section
-  3.13). The local tests overwrite the report data of a sample quote, which a
-  real verifier would reject.
+- **Only two real machines, of one provider, produced quotes for our keys**
+  (sections 3.13 and 3.14). The local tests overwrite the report data of a
+  sample quote, which a real verifier would reject.
 - **Trust in the dstack OS.** The verifier relies on the base image to log
   the compose hash before `boot-mr-done` and to start only that application.
   Approving a base image means trusting that build of dstack.
@@ -855,10 +861,10 @@ key can be rotated by a new quote without touching the account.
 - dstack returns RTMR3 events with an empty digest; each is recomputed from
   the event's name and payload.
 - This dstack version also writes the compose hash into the quote
-  (`MRCONFIGID` = `01`, the hash, padding). A verifier reading it there would
-  need neither the event log nor SHA-384. The saving would be roughly 0.4
-  million gas, the gap with the plain TDX verification of section 3.12. Not
-  built.
+  (`MRCONFIGID` = `01`, the hash, padding). A verifier reading it there
+  needs neither the event log nor SHA-384. It was built the same day (section
+  3.14) and saves about 1.06 million gas per attestation. An earlier version
+  of this section estimated 0.4 million; that was wrong.
 - The compose hash is the SHA-256 of a manifest of 17 fields. One of them,
   `allowed_envs`, was empty: the machine accepts no environment variable from
   whoever deploys it, which answers the concern of section 3.11 for this run.
@@ -870,8 +876,98 @@ reviewed and is not archived here, so the compose hash cannot be recomputed
 from this repository. The base image was read from the quote, not rebuilt from
 dstack's sources. The key provider (Phala KMS) is not checked; the program
 keeps its key in memory, so it does not depend on it. The mint policy names no
-collection, and anyone who can reach the machine can ask for such an order. A
-second instance of the same build on another machine was not tried.
+collection, and anyone who can reach the machine can ask for such an order.
+The same build was not run on a second machine; section 3.14 runs another
+build on another machine, which measured the same base image.
+
+### 3.14 A verifier that needs the quote alone, and an enclave agent that pays
+
+Two things were done on 16 November 2026 after the first enrollment: a simpler
+dstack verifier, and an agent in a confidential VM paying a public x402 page.
+Full record: `examples/enclave-agent`.
+
+**The simpler verifier.** `DstackConfigIdVerifier` (58 lines) reads the code
+identity in the quote itself.
+
+- **What it relies on.** Since version 0.5.1, the dstack host sets the TDX
+  field `MRCONFIGID` to `01`, the compose hash, then zeros. The processor signs
+  that field with the boot measurements. The dstack OS refuses to boot when it
+  does not match the manifest it loads
+  ([`verify_mr_config_id`](https://github.com/Dstack-TEE/dstack/blob/350a0a73ffdb6041bda69118f13d81591870b565/dstack/dstack-util/src/system_setup/config_id_verifier.rs), read at commit `350a0a7`).
+- **What it checks.** The shared checks of section 3.11 (genuine quote,
+  accepted platform, no debug mode, report data), then format `01`, then one
+  hash over attributes, MRTD, `MRCONFIGID`, the owner fields and RTMR0 to
+  RTMR2, compared with a list fixed at deployment. That hash identifies the
+  base image and the application together.
+- **What it refuses on purpose.** An unset `MRCONFIGID` (all zeros), which
+  dstack tolerates, and formats 2 and 3, which bind more than the compose hash.
+- **What it does not read.** RTMR3, hence neither the instance id nor the
+  key-provider event. The remark of section 3.11 on the key provider applies
+  unchanged.
+- **Cost.** 68,064 gas against 1,111,564 for the event-log route, measured
+  locally without the DCAP verification. On Base Sepolia, DCAP verification
+  included: 3,719,444 gas against 4,777,969.
+- **Tests.** Thirteen, on four real quotes from our machines; removing any of
+  its 5 checks makes one fail. A fork test runs three of the quotes through
+  Automata's verifier.
+
+Its extra assumption, compared with the event-log verifier: the approved base
+image enforces the `MRCONFIGID` check. This was read in the source, not
+provoked on a machine.
+
+**The agent that pays.** The second program (`examples/enclave-agent/v2`, 194
+lines, no dependency) adds one action to the first: buy one page.
+
+- **Policy in the measured code.** One shop (`https://x402.org/protected`,
+  the public x402 demonstration page), one network (Base Sepolia), one token
+  (USDC), at most 0.02 USDC per purchase. The caller chooses the paying
+  account and nothing else.
+- **Everything fixed before the machine existed.** The provider's "prepare"
+  step gives the compose hash without deploying. The code identity was
+  computed from the first machine's quote by changing the compose hash only.
+  A verifier approving that identity, a registry requiring that verifier, and
+  the address of the agent's future account followed. The account received 20
+  test USDC from Circle's faucet before it or its key existed.
+
+| Step | Result |
+| --- | --- |
+| Quote from the machine | The compose hash and the identity prepared. Another machine than in section 3.13: the platform certificate and the attestation key differ, the boot measurements do not |
+| `DstackConfigIdVerifier.attest` ([tx](https://sepolia.basescan.org/tx/0xac4c5fe0debd7322a151ce1fc962bf445c8f9bd4a555efcf8bbfa8da0f12f268)) | 3,719,444 gas |
+| `enroll`, no attester signature ([tx](https://sepolia.basescan.org/tx/0x0e38885b28658477fa07fb4d9240739a1ce72c742ebf88dcf6ba0b71ed87a2cd)) | 199,382 gas; the account appears at the prepared address, holding its 20 USDC |
+| The agent buys the page ([payment](https://sepolia.basescan.org/tx/0x89e0a73920d855494cbad29a8ec0035a4e07c84da12e409b6c1e2f74aade5ea0)) | HTTP 200 and the page. 0.01 USDC from the agent account to the merchant, sent by the hosted facilitator, 98,705 gas |
+| Three more purchases | Paid: 19.96 USDC left |
+| Sponsor freezes the agent ([tx](https://sepolia.basescan.org/tx/0x8e55e045a422f3073e56e17964cfdff3af783f5dcd2ea1ad2dd6284c9f02fb3e)), the agent buys | Refused by the facilitator, `invalid_exact_evm_signature`; no transaction, balance unchanged. Paid again once unfrozen |
+| The agent asked to pay from another agent's account, then from a plain wallet | Refused both times, same error |
+| Restart: new key, which buys before being enrolled | Refused; balance unchanged |
+| New quote, rotation ([tx](https://sepolia.basescan.org/tx/0x49c322020ed96cc59537c0d7c138bed963d4827fd6e897ad90762257080e9fb7)), the new key buys ([payment](https://sepolia.basescan.org/tx/0xc9d1118cfdd7647e082a1a207cb35f0c16617e9d108d7a3073d88efb84cdf3b8)) | 43,694 gas; same account, same USDC |
+| The agent mints a token holding the hash of that payment ([tx](https://sepolia.basescan.org/tx/0xe1f1beb4b3574d35014dbae49c304913eb8c8df10aaa97276b51df6aed28d51f)) | 161,006 gas |
+
+Verifier [`0xB47e…502A`](https://sepolia.basescan.org/address/0xB47e270E54Af5BE363BF7F3b897AB85502F3502A),
+registry [`0x1410…4059`](https://sepolia.basescan.org/address/0x14109C95422f1ce356521A475eE449e7e7D14059),
+agent account [`0xa1e1…8899`](https://sepolia.basescan.org/address/0xa1e1d2eCeFCCA827F866E3724fC5a577254e8899),
+collection [`0x7b30…D555`](https://sepolia.basescan.org/address/0x7b302B9c096Ed23115b34E67C070B9f3f839D555).
+Refusals are answers of the facilitator; the other steps are transactions.
+
+**What it establishes.**
+
+- A hosted facilitator accepts a payer that is a contract: the open point of
+  section 3.10 is closed for the x402.org test facilitator.
+- The whole chain holds on public infrastructure: a key born in a confidential
+  VM, enrolled by its quote alone, paying a third-party service, with a payment
+  policy that is part of what the chain approved.
+- The code identity does not depend on the machine: it was computed on one and
+  found on another.
+- An agent's money follows the agent, not the key: funded before any key
+  existed, spent by a second key after a restart.
+- The sponsor's emergency stop also stops payments.
+
+**Limits.** One shop, a demonstration page, a test network and a test
+facilitator. The first request to the shop came back as HTTP 502 and the
+program does not retry; the next one passed. Anyone who can reach the machine
+can make the agent buy that page, up to its balance: the policy bounds the
+destination and the amount per purchase, not the frequency. The limits of
+section 3.13 on the manifest, the pre-launch script and the base image apply
+unchanged.
 
 ## 4. Use cases
 
@@ -889,7 +985,7 @@ The table separates what was tested from what is only supported by design.
 | Agent identity and reputation | The registry can require that the sponsor owns the agent's ERC-8004 identity. Reputation badges are soulbound: an issuer offers one for a piece of work, the agent claims it, and it never moves | Tested |
 | Staking | The agent deposits its NFT in a staking venue and earns an ERC-20 reward stream shared equally per staked NFT; only the staker gets the NFT back | Tested, including in the invariant test |
 | Lending positions (Aave, Morpho, Compound) | These are not NFTs, so the wrapper does not apply. A token-bound account (ERC-6551) per token is the candidate route | Not covered, not tested |
-| Payments for services around the token (x402) | The agent's session key signs an EIP-3009 USDC authorisation as a message of its account; USDC confirms it through ERC-1271 and a facilitator submits it. The agent needs no ETH (section 3.10) | A paid API bought end to end through the x402 reference facilitator, on a local chain. No payment on a public network |
+| Payments for services around the token (x402) | The agent's session key signs an EIP-3009 USDC authorisation as a message of its account; USDC confirms it through ERC-1271 and a facilitator submits it. The agent needs no ETH (section 3.10) | A paid API bought through the x402 reference facilitator on a local chain; a public demonstration page bought on Base Sepolia by an agent in a confidential VM, through a hosted facilitator (section 3.14). No payment on a main network |
 
 **Open question.** What does holding the token give an agent? Without a clear
 answer, no autonomous agent has a reason to buy, borrow against, or lend on it.
@@ -959,11 +1055,13 @@ Options studied and set aside:
 
 - **Trust in attesters**, for agents and venues. Attesters are fixed at
   deployment.
-- **Hardware attestation.** One agent was enrolled by attestation, on Base
-  Sepolia, from one machine of one provider (section 3.13). The provider's
-  pre-launch script, part of the measured manifest, was not reviewed, and the
-  base image was not rebuilt from source. The default registry still only
-  checks signatures.
+- **Hardware attestation.** Two agents were enrolled by attestation, on Base
+  Sepolia, from two machines of one provider (sections 3.13 and 3.14). The
+  provider's pre-launch script, part of the measured manifest, was not
+  reviewed, and the base image was not rebuilt from source. The simpler
+  verifier relies on the dstack OS refusing a wrong `MRCONFIGID`, which was
+  read in its source, not provoked. The default registry still only checks
+  signatures.
 - **dstack key provider.** The dstack verifier checks the code, not the
   `key-provider` event nor the application's environment variables. Approved
   code must keep its session key in memory only (section 3.11).
@@ -987,8 +1085,10 @@ Options studied and set aside:
 - **Emptied positions** stay in a non-unwrappable wrapper; burning is not
   provided.
 - **Retired or revoked agents.** Their tokens stay where they are.
-- **x402.** The flow runs on a local chain only. A hosted facilitator may run
-  other code than the reference one, and USDC is upgradeable (section 3.10).
+- **x402.** Payments were made on a local chain and on Base Sepolia, through
+  the reference code and the hosted x402.org test facilitator. A production
+  facilitator may run other code, and USDC is upgradeable (sections 3.10 and
+  3.14).
 - **Not tested.** Uniswap V4, any other protocol, ERC-20 and ERC-1155 profiles.
 - **Measured on a test network only.** Real fees, L1 data fee included, come
   from Base Sepolia (section 3.12).
@@ -1005,13 +1105,14 @@ Options studied and set aside:
 
 ## 8. Proposed next steps
 
-1. Done on 16 November 2026 (section 3.13): a quote produced by a real dstack
-   machine for one of our keys, and the first agent enrolled by attestation.
-   Next on that path: a second instance on another machine, a reviewed and
-   archived manifest, and a verifier reading the compose hash from
-   `MRCONFIGID`.
-2. An x402 payment from an agent account on Base Sepolia, through a hosted
-   facilitator.
+1. Done on 16 November 2026 (sections 3.13 and 3.14): quotes produced by two
+   real dstack machines for our keys, two agents enrolled by attestation, and
+   a verifier reading the compose hash from `MRCONFIGID`. Next on that path:
+   a reviewed and archived manifest, a base image rebuilt from dstack's
+   sources, and the same build on two machines at once.
+2. Done on 16 November 2026 (section 3.14): x402 payments from an agent
+   account on Base Sepolia, through a hosted facilitator. Next: a purchase
+   whose result the agent uses, and a spending limit over time.
 3. Enrollment through a zk proof of the quote verification, about 500,000 gas
    instead of 4.3 million. Checked on chain on 15 November 2026: RISC Zero's
    verifier router is deployed on Base Sepolia, but Automata's entrypoint
@@ -1058,6 +1159,10 @@ unless stated otherwise.
 | Automata DCAP Attestation is deployed on Base Sepolia and verifies a real TDX quote | Confirmed on 15 November 2026 by a transaction through our verifier (section 3.12) | [BaseScan](https://sepolia.basescan.org/tx/0x713be5c31abcd1fed0ce5923725520330b3ea0d0d99bcc3241cc55a14241110c) |
 | dstack logs the key provider in RTMR3 and tells verifiers to check it against what they expect | Read in its attestation guide on 16 November 2026 (section 2.1 and conclusion). Our verifier does not check it (section 3.11) | [dstack attestation](https://github.com/Dstack-TEE/dstack/blob/master/docs/attestation-tdx.md) |
 | A Phala Cloud machine's quote is accepted by Automata's verifier on Base Sepolia, and dstack writes `compose-hash` before `boot-mr-done` | Confirmed on 16 November 2026 by transaction (section 3.13) | [BaseScan](https://sepolia.basescan.org/tx/0x3bde5e7d3ccf206d60290a8b9de98ae72ea5d79f2fc6368141c3e652613b9fcf) |
+| dstack writes the compose hash into `MRCONFIGID` (format `01`) and its OS refuses to boot when the field does not match the manifest; an all-zero field is tolerated | Read in the source at commit `350a0a7` on 16 November 2026. The field's content was confirmed on the quotes of two production machines; the refusal to boot was not provoked | [config_id_verifier.rs](https://github.com/Dstack-TEE/dstack/blob/350a0a73ffdb6041bda69118f13d81591870b565/dstack/dstack-util/src/system_setup/config_id_verifier.rs) |
+| The hosted x402.org facilitator accepts a payer that is a contract and settles its payment | Confirmed on 16 November 2026 by four payments on Base Sepolia from an agent account (section 3.14) | [BaseScan](https://sepolia.basescan.org/tx/0x89e0a73920d855494cbad29a8ec0035a4e07c84da12e409b6c1e2f74aade5ea0) |
+| The test USDC on Base Sepolia is `FiatTokenV2_2` | Confirmed on 16 November 2026 at block 59,533,350: the implementation `0xd74cc5d436923b8ba2c179b4bca2841d8a52c5b5` and its signature library are byte-identical to the code these tests use, apart from the metadata hash and the library address | `examples/x402/check-usdc.mjs` |
+| Two machines of the same provider running the same dstack image give the same attributes, MRTD and RTMR0 to RTMR2 | Confirmed on 16 November 2026 by comparing the quotes of the two runs, byte for byte | `test/experimental/phala` |
 | In dstack, the last runtime register contains the instance id and differs for each instance | Confirmed in its documentation, commit `b936f86` (13 November 2026) | [dstack attestation](https://github.com/Dstack-TEE/dstack/blob/master/docs/attestation-tdx.md) |
 | dstack extends RTMR3 as SHA-384(RTMR3 \|\| event digest) from zero; V1 digest = SHA-384(type LE \|\| ":" \|\| name \|\| ":" \|\| payload) | Read in `cc-eventlog/src/runtime_events.rs` (commit `b936f86`), then confirmed on 15 November 2026 by replaying the real event log of `verifier/fixtures/quote-report.json`, offline and in the tests | [dstack](https://github.com/Dstack-TEE/dstack) |
 | The USDC deployed on Base is `FiatTokenV2_2` | Confirmed on 14 November 2026 at block 57,208,253: the implementation `0x2Ce6311ddAE708829bc0784C967b7d77D19FD779` and its signature library are byte-identical to the code compiled from commit `fc85788`, apart from the metadata hash and the library address. Read through the public RPC `https://mainnet.base.org` | `examples/x402/check-usdc.mjs` |
