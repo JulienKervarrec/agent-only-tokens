@@ -5,8 +5,8 @@ Julien Kervarrec · November 2026
 This document records how the Agent-Only Tokens draft was reached: what already
 exists, how the design was narrowed down, what the resulting standard says, and
 what it can be used for. Figures about the prototype come from tests run on a
-local simulated EVM, except those of section 3.12, measured on the Base Sepolia
-test network. Nothing has been deployed on a main network, and nothing has been
+local simulated EVM, except those of sections 3.12 and 3.13, measured on the
+Base Sepolia test network. Nothing has been deployed on a main network, and nothing has been
 audited.
 
 ## Summary
@@ -673,8 +673,9 @@ What is not established:
   stand-in answers in its format, because the author's workspace refused to
   execute Automata's code. The real verifier was then called on Base Sepolia,
   in a transaction and on a fork (section 3.12).
-- **No real machine produced a quote for one of our keys.** The tests overwrite
-  the report data of the sample quote, which a real verifier would reject.
+- **Only one real machine produced a quote for one of our keys** (section
+  3.13). The local tests overwrite the report data of a sample quote, which a
+  real verifier would reject.
 - **Trust in the dstack OS.** The verifier relies on the base image to log
   the compose hash before `boot-mr-done` and to start only that application.
   Approving a base image means trusting that build of dstack.
@@ -803,7 +804,74 @@ next day (section 2.6) are not deployed there.
 
 What this does not show: no real machine produced a quote for one of our keys,
 so no agent was enrolled by attestation on chain (the sample quote's report data
-is empty, not an enrollment digest). Base Sepolia is a test network.
+is empty, not an enrollment digest). That was done the next day (section 3.13).
+Base Sepolia is a test network.
+
+### 3.13 First agent enrolled by hardware attestation
+
+On 16 November 2026 a real machine produced a quote for one of our keys, and
+the chain enrolled that key with no attester signature. Full record, quotes and
+scripts: `examples/enclave-agent`.
+
+**The agent program.** 149 lines of JavaScript with no dependency, embedded
+whole in the compose file, so the compose hash dstack measures identifies it.
+The image is pinned by digest and the container's file system is read-only.
+The program creates its session key in memory, quotes only the enrollment
+digest of that key, and signs one kind of order only: its account calls
+`mint(bytes32)`. Every parameter has a fixed shape. It was first tested on a
+local chain against the real contracts: its digest equals the registry's, and
+60 signed orders out of 60 recover to its key.
+
+**The machine.** Phala Cloud, smallest TDX instance, dstack OS 0.5.12
+(production image, no SSH), Phala KMS. About twenty minutes in all.
+
+| Step | Result |
+| --- | --- |
+| Quote (5,010 bytes, version 4, TDX 1.0 report) | Report data = enrollment digest then 32 zero bytes; debug flag off |
+| Event log | Ten RTMR3 events; `compose-hash` third, `boot-mr-done` fifth; replayed with SHA-384 they give the quote's RTMR3 |
+| Automata DCAP verifier, Base Sepolia | Genuine; platform level 0 (up to date) |
+| `DstackEnrollmentVerifier.attest` ([tx](https://sepolia.basescan.org/tx/0x3bde5e7d3ccf206d60290a8b9de98ae72ea5d79f2fc6368141c3e652613b9fcf)) | 4,777,969 gas, 0.000024 test ETH |
+| `enroll`, no attester signature ([tx](https://sepolia.basescan.org/tx/0x2001f551c48d9b8b279bcfd5a4347bce5a2b1e6dabf4e1c748e8ea719ffeeca2)) | 199,394 gas |
+| The agent mints, relayed ([tx](https://sepolia.basescan.org/tx/0x28c4cf5995942e47404d73444b91c485b5045189c9124986e972cc5cbe880c64)) | 161,006 gas; account and key hold no ETH |
+| Machine restarted: new key, new quote, rotation ([tx](https://sepolia.basescan.org/tx/0x3c1a41e3e83ab5ddb090ca46fb9a1433313cc0cde7af30c5c1e6bed38707b7ae)) | 43,706 gas after a second `attest`; same account, same tokens |
+| Sponsor freezes the agent | A fresh order from the enclave is refused (`NotKey`); accepted once unfrozen |
+| Another key with no quote; the new key with the old quote | `NotVerified` |
+| A plain wallet mints | `NotAgent` |
+| Modified build on the same machine | Automata: genuine. Our verifier: `UnknownCode`; `BadEventLog` if it claims the approved compose hash or supplies the approved event log |
+
+Verifier [`0x7C57…86d1`](https://sepolia.basescan.org/address/0x7C5784D4CC4A535d0E840199c941aCb977f686d1),
+registry [`0xFd2c…236b`](https://sepolia.basescan.org/address/0xFd2c0D61692E4Ae615E2ab7BA53e0Bb33d81236b),
+agent account [`0xA228…241c`](https://sepolia.basescan.org/address/0xA228bbeCA2cCD2e55FB15bF81e523DCf43e0241c),
+collection [`0x99D2…cCE7`](https://sepolia.basescan.org/address/0x99D26E63f042A3B5ab533f1D3660b8158501cCE7).
+Refusals were simulated on the live state; the other steps are transactions.
+
+**What it establishes.** The path of section 3.11 works end to end on
+production hardware: the assumption that the OS writes `compose-hash` before
+`boot-mr-done` holds, a genuine machine running other code is refused, and the
+key can be rotated by a new quote without touching the account.
+
+**What was learned.**
+
+- dstack returns RTMR3 events with an empty digest; each is recomputed from
+  the event's name and payload.
+- This dstack version also writes the compose hash into the quote
+  (`MRCONFIGID` = `01`, the hash, padding). A verifier reading it there would
+  need neither the event log nor SHA-384. The saving would be roughly 0.4
+  million gas, the gap with the plain TDX verification of section 3.12. Not
+  built.
+- The compose hash is the SHA-256 of a manifest of 17 fields. One of them,
+  `allowed_envs`, was empty: the machine accepts no environment variable from
+  whoever deploys it, which answers the concern of section 3.11 for this run.
+- Another field is the provider's pre-launch script, 18,114 bytes, which runs
+  before the program. Approving a compose hash approves that script too.
+
+**Limits.** One machine, one provider, one day. The pre-launch script was not
+reviewed and is not archived here, so the compose hash cannot be recomputed
+from this repository. The base image was read from the quote, not rebuilt from
+dstack's sources. The key provider (Phala KMS) is not checked; the program
+keeps its key in memory, so it does not depend on it. The mint policy names no
+collection, and anyone who can reach the machine can ask for such an order. A
+second instance of the same build on another machine was not tried.
 
 ## 4. Use cases
 
@@ -891,10 +959,11 @@ Options studied and set aside:
 
 - **Trust in attesters**, for agents and venues. Attesters are fixed at
   deployment.
-- **Hardware attestation.** The enrollment verifiers of section 3.11 met the
-  real DCAP verifier on Base Sepolia only, with a sample quote. No real machine
-  produced a quote for one of our keys, so no agent was enrolled by
-  attestation. The default registry still only checks signatures.
+- **Hardware attestation.** One agent was enrolled by attestation, on Base
+  Sepolia, from one machine of one provider (section 3.13). The provider's
+  pre-launch script, part of the measured manifest, was not reviewed, and the
+  base image was not rebuilt from source. The default registry still only
+  checks signatures.
 - **dstack key provider.** The dstack verifier checks the code, not the
   `key-provider` event nor the application's environment variables. Approved
   code must keep its session key in memory only (section 3.11).
@@ -936,8 +1005,11 @@ Options studied and set aside:
 
 ## 8. Proposed next steps
 
-1. A quote produced by a real dstack machine, with a valid platform level, for
-   one of our keys: the first agent enrolled by attestation on chain.
+1. Done on 16 November 2026 (section 3.13): a quote produced by a real dstack
+   machine for one of our keys, and the first agent enrolled by attestation.
+   Next on that path: a second instance on another machine, a reviewed and
+   archived manifest, and a verifier reading the compose hash from
+   `MRCONFIGID`.
 2. An x402 payment from an agent account on Base Sepolia, through a hosted
    facilitator.
 3. Enrollment through a zk proof of the quote verification, about 500,000 gas
@@ -985,6 +1057,7 @@ unless stated otherwise.
 | Automata DCAP Attestation is deployed on Base | Stated by its repository (`deployment/current/8453`). **Not checked on-chain** | Same |
 | Automata DCAP Attestation is deployed on Base Sepolia and verifies a real TDX quote | Confirmed on 15 November 2026 by a transaction through our verifier (section 3.12) | [BaseScan](https://sepolia.basescan.org/tx/0x713be5c31abcd1fed0ce5923725520330b3ea0d0d99bcc3241cc55a14241110c) |
 | dstack logs the key provider in RTMR3 and tells verifiers to check it against what they expect | Read in its attestation guide on 16 November 2026 (section 2.1 and conclusion). Our verifier does not check it (section 3.11) | [dstack attestation](https://github.com/Dstack-TEE/dstack/blob/master/docs/attestation-tdx.md) |
+| A Phala Cloud machine's quote is accepted by Automata's verifier on Base Sepolia, and dstack writes `compose-hash` before `boot-mr-done` | Confirmed on 16 November 2026 by transaction (section 3.13) | [BaseScan](https://sepolia.basescan.org/tx/0x3bde5e7d3ccf206d60290a8b9de98ae72ea5d79f2fc6368141c3e652613b9fcf) |
 | In dstack, the last runtime register contains the instance id and differs for each instance | Confirmed in its documentation, commit `b936f86` (13 November 2026) | [dstack attestation](https://github.com/Dstack-TEE/dstack/blob/master/docs/attestation-tdx.md) |
 | dstack extends RTMR3 as SHA-384(RTMR3 \|\| event digest) from zero; V1 digest = SHA-384(type LE \|\| ":" \|\| name \|\| ":" \|\| payload) | Read in `cc-eventlog/src/runtime_events.rs` (commit `b936f86`), then confirmed on 15 November 2026 by replaying the real event log of `verifier/fixtures/quote-report.json`, offline and in the tests | [dstack](https://github.com/Dstack-TEE/dstack) |
 | The USDC deployed on Base is `FiatTokenV2_2` | Confirmed on 14 November 2026 at block 57,208,253: the implementation `0x2Ce6311ddAE708829bc0784C967b7d77D19FD779` and its signature library are byte-identical to the code compiled from commit `fc85788`, apart from the metadata hash and the library address. Read through the public RPC `https://mainnet.base.org` | `examples/x402/check-usdc.mjs` |
