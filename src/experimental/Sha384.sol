@@ -65,10 +65,11 @@ library Sha384 {
                 let e := mload(add(v, 128))
                 let a := mload(v)
                 let ch := xor(and(e, mload(add(v, 160))), and(xor(e, mask), mload(add(v, 192))))
-                let t1 := add(
-                    add(mload(add(v, 224)), xor(xor(rotr(e, 14), rotr(e, 18)), rotr(e, 41))),
-                    add(add(ch, shr(192, mload(add(kp, shl(3, t))))), mload(add(w, shl(5, t))))
-                )
+                let t1 :=
+                    add(
+                        add(mload(add(v, 224)), xor(xor(rotr(e, 14), rotr(e, 18)), rotr(e, 41))),
+                        add(add(ch, shr(192, mload(add(kp, shl(3, t))))), mload(add(w, shl(5, t))))
+                    )
                 let b := mload(add(v, 32))
                 let c := mload(add(v, 64))
                 let maj := xor(xor(and(a, b), and(a, c)), and(b, c))
@@ -88,5 +89,4 @@ library Sha384 {
             }
         }
     }
-
 }

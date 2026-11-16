@@ -82,9 +82,10 @@ contract DstackEnrollmentVerifier is TdxQuoteVerifier {
     /// Digest of a compose-hash event carrying `composeHash`, in format V1 or V2.
     function composeEventDigest(bytes32 composeHash, bool v2) public pure returns (bytes32, bytes16) {
         if (!v2) return Sha384.hash(abi.encodePacked(EVENT_TYPE_LE, ":compose-hash:", composeHash));
-        return Sha384.hash(
-            abi.encodePacked('{"name":"compose-hash","payload":"', _hex(composeHash), '","type":134217729}')
-        );
+        return
+            Sha384.hash(
+                abi.encodePacked('{"name":"compose-hash","payload":"', _hex(composeHash), '","type":134217729}')
+            );
     }
 
     function _checkEventLog(
