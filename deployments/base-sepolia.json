@@ -1,0 +1,422 @@
+{
+  "chain": "Base Sepolia",
+  "chainId": 84532,
+  "explorer": "https://sepolia.basescan.org/address/",
+  "note": "Test network only: nothing here holds value, and every contract is an unaudited draft. `block` is the block in which the code appeared; `codeHash` is the keccak-256 of the code at the address. `source` is the commit of this repository whose sources compile to that code; a commit that is not on the main branch belongs to a pull request and stays readable on GitHub by its hash; `sourcify` is the result of its verification on sourcify.dev (`exact_match`: code and metadata; `match`: code only, the sources differed by comments), readable at https://repo.sourcify.dev/84532/<address>. Clones are ERC-1167 proxies of the implementation listed after their registry. Check with: python3 tools/deployments.py --rpc https://sepolia.base.org",
+  "contracts": [
+    {
+      "address": "0x587b4c01Db0c4779Fb729c5f806879A5ECd6e087",
+      "name": "AttestedAgentRegistry",
+      "role": "registry with three attesters, two of which must sign",
+      "run": "first test, 15 November 2026 (study 3.12)",
+      "block": 59045286,
+      "codeHash": "0x14888aceb79916a8ef485707b5c011f92972cf2ebb33fcb43e699542b66a8ff8",
+      "source": "0dcc758",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0xF32f1F8dD42505e173Dfcd94B9cDfa36916D55F5",
+      "name": "AgentAccount (implementation)",
+      "role": "account code that the clones of registry 0x587b…e087 run",
+      "run": "first test, 15 November 2026 (study 3.12)",
+      "block": 59045286,
+      "codeHash": "0x2aaa236a356aa5be7acefb901600ecba6dac512397376bd5495ef6d3b898a5dd",
+      "source": "1eb3e2a",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0xD5d6caFd31435539fE626a733b173cACe81a3fD8",
+      "name": "DemoAgentCollection",
+      "role": "collection on the standard",
+      "run": "first test, 15 November 2026 (study 3.12)",
+      "block": 59045288,
+      "codeHash": "0x67632156ec9a1388f089442e0bb2b9d515d24a9837513b665a8afaadf9f62893",
+      "source": "6c5f756",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0xb346d7455107820ED9651fd62c128664A7C77951",
+      "name": "AgentSwap",
+      "role": "sale venue",
+      "run": "first test, 15 November 2026 (study 3.12)",
+      "block": 59045298,
+      "codeHash": "0x0c56155acf83131c8d45158a51448683db11f920871da015e2db4178ebeefa69",
+      "source": "0dcc758",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0x498FCE178C28af9FBC6f8c529DD1b6Ae37B3A780",
+      "name": "TestUSD",
+      "role": "test currency of the first runs",
+      "run": "first test, 15 November 2026 (study 3.12)",
+      "block": 59045308,
+      "codeHash": "0x28e66a25e05a7216cdc95befca82bae73cd5f963aacece3e8299283ad80706d2",
+      "source": "6c5f756",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0x90c55bB78C4f13822dA7Bb6bfD6777e471602FeA",
+      "name": "AgentAccount (clone)",
+      "role": "account of agent 1",
+      "run": "first test, 15 November 2026 (study 3.12)",
+      "block": 59045311,
+      "codeHash": "0xd0b13b5a46c76cfe4fd14ebac6b045a88ca1a5b53de4c2862cfdaeba4642560c"
+    },
+    {
+      "address": "0xF392e59B2bFef511D1d6AA18e0eBB00948d5c70c",
+      "name": "AgentAccount (clone)",
+      "role": "account of agent 2",
+      "run": "first test, 15 November 2026 (study 3.12)",
+      "block": 59045318,
+      "codeHash": "0xb09ced5654cb3dea70576953e8d3554a7815573a939759aa0a94b64b72ea2b85"
+    },
+    {
+      "address": "0xF9501de58921B36cb7591d745761E4D3c990cc8b",
+      "name": "TdxEnrollmentVerifier",
+      "role": "verifier fed with a sample Intel TDX quote through the real DCAP verifier",
+      "run": "first test, 15 November 2026 (study 3.12)",
+      "block": 59047043,
+      "codeHash": "0x8c0cc698e6cc36b1ad71160e136aa8c1e27894a3c4f76935d9ff91b23b87e65f",
+      "source": "1eb3e2a",
+      "sourcify": "match"
+    },
+    {
+      "address": "0x58d71733E51242EC277a79043E56FB9f02558a9A",
+      "name": "AgentLoan",
+      "role": "loan venue, version that paid the lender directly",
+      "run": "venues and rules, 15 November 2026 (study 3.12)",
+      "block": 59049777,
+      "codeHash": "0x93d890d2467678b76e4cbed66ddf318a555167cc5007670c269b1ac77902acdf",
+      "source": "0dcc758",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0x4DDE60a93ABF35B01A7430D0ff05876777157b71",
+      "name": "AgentStaking",
+      "role": "staking venue",
+      "run": "venues and rules, 15 November 2026 (study 3.12)",
+      "block": 59049779,
+      "codeHash": "0x04645456ff38e78a22d7a8706276a7e6eecb275c7f9daa9ea6d2c68967369ff0",
+      "source": "1eb3e2a",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0xdbf8aF05A58714e205F9a260A13B10A33f11d967",
+      "name": "AgentReputationBadge",
+      "role": "reputation badges",
+      "run": "venues and rules, 15 November 2026 (study 3.12)",
+      "block": 59049781,
+      "codeHash": "0xa119c04f0e7b1546d592e1a826dc1b7d2d150efaac8cb5e50f9e4250e800ef43",
+      "source": "0dcc758",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0xDe6D8a7C7D07e18c787C5d7b14015CF48499Ecd2",
+      "name": "AgentWrapped721",
+      "role": "wrapper of a classic NFT",
+      "run": "venues and rules, 15 November 2026 (study 3.12)",
+      "block": 59049800,
+      "codeHash": "0x568f3cb2151d9e58154480cb6b084b635b6806e106e2571664373489a36858bf",
+      "source": "1eb3e2a",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0x7C5784D4CC4A535d0E840199c941aCb977f686d1",
+      "name": "DstackEnrollmentVerifier",
+      "role": "verifier reading the program from the event log; approves the first program",
+      "run": "first enclave agent, 16 November 2026 (study 3.13)",
+      "block": 59510325,
+      "codeHash": "0xb9c0a8e72ea026607bd00cd5f0f8cb07ffed95ecac0bbe05cf28aeb0805e5250",
+      "source": "1eb3e2a",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0xFd2c0D61692E4Ae615E2ab7BA53e0Bb33d81236b",
+      "name": "AttestedAgentRegistry",
+      "role": "registry requiring that verifier",
+      "run": "first enclave agent, 16 November 2026 (study 3.13)",
+      "block": 59510339,
+      "codeHash": "0x44c14b9b10ca7eb8bf34193aaffeadff326a40e01f1f7f2622b45fd490763321",
+      "source": "0751077",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0x067B34317556f5Cc479a77737675864b63F98bc0",
+      "name": "AgentAccount (implementation)",
+      "role": "account code that the clones of registry 0xFd2c…236b run",
+      "run": "first enclave agent, 16 November 2026 (study 3.13)",
+      "block": 59510339,
+      "codeHash": "0x3b896a0119d5c83f75132c28fba1febbc1466bfa5a992c574f7f297c3acc1aa1",
+      "source": "1eb3e2a",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0xA228bbeCA2cCD2e55FB15bF81e523DCf43e0241c",
+      "name": "AgentAccount (clone)",
+      "role": "account of the first enclave agent",
+      "run": "first enclave agent, 16 November 2026 (study 3.13)",
+      "block": 59510365,
+      "codeHash": "0x87dc282d8def05498cfb32082f8f3a7ba892ba2f8ad022336f540c3b91db0cb6"
+    },
+    {
+      "address": "0x99D26E63f042A3B5ab533f1D3660b8158501cCE7",
+      "name": "DemoAgentCollection",
+      "role": "collection the first enclave agent minted in",
+      "run": "first enclave agent, 16 November 2026 (study 3.13)",
+      "block": 59510440,
+      "codeHash": "0xa3a5d282f335d3a219d9e311044ecab12d9383a12e2d9e5deecb65b6a590cb6e",
+      "source": "1eb3e2a",
+      "sourcify": "match"
+    },
+    {
+      "address": "0xB47e270E54Af5BE363BF7F3b897AB85502F3502A",
+      "name": "DstackConfigIdVerifier",
+      "role": "verifier reading the program from MRCONFIGID; approves the second program",
+      "run": "enclave agent paying by x402, 16 November 2026 (study 3.14)",
+      "block": 59527274,
+      "codeHash": "0x3e16d9615a11093500b4ef127ddbd7b335ec203b0ed83ab2652a890677af29fc",
+      "source": "1eb3e2a",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0x14109C95422f1ce356521A475eE449e7e7D14059",
+      "name": "AttestedAgentRegistry",
+      "role": "registry requiring that verifier",
+      "run": "enclave agent paying by x402, 16 November 2026 (study 3.14)",
+      "block": 59527287,
+      "codeHash": "0xa0a435d8c7f8f25cd441bcb12f7570f98660254da0e156992c8b7c3f1d1c9b30",
+      "source": "0751077",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0xF8178aE1Bcc36b0529d4D70ece849d6A52A4e774",
+      "name": "AgentAccount (implementation)",
+      "role": "account code that the clones of registry 0x1410…4059 run",
+      "run": "enclave agent paying by x402, 16 November 2026 (study 3.14)",
+      "block": 59527287,
+      "codeHash": "0x8b00d5152e2e255584139a611a733cd2ebcd58c8a1b541ab312ff383ef805bf6",
+      "source": "1eb3e2a",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0xa1e1d2eCeFCCA827F866E3724fC5a577254e8899",
+      "name": "AgentAccount (clone)",
+      "role": "account of the enclave agent that paid by x402",
+      "run": "enclave agent paying by x402, 16 November 2026 (study 3.14)",
+      "block": 59531098,
+      "codeHash": "0xe155ef8a1700c427372918b5cf172c7b0db33a52effa68e64b1f8b100a2d5a9f"
+    },
+    {
+      "address": "0x7b302B9c096Ed23115b34E67C070B9f3f839D555",
+      "name": "DemoAgentCollection",
+      "role": "collection that agent minted in",
+      "run": "enclave agent paying by x402, 16 November 2026 (study 3.14)",
+      "block": 59532372,
+      "codeHash": "0x9baa551bddcf3b7f504d9d32deba04a91fbb29e094c57397e2253be7ff2e8469",
+      "source": "1eb3e2a",
+      "sourcify": "match"
+    },
+    {
+      "address": "0x7533FeA85dE4eB3EEf26099051cbc3F32FAB33a6",
+      "name": "DstackConfigIdVerifier",
+      "role": "same verifier code; approves the third program",
+      "run": "third program, 16 November 2026 (study 3.15)",
+      "block": 59543162,
+      "codeHash": "0x3e16d9615a11093500b4ef127ddbd7b335ec203b0ed83ab2652a890677af29fc",
+      "source": "1eb3e2a",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0x49C5C80483dE27FD33e1a570e3BF106dEa9B6F9B",
+      "name": "AttestedAgentRegistry",
+      "role": "registry requiring that verifier",
+      "run": "third program, 16 November 2026 (study 3.15)",
+      "block": 59543177,
+      "codeHash": "0x94d816f98a9ded894474c49cd38010f3655e22acbcd08512f265bda7f586f5fb",
+      "source": "0751077",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0xEA20740A08681e5e5Bf1BE9d8a3E5fE545b5332B",
+      "name": "AgentAccount (implementation)",
+      "role": "account code that the clones of registry 0x49C5…6F9B run",
+      "run": "third program, 16 November 2026 (study 3.15)",
+      "block": 59543177,
+      "codeHash": "0x15353631517163a8b43a0867bb3eef94ef68b988712bfbfdc78a2a184da66717",
+      "source": "1eb3e2a",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0xbB052D067E60A1ceE1F15CAb44AE79548C86973C",
+      "name": "AgentAccount (clone)",
+      "role": "account of the agent running the third program",
+      "run": "third program, 16 November 2026 (study 3.15)",
+      "block": 59544137,
+      "codeHash": "0x04ac093db304b42680e1e43f0b80a37ac1c3de45134b9e421eb3bac3de390c65"
+    },
+    {
+      "address": "0x2D01ac2608DD8e898080C6C6c2ae1d7Ff01106b3",
+      "name": "AttestedAgentRegistry",
+      "role": "first registry whose attesters can replace the verifier (no notice delay yet)",
+      "run": "program upgrade, 16 November 2026 (study 3.16)",
+      "block": 59564612,
+      "codeHash": "0x84a8e7802ef0032923c71d3131ce1128fe5f2ae97d7968c3ecea580da5fde8cb",
+      "source": "1eb3e2a",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0xc85363A8e1bA3736584106FF4994a1aC62814D2e",
+      "name": "AgentAccount (implementation)",
+      "role": "account code that the clones of registry 0x2D01…06b3 run",
+      "run": "program upgrade, 16 November 2026 (study 3.16)",
+      "block": 59564612,
+      "codeHash": "0x9d9012b3e3d2c9c9962a4e39e41aec08baeea91a2da2a65c2bf468639909de6b",
+      "source": "1eb3e2a",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0xa6acCf9bD5F1a90b3Cef1E465aB6B9843108d1AE",
+      "name": "DemoAgentCollection",
+      "role": "collection the upgraded agent minted in",
+      "run": "program upgrade, 16 November 2026 (study 3.16)",
+      "block": 59564625,
+      "codeHash": "0xf9bc9030b7d722171486d227a08d18c206fa7db0de84afbc9ae425b867a3dc0f",
+      "source": "1eb3e2a",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0xd960545936a5D167356D8922C6E45198665786ED",
+      "name": "AgentAccount (clone)",
+      "role": "account kept by the agent across its program upgrade",
+      "run": "program upgrade, 16 November 2026 (study 3.16)",
+      "block": 59565842,
+      "codeHash": "0x3b35e2d697a04c836ff83f376120dec03db9bb8e73c92ca6a9e4bccf006c4977"
+    },
+    {
+      "address": "0x75Fd5D6Ce8384c864FefE7bf8990c2AAe070BfcA",
+      "name": "AttestedAgentRegistry",
+      "role": "registry with a notice delay of 120 seconds; current source",
+      "run": "notice delay and halt, 16 November 2026 (study 3.17)",
+      "block": 59631146,
+      "codeHash": "0x35bdd5c0d2fee24859fdcd2ca1f82b3ac048431d62ecc36e2aa4ad351bb8b169",
+      "source": "2aea26f",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0xC78d979f0782Ca57Aa738fe5B70F7Fd28f872222",
+      "name": "AgentAccount (implementation)",
+      "role": "account code that the clones of registry 0x75Fd…BfcA run",
+      "run": "notice delay and halt, 16 November 2026 (study 3.17)",
+      "block": 59631146,
+      "codeHash": "0x27bf3bd74b5e5faeb5f976f0ff82719a1d927bb2005cfdd95649c8091071093a",
+      "source": "1eb3e2a",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0xfF92968f440FD8E559f2B35B615F119A94A4AE93",
+      "name": "DemoAgentCollection",
+      "role": "collection of that run",
+      "run": "notice delay and halt, 16 November 2026 (study 3.17)",
+      "block": 59631153,
+      "codeHash": "0x9846b4c7fa75f3bd2d37863a597a1d5e9c6cd8a9aef2ff67990fb0c1b743ed4f",
+      "source": "2aea26f",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0xF7a44e0FdDBbfF0dB28fe52cd934aDE2185Ff6dA",
+      "name": "AgentSwap",
+      "role": "sale venue approved with notice",
+      "run": "notice delay and halt, 16 November 2026 (study 3.17)",
+      "block": 59631166,
+      "codeHash": "0x172a28eb433bf70bd7a2f7bf4bb0b6c8dcfdf90d808cb152546b235fb1ce5839",
+      "source": "1eb3e2a",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0xC13e9935Df74Ea52C9F060532f1Ff8ecCE52571a",
+      "name": "AgentAccount (clone)",
+      "role": "account of agent 1 of that run",
+      "run": "notice delay and halt, 16 November 2026 (study 3.17)",
+      "block": 59631181,
+      "codeHash": "0x276fc161d4bd212d4c851e2be4446116fdcd2f787ea0c2cb569b5eaffad41d5d"
+    },
+    {
+      "address": "0x712c13102B20CC9EbeD4511F38c1Aa19eb92a149",
+      "name": "AgentAccount (clone)",
+      "role": "account of agent 2 of that run",
+      "run": "notice delay and halt, 16 November 2026 (study 3.17)",
+      "block": 59631354,
+      "codeHash": "0xb4eaa2b81f0c0b82a632d8f5599c095864eb4d8f373db82a053607f59f7355f7"
+    }
+  ],
+  "external": [
+    {
+      "address": "0xaDdeC7e85c2182202b66E331f2a4A0bBB2cEEa1F",
+      "name": "Automata DCAP attestation",
+      "role": "verifies Intel TDX quotes on-chain; called by the experimental verifiers and the fork tests",
+      "block": 29912896,
+      "codeHash": "0x5761bb7e834618a5cefb152aa8c62aaca2c623c02d8fec1957dbab705e9d0f1f"
+    },
+    {
+      "address": "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
+      "name": "USDC (proxy)",
+      "role": "test USDC of Base Sepolia, used for the x402 payments",
+      "block": 3152131,
+      "codeHash": "0xedc5281a85c0efecd49999a1ef668390c59b88702f2d4a07029d7f5d63059d6c"
+    },
+    {
+      "address": "0xd74cc5d436923b8ba2c179b4bca2841d8a52c5b5",
+      "name": "USDC implementation (FiatTokenV2_2)",
+      "role": "compared byte for byte with test/usdc at block 59,533,350",
+      "block": 3152122,
+      "codeHash": "0x1254951e5483b882fd5def9452f58fe786eb3380c0bf9bb2744fa21a0a97a16c"
+    }
+  ],
+  "sessionKeys": [
+    {
+      "address": "0x3b6516b64d6ff8bd1c57f75fd1a1c3956d458844",
+      "role": "first enclave agent, first key (generated inside the enclave; never held ETH)"
+    },
+    {
+      "address": "0x994dadcf96c65281042cfaf3bad91cb004045aa7",
+      "role": "enclave agent paying by x402, first key (generated inside the enclave; never held ETH)"
+    },
+    {
+      "address": "0x162af93a704dd852e33aed1e41d3490c89333b95",
+      "role": "enclave agent paying by x402, key after restart (generated inside the enclave; never held ETH)"
+    },
+    {
+      "address": "0xaf69f5946c2458fc1e6aa32040696b45f0b7a9b9",
+      "role": "third program, first key (generated inside the enclave; never held ETH)"
+    },
+    {
+      "address": "0xa4aa2de44036ee4bcf53eb6dff00a6489d8dacae",
+      "role": "third program, key after restart (generated inside the enclave; never held ETH)"
+    },
+    {
+      "address": "0x91d2e66621c2d19eef5cc9a59b1d0c07a2fef310",
+      "role": "program upgrade, key under the second program (generated inside the enclave; never held ETH)"
+    },
+    {
+      "address": "0x4fe28108aea6e09c3d490966e7e077ce0167a46b",
+      "role": "program upgrade, key under the third program (generated inside the enclave; never held ETH)"
+    }
+  ],
+  "otherChains": [
+    {
+      "address": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+      "chain": "Base",
+      "role": "USDC (proxy), default target of examples/x402/check-usdc.mjs"
+    },
+    {
+      "address": "0x2Ce6311ddAE708829bc0784C967b7d77D19FD779",
+      "chain": "Base",
+      "role": "USDC implementation compared with test/usdc on 14 November 2026"
+    },
+    {
+      "address": "0x2D943E25e1859ED786AFe4AFB2B42e14EFAC691e",
+      "chain": "Base",
+      "role": "its signature library"
+    }
+  ]
+}
