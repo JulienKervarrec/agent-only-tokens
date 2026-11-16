@@ -173,6 +173,21 @@ contract ReputationBadgeTest is AgentOnlyBase {
         acc1.execute(address(badges), 0, abi.encodeCall(badges.claim, (offerId)));
     }
 
+    /// An issuer that cannot receive ETH keeps its claim on the deposit: a failed refund changes nothing.
+    function test_FailedDepositRefundKeepsTheDeposit() public {
+        address issuer = address(usdc); // a contract with no way to receive ETH
+        vm.deal(issuer, DEPOSIT);
+        vm.startPrank(issuer);
+        badges.registerIssuer{value: DEPOSIT}();
+        badges.retireIssuer();
+        vm.warp(NOW + 30 days);
+        vm.expectRevert(AgentReputationBadge.RefundFailed.selector);
+        badges.withdrawDeposit();
+        vm.stopPrank();
+        (uint256 deposit,,,) = badges.issuers(issuer);
+        assertEq(deposit, DEPOSIT);
+    }
+
     function test_IssuerRetiresThenWithdraws() public {
         uint256 id = _claim(K1, acc1, _offer(address(acc1), "pr/12"));
         vm.startPrank(bot);
@@ -183,6 +198,8 @@ contract ReputationBadgeTest is AgentOnlyBase {
         badges.withdrawDeposit();
         vm.warp(NOW + 30 days);
         uint256 before = bot.balance;
+        vm.expectEmit(address(badges));
+        emit AgentReputationBadge.DepositWithdrawn(bot, DEPOSIT);
         badges.withdrawDeposit();
         assertEq(bot.balance, before + DEPOSIT);
         vm.expectRevert(AgentReputationBadge.NotIssuer.selector);

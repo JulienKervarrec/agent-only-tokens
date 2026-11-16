@@ -486,12 +486,29 @@ contract AgentOnlyTest is AgentOnlyBase {
         vm.prank(SPONSOR2);
         vm.expectRevert(AttestedAgentRegistry.NotSponsor.selector);
         reg.withdrawBond(1);
+        vm.expectEmit(address(reg));
+        emit AttestedAgentRegistry.BondWithdrawn(1, BOND);
         vm.prank(SPONSOR1);
         reg.withdrawBond(1);
         assertEq(SPONSOR1.balance, before + BOND);
         vm.prank(SPONSOR1);
         reg.withdrawBond(1); // nothing left: no second refund
         assertEq(SPONSOR1.balance, before + BOND);
+    }
+
+    /// A sponsor that cannot receive ETH keeps its claim on the bond: a failed refund changes nothing.
+    function test_FailedBondRefundKeepsTheBond() public {
+        address sponsor = address(usdc); // a contract with no way to receive ETH
+        vm.deal(sponsor, BOND);
+        _enroll(reg, sponsor, 3, address(0x333), BOND);
+        vm.prank(sponsor);
+        reg.retire(3);
+        vm.warp(block.timestamp + reg.EXIT_DELAY());
+        uint256 held = address(reg).balance;
+        vm.prank(sponsor);
+        vm.expectRevert(AttestedAgentRegistry.RefundFailed.selector);
+        reg.withdrawBond(3);
+        assertEq(address(reg).balance, held);
     }
 
     function test_SellerCannotSwitchCurrency() public {
@@ -651,6 +668,58 @@ contract AgentOnlyTest is AgentOnlyBase {
         vm.prank(vm.addr(K2));
         vm.expectRevert(AgentSwap.NotListed.selector);
         acc2.execute(address(swap), 0, abi.encodeCall(swap.buy, (nft, id, usdc, 5)));
+    }
+
+    /// Listings and loans cannot be enumerated on-chain: events are how an agent finds them.
+    function test_SaleEventsAnnounceListingCancelAndSale() public {
+        uint256 id = _mint(K1, acc1);
+        _do(K1, acc1, address(nft), abi.encodeCall(nft.approve, (address(swap), id)));
+
+        vm.expectEmit(address(swap));
+        emit AgentSwap.Listed(nft, id, address(acc1), address(acc2), usdc, 300);
+        _do(K1, acc1, address(swap), abi.encodeCall(swap.list, (nft, id, usdc, 300, address(acc2))));
+
+        vm.expectEmit(address(swap));
+        emit AgentSwap.Cancelled(nft, id);
+        _do(K1, acc1, address(swap), abi.encodeCall(swap.cancel, (nft, id)));
+
+        _do(K1, acc1, address(swap), abi.encodeCall(swap.list, (nft, id, usdc, 300, address(0))));
+        _do(K2, acc2, address(usdc), abi.encodeCall(usdc.approve, (address(swap), 300)));
+        vm.expectEmit(address(swap));
+        emit AgentSwap.Sold(nft, id, address(acc2), usdc, 300);
+        _do(K2, acc2, address(swap), abi.encodeCall(swap.buy, (nft, id, usdc, 300)));
+    }
+
+    function test_LoanEventsAnnounceEachStep() public {
+        uint256 id = _mint(K1, acc1);
+        _do(K1, acc1, address(nft), abi.encodeCall(nft.approve, (address(loan), id)));
+        vm.expectEmit(address(loan));
+        emit AgentLoan.Offered(nft, id, address(acc1), usdc, 400, 440, 900);
+        _do(K1, acc1, address(loan), abi.encodeCall(loan.offer, (nft, id, usdc, 400, 440, 900)));
+        vm.expectEmit(address(loan));
+        emit AgentLoan.Cancelled(nft, id);
+        _do(K1, acc1, address(loan), abi.encodeCall(loan.cancel, (nft, id)));
+
+        // Offered again, funded and repaid.
+        _do(K1, acc1, address(nft), abi.encodeCall(nft.approve, (address(loan), id)));
+        _do(K1, acc1, address(loan), abi.encodeCall(loan.offer, (nft, id, usdc, 400, 440, 900)));
+        _do(K2, acc2, address(usdc), abi.encodeCall(usdc.approve, (address(loan), 500)));
+        vm.expectEmit(address(loan));
+        emit AgentLoan.Funded(nft, id, address(acc2), NOW + 900);
+        _do(K2, acc2, address(loan), abi.encodeCall(loan.fund, (nft, id, usdc, 400, 440, 900)));
+        _do(K1, acc1, address(usdc), abi.encodeCall(usdc.approve, (address(loan), 440)));
+        vm.expectEmit(address(loan));
+        emit AgentLoan.Repaid(nft, id);
+        _do(K1, acc1, address(loan), abi.encodeCall(loan.repay, (nft, id)));
+
+        // Offered once more, funded, left unpaid and claimed.
+        _do(K1, acc1, address(nft), abi.encodeCall(nft.approve, (address(loan), id)));
+        _do(K1, acc1, address(loan), abi.encodeCall(loan.offer, (nft, id, usdc, 100, 110, 500)));
+        _do(K2, acc2, address(loan), abi.encodeCall(loan.fund, (nft, id, usdc, 100, 110, 500)));
+        vm.warp(NOW + 501);
+        vm.expectEmit(address(loan));
+        emit AgentLoan.Claimed(nft, id, address(acc2));
+        _do(K2, acc2, address(loan), abi.encodeCall(loan.claim, (nft, id)));
     }
 
     function test_InterfaceIsAdvertised() public view {
