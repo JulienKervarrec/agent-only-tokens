@@ -12,6 +12,10 @@ A second program (`v2/`) ran the same day on another machine: enrolled through
 the simpler `DstackConfigIdVerifier`, it paid for a public x402 page in USDC,
 four times, from its agent account. See "Second program: an agent that pays".
 
+A third program (`v3/`) fixes three defects of the second. Its compose hash was
+computed from this repository before it was deployed: `manifest/` rebuilds the
+manifest dstack measures. See "Rebuilding the compose hash" and "Third program".
+
 Test network only. Unaudited. Throwaway test keys paid the gas.
 
 ## The program
@@ -107,12 +111,11 @@ sent with the same `cast` commands.
 
 ## Limits
 
-- **The exact manifest was not archived.** Its fields and the hash of each
-  long one are listed above, for the modified build; the approved build's
-  manifest should differ only by its compose file, which was not checked. The pre-launch script itself is not in
-  this repository, so the compose hash cannot be recomputed from it.
+- **The manifest was not archived at the time.** It has since been rebuilt
+  from this repository, for this build and the modified one: see "Rebuilding
+  the compose hash".
 - **Phala's pre-launch script runs before the program** and is part of what the
-  compose hash approves. It was not reviewed.
+  compose hash approves. It was reviewed afterwards: same section.
 - **The base image was taken from the quote**, not rebuilt from dstack's
   sources.
 - **Key provider: Phala KMS.** The verifier does not check it; the program
@@ -213,5 +216,100 @@ the event digests.
 - Anyone who can reach the machine can make the agent buy that page, up to the
   account's balance. The policy bounds where the money goes and how much per
   purchase, not how often.
-- The limits of the first run still apply: pre-launch script not reviewed,
-  manifest not archived, base image not rebuilt.
+- The first three limits above are fixed in the third program.
+- As in the first run, the base image was not rebuilt.
+
+## Rebuilding the compose hash
+
+`manifest/` holds Phala Cloud's default pre-launch script, which is public, and
+`compose-hash.py`, which rebuilds the manifest dstack measures. It gives the
+compose hash of each of the four programs of this folder, as the machines
+measured them. A compose hash can therefore be checked, and predicted, from
+this repository alone.
+
+### What the pre-launch script does
+
+It was read line by line (406 lines, version 0.0.21). It runs inside the
+machine, before the program.
+
+- It logs in to a private registry when credentials are given, removes unused
+  images, and pulls the images the compose file names. Our image is pinned by
+  digest and the program is in the compose file itself, so a pull cannot
+  change it.
+- It sets a root password, random unless one is given.
+- It writes SSH keys for root, then exports the application id.
+
+Two of its inputs come from whoever deploys or hosts the machine:
+
+- **Environment variables** (registry credentials, root password, SSH keys).
+  None reaches the machine in our runs: `allowed_envs` is empty, and that field
+  is part of the measured manifest.
+- **`/dstack/user_config`.** dstack stores this file without measuring it, and
+  the script adds the SSH keys it lists to root's authorized keys. The boot log
+  of the third run reads "Set root authorized_keys from user preferences, total
+  0 keys": none was installed. But a quote does not say how many were.
+
+What protects the agent's key is therefore the base image: our runs used the
+production image, which the provider presents as having no SSH access, and
+which is part of the code identity the verifier approves. A development image
+has other boot measurements and would be refused. We did not check ourselves
+that the production image runs no SSH server.
+
+## Third program: retries, a clear answer, a budget
+
+`v3/agent.js` (222 lines, no dependency) is the second program with three
+changes.
+
+| Defect of the second program | Change |
+| --- | --- |
+| It gave up when the shop answered an error once | A request to the shop is sent up to three times when the shop or the network fails. A payment is sent again unchanged: it keeps its nonce, so it can be settled once at most |
+| `paid` was filled in even when the payment was refused | The answer has `settled` (true only with the shop's receipt), `signed` (what the agent authorised) and `budgetLeft` |
+| Nothing bounded how much a caller could make it spend | A budget of 0.05 USDC for the life of the key. Every signed payment counts, settled or not, because a signed payment can be settled until it expires. A restart clears the count and destroys the key; the new key cannot pay until the sponsor enrolls it |
+
+Tested first on a local chain against the x402 reference facilitator, with a
+shop that fails on purpose: seven checks out of seven (one failure before the
+payment request, two on the paid request, a shop that stays down, a refused
+payer, the budget reached, a restart, an offer above the cap).
+
+A new program is a new agent: verifier `0x7533…33a6` approves this identity
+only, registry `0x49C5…6F9B` requires that verifier, and the account is new.
+
+### The run
+
+Same machine as the second run, restarted with the new compose file.
+
+| Step | Result |
+| --- | --- |
+| Compose hash, computed from this repository before deployment | `494249cb35c479595b27b20728f8dbd264c68fb84a0a5e17e0c48ad6c5a500a3`. The provider, then the machine, gave the same value |
+| Code identity, computed from that hash and a quote of the second run | `0x757cbc54…14d5`, found in the machine's quote |
+| `DstackConfigIdVerifier.attest` | [tx](https://sepolia.basescan.org/tx/0xb45304401f2764824fffd3af7efccda99c89353e94110ea695926cfebab008b2), 3,719,408 gas |
+| `AttestedAgentRegistry.enroll`, no attester signature | [tx](https://sepolia.basescan.org/tx/0x4fc2101c5ef4e9d7ab1f1c06b50af27904d95eed6963ef61448b55a25727378e), 199,370 gas. The account appears at the address computed beforehand, [`0xbB05…973C`](https://sepolia.basescan.org/address/0xbB052D067E60A1ceE1F15CAb44AE79548C86973C) |
+| The agent buys while its account is empty | Refused by the facilitator: `invalid_exact_evm_insufficient_balance`. The answer says `settled: false`, and the budget is charged |
+| Four more attempts | Refused the same way; the budget reaches zero |
+| Two more attempts | The program refuses to sign: `budget spent` |
+| The machine is stopped, the account receives 20 test USDC, the machine restarts | A new key, `0xa4aa2de44036ee4bcf53eb6dff00a6489d8dacae`, and a fresh count. It buys before being enrolled: refused, `invalid_exact_evm_signature` |
+| New quote verified, then key rotation | [attest](https://sepolia.basescan.org/tx/0x6c7d566d6f70bea9d5ca071d64caa3a58f195a677930c943c5a887baaeded31e) 3,719,432 gas, [rotation](https://sepolia.basescan.org/tx/0x7697a4575335cf7cdd6b5502d1c999fc82bc4403103150c56d3df820efd1fcf7) 43,670 gas |
+| Four purchases | Paid, `settled: true` each time, 98,705 gas each for the facilitator ([first](https://sepolia.basescan.org/tx/0xeb9af69f1d33e8939ae407097ea5c54b93b9d151fbbe0993920faa368c63dbfa), [fourth](https://sepolia.basescan.org/tx/0x2ca56538e4a2332da6737acb1be2e93f8e2bfe3384ff576d800006fd8d1875d8)). The account holds 19.96 USDC |
+| Two more attempts | The program refuses to sign: `budget spent`. The refused purchase before the rotation had used one fifth of the budget |
+
+Verifier [`0x7533…33a6`](https://sepolia.basescan.org/address/0x7533FeA85dE4eB3EEf26099051cbc3F32FAB33a6),
+registry [`0x49C5…6F9B`](https://sepolia.basescan.org/address/0x49C5C80483dE27FD33e1a570e3BF106dEa9B6F9B).
+First session key `0xaf69f5946c2458fc1e6aa32040696b45f0b7a9b9`.
+`run-2026-11-16-v3/` holds the two quotes, the event names and payloads, and
+the event digests.
+
+The retry could not be provoked on the public shop: it answered every request
+of this run. It is covered by the local test only.
+
+### Limits of the third program
+
+- Anyone who can reach the machine can still spend the key's budget, or use it
+  up with payments that fail. The budget bounds the loss; it does not say who
+  may ask.
+- The count lives in memory. It is as trustworthy as the machine's refusal to
+  run other code, no more.
+- `settled: false` means the shop gave no receipt. If a shop settled a payment
+  and then failed to answer, the money would have moved; the budget counts it
+  either way.
+- A new version is a new agent: the second agent's 19.96 test USDC stay on its
+  account, which only a machine running the second program can use.
