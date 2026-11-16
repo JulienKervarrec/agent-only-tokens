@@ -1,0 +1,224 @@
+// SPDX-License-Identifier: CC0-1.0
+pragma solidity ^0.8.24;
+
+import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import {IAgentRegistry} from "../../src/IAgentRegistry.sol";
+import {AgentAccount} from "../../src/AgentAccount.sol";
+import {AttestedAgentRegistry} from "../../src/AttestedAgentRegistry.sol";
+import {TdxQuoteVerifier} from "../../src/experimental/TdxQuoteVerifier.sol";
+import {DstackConfigIdVerifier} from "../../src/experimental/DstackConfigIdVerifier.sol";
+import {DstackEnrollmentVerifier} from "../../src/experimental/DstackEnrollmentVerifier.sol";
+import {AgentOnlyBase, AnyCollection} from "../AgentOnly.t.sol";
+import {DcapStub} from "./TdxEnrollment.t.sol";
+
+/// The verifier that reads the code identity from MRCONFIGID, on three real quotes from one
+/// production dstack machine and one from another machine (test/experimental/phala). A stand-in
+/// replaces the DCAP verifier; test/fork runs two of the quotes through the real one.
+contract DstackConfigIdTest is AgentOnlyBase {
+    uint256 constant BODY = 48; // the report body starts after the quote's header
+    uint256 constant TD_ATTRIBUTES = BODY + 120;
+    uint256 constant MR_CONFIG_ID = BODY + 184;
+    uint256 constant RTMR1 = BODY + 376;
+    uint256 constant RTMR3 = BODY + 472;
+    uint256 constant REPORT_DATA = BODY + 520;
+    bytes32 constant COMPOSE = 0x95b3c3e50b054db593842d68401d342d36136cd7c6002ecedebcdece9608dc21;
+    bytes32 constant MODIFIED_COMPOSE = 0x6b79fe2460f3f6464dba5093077a0f0d0d6439e5087f37fd8fbd0097c6271412;
+    // The digest the first real quote carries, and the key the machine created.
+    bytes32 constant REAL_DIGEST = 0x6b8374eb8ae21bf4744c04bf503a96b5e6ce48eba2a8fb671fa6481293f9f631;
+    // The second program (examples/enclave-agent/v2): its compose hash, the identity computed for
+    // it before its machine existed, and the digest its first quote carries.
+    bytes32 constant V2_COMPOSE = 0x580353bba6700abc63f66733f8b8449afc130eaffaed93153728faa7e8547ef8;
+    bytes32 constant V2_CODE = 0x4b20b334ade6c2ee3c6fa18a95edb4d037506b747fe79343d004a3c8e9b472fc;
+    bytes32 constant V2_DIGEST = 0x6d6d84cf892cd35cea63ce53c8acf809497daaf1282ce1970b0044456a52296f;
+    uint256 constant ENCLAVE_KEY = 0x7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d7d;
+
+    DcapStub dcap;
+    DstackConfigIdVerifier verifier;
+    bytes quote;
+    bytes rotation;
+    bytes modified;
+    bytes32 code;
+
+    function setUp() public override {
+        super.setUp();
+        quote = vm.parseBytes(vm.readFile("test/experimental/phala/quote.hex"));
+        rotation = vm.parseBytes(vm.readFile("test/experimental/phala/quote-rotation.hex"));
+        modified = vm.parseBytes(vm.readFile("test/experimental/phala/quote-modified.hex"));
+        dcap = new DcapStub();
+        code = _codeOf(quote);
+        verifier = _verifier(code);
+    }
+
+    function _verifier(bytes32 approved) internal returns (DstackConfigIdVerifier) {
+        bytes32[] memory list = new bytes32[](1);
+        list[0] = approved;
+        return new DstackConfigIdVerifier(dcap, 1, list); // up-to-date platforms only
+    }
+
+    /// keccak256 of attributes .. RTMR2 of a quote's report body.
+    function _codeOf(bytes memory q) internal pure returns (bytes32 h) {
+        assembly ("memory-safe") {
+            h := keccak256(add(add(q, 0x20), 168), 352)
+        }
+    }
+
+    function _with(bytes memory q, uint256 at, bytes1 value) internal pure returns (bytes memory out) {
+        out = bytes.concat(q);
+        out[at] = value;
+    }
+
+    // ------------------------------------------------------------ the real quotes
+
+    function test_RealQuoteIsAcceptedAndItsCodeReadFromConfigId() public {
+        (, bytes memory output) = dcap.verifyAndAttestOnChain(quote);
+        assertEq(verifier.codeOf(output), code);
+        assertEq(verifier.composeHashOf(output), COMPOSE);
+        vm.expectEmit(address(verifier));
+        emit TdxQuoteVerifier.Attested(REAL_DIGEST, code, keccak256(quote));
+        assertEq(verifier.attest(quote), REAL_DIGEST);
+        assertTrue(verifier.attested(REAL_DIGEST));
+    }
+
+    function test_SameBuildAfterRestartHasTheSameCode() public {
+        assertEq(_codeOf(rotation), code);
+        bytes32 digest = verifier.attest(rotation);
+        assertTrue(digest != REAL_DIGEST && verifier.attested(digest));
+    }
+
+    function test_ModifiedBuildIsRefused() public {
+        (, bytes memory output) = dcap.verifyAndAttestOnChain(modified);
+        assertEq(verifier.composeHashOf(output), MODIFIED_COMPOSE);
+        vm.expectRevert(abi.encodeWithSelector(TdxQuoteVerifier.UnknownCode.selector, _codeOf(modified)));
+        verifier.attest(modified);
+    }
+
+    /// The second program ran later, on another machine of the same provider. Its identity had
+    /// been computed from the first machine's quote, by changing the compose hash only.
+    function test_IdentityComputedBeforehandMatchesAnotherMachine() public {
+        bytes memory other = vm.parseBytes(vm.readFile("test/experimental/phala/quote-other-machine.hex"));
+        bytes memory predicted = bytes.concat(quote);
+        for (uint256 i; i < 32; ++i) {
+            predicted[MR_CONFIG_ID + 1 + i] = V2_COMPOSE[i];
+        }
+        assertEq(_codeOf(predicted), V2_CODE);
+        assertEq(_codeOf(other), V2_CODE);
+
+        DstackConfigIdVerifier second = _verifier(V2_CODE);
+        assertEq(second.attest(other), V2_DIGEST);
+        vm.expectRevert(abi.encodeWithSelector(TdxQuoteVerifier.UnknownCode.selector, code));
+        second.attest(quote);
+    }
+
+    function test_AnotherInstanceIsAccepted() public {
+        // RTMR3 holds the instance id and the application's own events: it is not read.
+        bytes memory other = _with(quote, RTMR3, quote[RTMR3] ^ 0x01);
+        assertEq(verifier.attest(other), REAL_DIGEST);
+    }
+
+    function test_OtherBaseImageIsRefused() public {
+        bytes memory other = _with(quote, RTMR1, quote[RTMR1] ^ 0x01);
+        vm.expectRevert(abi.encodeWithSelector(TdxQuoteVerifier.UnknownCode.selector, _codeOf(other)));
+        verifier.attest(other);
+    }
+
+    function test_UnsetOrOtherConfigIdFormatsAreRefusedEvenIfApproved() public {
+        // Format 2 binds more than the compose hash; format 0 is "unset", which dstack tolerates.
+        for (uint8 format = 0; format < 4; ++format) {
+            if (format == 1) continue;
+            bytes memory q = _with(quote, MR_CONFIG_ID, bytes1(format));
+            DstackConfigIdVerifier lax = _verifier(_codeOf(q));
+            vm.expectRevert(DstackConfigIdVerifier.BadConfigId.selector);
+            lax.attest(q);
+        }
+    }
+
+    function test_SharedChecksStillApply() public {
+        bytes memory debug = _with(quote, TD_ATTRIBUTES, 0x01);
+        DstackConfigIdVerifier lax = _verifier(_codeOf(debug));
+        vm.expectRevert(TdxQuoteVerifier.DebugMachine.selector);
+        lax.attest(debug);
+
+        vm.expectRevert(TdxQuoteVerifier.BadReportData.selector);
+        verifier.attest(_with(quote, REPORT_DATA + 40, 0x01));
+
+        dcap.set(true, 4, 2);
+        vm.expectRevert(abi.encodeWithSelector(TdxQuoteVerifier.PlatformNotAccepted.selector, uint8(4)));
+        verifier.attest(quote);
+
+        dcap.set(false, 0, 2);
+        vm.expectRevert(
+            abi.encodeWithSelector(TdxQuoteVerifier.QuoteRejected.selector, bytes("signature check failed"))
+        );
+        verifier.attest(quote);
+    }
+
+    function test_RefusesEmptyConfiguration() public {
+        vm.expectRevert(TdxQuoteVerifier.BadConfig.selector);
+        new DstackConfigIdVerifier(dcap, 1, new bytes32[](0));
+    }
+
+    function test_ReadsNothingFromATruncatedOutput() public {
+        vm.expectRevert(TdxQuoteVerifier.UnsupportedReport.selector);
+        verifier.composeHashOf(new bytes(594));
+        vm.expectRevert(TdxQuoteVerifier.UnsupportedReport.selector);
+        verifier.codeOf(new bytes(594));
+    }
+
+    // ------------------------------------------------------------ end to end
+
+    function test_AgentEnrollsThroughTheConfigIdAndActs() public {
+        address[] memory att = new address[](3);
+        (att[0], att[1], att[2]) = (vm.addr(A1), vm.addr(A2), vm.addr(A3));
+        AttestedAgentRegistry treg =
+            new AttestedAgentRegistry(att, 2, BOND, TTL, IERC721(address(0)), address(verifier));
+        AnyCollection tnft = new AnyCollection(IAgentRegistry(address(treg)));
+        address key = vm.addr(ENCLAVE_KEY);
+        bytes32 digest = treg.hashEnrollment(9, key, COMPOSE, SPONSOR1, 0, FAR);
+
+        // No quote yet: refused. Then the quote carrying that digest, and the enrollment passes.
+        vm.prank(SPONSOR1);
+        vm.expectRevert(AttestedAgentRegistry.NotVerified.selector);
+        treg.enroll{value: BOND}(9, key, COMPOSE, FAR, new bytes[](0));
+
+        bytes memory q = bytes.concat(quote);
+        for (uint256 i; i < 32; ++i) {
+            q[REPORT_DATA + i] = digest[i];
+        }
+        verifier.attest(q);
+        vm.prank(SPONSOR1);
+        treg.enroll{value: BOND}(9, key, COMPOSE, FAR, new bytes[](0));
+
+        AgentAccount acc = AgentAccount(payable(treg.accountOf(9)));
+        vm.prank(key);
+        acc.execute(address(tnft), 0, abi.encodeCall(tnft.mint, (bytes32(uint256(1)))));
+        assertEq(tnft.ownerOf(1), address(acc));
+    }
+
+    /// The event-log verifier accepts the same production quote, with its ten real events.
+    function test_EventLogVerifierAcceptsTheSameQuote() public {
+        bytes memory events = vm.parseBytes(vm.readFile("test/experimental/phala/event-digests.hex"));
+        (, bytes memory output) = dcap.verifyAndAttestOnChain(quote);
+        bytes32[] memory list = new bytes32[](1);
+        DstackEnrollmentVerifier probe = new DstackEnrollmentVerifier(dcap, 1, new bytes32[](1));
+        list[0] = probe.codeOf(output, COMPOSE);
+        DstackEnrollmentVerifier logVerifier = new DstackEnrollmentVerifier(dcap, 1, list);
+        assertEq(logVerifier.attest(quote, events, 2, false, COMPOSE), REAL_DIGEST);
+        // The modified build cannot pass with the approved build's log.
+        vm.expectRevert(DstackEnrollmentVerifier.BadEventLog.selector);
+        logVerifier.attest(modified, events, 2, false, COMPOSE);
+    }
+
+    function test_GasOfBothRoutes() public {
+        bytes memory events = vm.parseBytes(vm.readFile("test/experimental/phala/event-digests.hex"));
+        (, bytes memory output) = dcap.verifyAndAttestOnChain(quote);
+        bytes32[] memory list = new bytes32[](1);
+        list[0] = new DstackEnrollmentVerifier(dcap, 1, new bytes32[](1)).codeOf(output, COMPOSE);
+        DstackEnrollmentVerifier logVerifier = new DstackEnrollmentVerifier(dcap, 1, list);
+        uint256 g = gasleft();
+        verifier.attest(quote);
+        emit log_named_uint("attest by config id, without the DCAP verification", g - gasleft());
+        g = gasleft();
+        logVerifier.attest(quote, events, 2, false, COMPOSE);
+        emit log_named_uint("attest by event log (10 events), without the DCAP verification", g - gasleft());
+    }
+}
