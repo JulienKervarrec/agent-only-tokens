@@ -98,24 +98,27 @@ abstract contract AgentOnlyBase is Test {
     address constant SPONSOR1 = address(0x101);
     address constant SPONSOR2 = address(0x102);
     address human;
-    uint64 constant NOW = 1_000;
+    uint64 constant NOTICE = 7 days; // between a venue's approval and its effect
+    uint64 constant NOW = 2_000_000; // once the two venues of the setup are in force
     uint64 constant FAR = 10_000_000;
     uint256 constant BOND = 0.01 ether;
     uint64 constant TTL = 30 days;
 
     function setUp() public virtual {
         vm.chainId(8453);
-        vm.warp(NOW);
+        vm.warp(NOW - 2 * NOTICE);
         human = vm.addr(HUMAN_PK);
         address[] memory att = new address[](3);
         att[0] = vm.addr(A1);
         att[1] = vm.addr(A2);
         att[2] = vm.addr(A3);
-        reg = new AttestedAgentRegistry(att, 2, BOND, TTL, IERC721(address(0)), address(0));
+        reg = new AttestedAgentRegistry(att, 2, BOND, TTL, NOTICE, IERC721(address(0)), address(0));
         nft = new AnyCollection(IAgentRegistry(address(reg)));
         swap = new AgentSwap();
         loan = new AgentLoan();
         usdc = new MockUSDC();
+        _venue(address(swap));
+        _venue(address(loan));
 
         vm.deal(SPONSOR1, 1 ether);
         vm.deal(SPONSOR2, 1 ether);
@@ -125,9 +128,6 @@ abstract contract AgentOnlyBase is Test {
         acc2 = AgentAccount(payable(reg.accountOf(2)));
         usdc.mint(address(acc1), 1_000);
         usdc.mint(address(acc2), 1_000);
-
-        _venue(address(swap));
-        _venue(address(loan));
     }
 
     // ------------------------------------------------------------ helpers
@@ -151,8 +151,10 @@ abstract contract AgentOnlyBase is Test {
         r.enroll{value: value}(agent, key, keccak256("evidence"), FAR, sigs);
     }
 
+    /// Attesters approve a venue; the notice delay then passes.
     function _venue(address v) internal {
         reg.setVenue(v, true, keccak256("code"), _attest(A1, A2, reg.hashVenue(v, true, keccak256("code"))));
+        skip(NOTICE);
     }
 
     /// The agent acts: its session key calls its account.
@@ -371,9 +373,9 @@ contract AgentOnlyTest is AgentOnlyBase {
 
         // Nor is a venue approved by them alone.
         bytes[] memory v = new bytes[](1);
-        v[0] = _sign(HUMAN_PK, reg.hashVenue(human, true, bytes32(0)));
+        v[0] = _sign(HUMAN_PK, reg.hashVenue(address(usdc), true, bytes32(0)));
         vm.expectRevert(AttestedAgentRegistry.NotEnoughAttesters.selector);
-        reg.setVenue(human, true, bytes32(0), v);
+        reg.setVenue(address(usdc), true, bytes32(0), v);
     }
 
     function test_FrozenAndRevokedAgentsStop() public {
@@ -404,7 +406,8 @@ contract AgentOnlyTest is AgentOnlyBase {
         att[0] = vm.addr(A1);
         att[1] = vm.addr(A2);
         att[2] = vm.addr(A3);
-        AttestedAgentRegistry r = new AttestedAgentRegistry(att, 2, BOND, TTL, IERC721(address(ids)), address(0));
+        AttestedAgentRegistry r =
+            new AttestedAgentRegistry(att, 2, BOND, TTL, NOTICE, IERC721(address(ids)), address(0));
         ids.register(SPONSOR1, 42);
 
         // Anyone other than the owner of identity 42 cannot enroll it.
@@ -422,7 +425,7 @@ contract AgentOnlyTest is AgentOnlyBase {
     // Each test below replays an attack that worked before the review of 13 November 2026.
 
     function test_VenueDecisionCannotBeReplayed() public {
-        address rogue = address(0xBAD);
+        address rogue = address(new AgentSwap());
         bytes[] memory approval = _attest(A1, A2, reg.hashVenue(rogue, true, keccak256("code")));
         reg.setVenue(rogue, true, keccak256("code"), approval);
         reg.setVenue(rogue, false, keccak256("code"), _attest(A1, A2, reg.hashVenue(rogue, false, keccak256("code"))));

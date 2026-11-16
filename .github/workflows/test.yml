@@ -25,6 +25,15 @@ jobs:
       - run: git clone --depth 1 --branch v1.9.7 https://github.com/foundry-rs/forge-std lib/forge-std
       - run: forge fmt --check src
       - run: forge test
+      - name: Gas of each operation, against snapshots/Gas.json
+        run: |
+          rm snapshots/Gas.json
+          forge test --isolate --match-contract GasTest
+          git diff --exit-code snapshots/Gas.json
+      - name: Figures quoted in the documentation
+        run: python3 tools/figures.py
+      - name: Addresses cited in the documentation
+        run: python3 tools/deployments.py
 
   halmos:
     name: Symbolic proofs (Halmos)
@@ -44,3 +53,28 @@ jobs:
           python-version: "3.12"
       - run: pip install halmos==0.3.3
       - run: halmos --match-contract "AgentOnlyProps|RegistryProps"
+
+  slither:
+    name: Static analysis (Slither)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.5.1
+      - run: git clone --depth 1 --branch v1.9.7 https://github.com/foundry-rs/forge-std lib/forge-std
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install slither-analyzer==0.11.6
+      - run: forge build --build-info --skip test --skip script
+      # Slither exits with an error as soon as it reports anything: the next step decides.
+      - run: >-
+          slither . --ignore-compile --compile-force-framework foundry
+          --filter-paths "node_modules/|/lib/|/test/" --json slither.json || true
+      - name: Findings against the accepted list
+        run: python3 tools/slither_check.py slither.json

@@ -6,3 +6,5 @@ target/
 .env
 .env.*
 broadcast/
+slither.json
+__pycache__/

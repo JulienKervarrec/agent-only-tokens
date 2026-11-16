@@ -141,13 +141,14 @@ contract WrappedTest is Test {
         address[] memory att = new address[](2);
         att[0] = vm.addr(A1);
         att[1] = vm.addr(A2);
-        reg = new AttestedAgentRegistry(att, 2, BOND, 30 days, IERC721(address(0)), address(0));
+        reg = new AttestedAgentRegistry(att, 2, BOND, 30 days, 7 days, IERC721(address(0)), address(0));
         swap = new AgentSwap();
         usdc = new Coin("USDC");
         vm.deal(address(this), 1 ether);
+        reg.setVenue(address(swap), true, bytes32(0), _attest(reg.hashVenue(address(swap), true, bytes32(0))));
+        skip(7 days); // the notice delay
         acc1 = _enroll(1, vm.addr(K1));
         acc2 = _enroll(2, vm.addr(K2));
-        reg.setVenue(address(swap), true, bytes32(0), _attest(reg.hashVenue(address(swap), true, bytes32(0))));
         usdc.mint(address(acc2), 1_000);
     }
 

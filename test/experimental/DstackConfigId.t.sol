@@ -170,7 +170,7 @@ contract DstackConfigIdTest is AgentOnlyBase {
         address[] memory att = new address[](3);
         (att[0], att[1], att[2]) = (vm.addr(A1), vm.addr(A2), vm.addr(A3));
         AttestedAgentRegistry treg =
-            new AttestedAgentRegistry(att, 2, BOND, TTL, IERC721(address(0)), address(verifier));
+            new AttestedAgentRegistry(att, 2, BOND, TTL, NOTICE, IERC721(address(0)), address(verifier));
         AnyCollection tnft = new AnyCollection(IAgentRegistry(address(treg)));
         address key = vm.addr(ENCLAVE_KEY);
         bytes32 digest = treg.hashEnrollment(9, key, COMPOSE, SPONSOR1, 0, FAR);
@@ -206,11 +206,12 @@ contract DstackConfigIdTest is AgentOnlyBase {
     function _registry(address enrollmentVerifier) internal returns (AttestedAgentRegistry) {
         address[] memory att = new address[](3);
         (att[0], att[1], att[2]) = (vm.addr(A1), vm.addr(A2), vm.addr(A3));
-        return new AttestedAgentRegistry(att, 2, BOND, TTL, IERC721(address(0)), enrollmentVerifier);
+        return new AttestedAgentRegistry(att, 2, BOND, TTL, NOTICE, IERC721(address(0)), enrollmentVerifier);
     }
 
     function _replace(AttestedAgentRegistry r, address next) internal {
-        r.setEnrollmentVerifier(next, keccak256("review"), _attest(A1, A2, r.hashVerifier(next, keccak256("review"))));
+        bytes32 digest = r.hashVerifier(next, keccak256("review"), FAR);
+        r.setEnrollmentVerifier(next, keccak256("review"), FAR, _attest(A1, A2, digest));
     }
 
     /// The agents' program changes from the first build to the second one. The attesters replace
@@ -237,8 +238,16 @@ contract DstackConfigIdTest is AgentOnlyBase {
         treg.enroll(9, nextKey, V2_COMPOSE, FAR, new bytes[](0));
 
         vm.expectEmit(address(treg));
-        emit AttestedAgentRegistry.EnrollmentVerifierSet(address(second), keccak256("review"));
+        emit AttestedAgentRegistry.EnrollmentVerifierSet(
+            address(second), keccak256("review"), uint64(block.timestamp) + NOTICE
+        );
         _replace(treg, address(second));
+
+        // The decision is announced, not yet in force: the second build is still refused.
+        vm.prank(SPONSOR1);
+        vm.expectRevert(AttestedAgentRegistry.NotVerified.selector);
+        treg.enroll(9, nextKey, V2_COMPOSE, FAR, new bytes[](0));
+        skip(NOTICE);
 
         // The key enrolled under the first build still works until it is replaced or expires.
         vm.prank(key);
@@ -264,38 +273,45 @@ contract DstackConfigIdTest is AgentOnlyBase {
     function test_OnlyTheAttestersReplaceTheVerifier() public {
         AttestedAgentRegistry treg = _registry(address(verifier));
         address next = address(_verifier(V2_CODE));
-        bytes32 digest = treg.hashVerifier(next, keccak256("review"));
+        bytes32 digest = treg.hashVerifier(next, keccak256("review"), FAR);
         bytes[] memory one = new bytes[](1);
         one[0] = _sign(A1, digest);
         vm.expectRevert(AttestedAgentRegistry.NotEnoughAttesters.selector);
-        treg.setEnrollmentVerifier(next, keccak256("review"), one);
+        treg.setEnrollmentVerifier(next, keccak256("review"), FAR, one);
         vm.expectRevert(AttestedAgentRegistry.BadAttester.selector);
-        treg.setEnrollmentVerifier(next, keccak256("review"), _attest(A1, HUMAN_PK, digest));
-        // Signatures given for one verifier do not install another one, nor another evidence.
+        treg.setEnrollmentVerifier(next, keccak256("review"), FAR, _attest(A1, HUMAN_PK, digest));
+        // Signatures given for one verifier do not install another one, nor another evidence,
+        // and do not last longer than the attesters said.
         bytes[] memory sigs = _attest(A1, A2, digest);
         vm.expectRevert(AttestedAgentRegistry.BadAttester.selector);
-        treg.setEnrollmentVerifier(address(verifier), keccak256("review"), sigs);
+        treg.setEnrollmentVerifier(address(verifier), keccak256("review"), FAR, sigs);
         vm.expectRevert(AttestedAgentRegistry.BadAttester.selector);
-        treg.setEnrollmentVerifier(next, keccak256("other"), sigs);
+        treg.setEnrollmentVerifier(next, keccak256("other"), FAR, sigs);
+        vm.expectRevert(AttestedAgentRegistry.BadAttester.selector);
+        treg.setEnrollmentVerifier(next, keccak256("review"), FAR + 1, sigs);
 
-        treg.setEnrollmentVerifier(next, keccak256("review"), sigs);
+        treg.setEnrollmentVerifier(next, keccak256("review"), FAR, sigs);
+        assertEq(treg.enrollmentVerifier(), address(verifier));
+        skip(NOTICE);
         assertEq(treg.enrollmentVerifier(), next);
         // The attesters go back to the first verifier; the earlier decision cannot be replayed.
         _replace(treg, address(verifier));
         vm.expectRevert(AttestedAgentRegistry.BadAttester.selector);
-        treg.setEnrollmentVerifier(next, keccak256("review"), sigs);
+        treg.setEnrollmentVerifier(next, keccak256("review"), FAR, sigs);
+        skip(NOTICE);
         assertEq(treg.enrollmentVerifier(), address(verifier));
     }
 
     function test_DeploymentAnnouncesItsVerifier() public {
         vm.expectEmit();
-        emit AttestedAgentRegistry.EnrollmentVerifierSet(address(verifier), bytes32(0));
+        emit AttestedAgentRegistry.EnrollmentVerifierSet(address(verifier), bytes32(0), uint64(block.timestamp));
         _registry(address(verifier));
     }
 
     function test_WithoutVerifierEnrollmentsAreSignedAgain() public {
         AttestedAgentRegistry treg = _registry(address(verifier));
         _replace(treg, address(0));
+        skip(NOTICE);
         address key = vm.addr(ENCLAVE_KEY);
         vm.prank(SPONSOR1);
         vm.expectRevert(AttestedAgentRegistry.NotEnoughAttesters.selector);
