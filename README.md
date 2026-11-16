@@ -57,13 +57,14 @@ interface IAgentRegistry {
 | `src/experimental/TdxEnrollmentVerifier.sol` | Enrollment verifier for TDX images whose measurements are the same for every instance | 41 |
 | `src/experimental/DstackEnrollmentVerifier.sol` | Enrollment verifier for agents on dstack: replays the RTMR3 event log and identifies the code by its base image and compose hash | 138 |
 | `src/experimental/Sha384.sol` | SHA-384, needed to replay TDX registers; the EVM has no precompile for it | 92 |
+| `src/experimental/DstackConfigIdVerifier.sol` | Simpler enrollment verifier for agents on dstack: reads the compose hash in the quote itself (`MRCONFIGID`), with no event log and no SHA-384 | 58 |
 | `src/AgentSwap.sol` | Fixed-price sale between agents; events announce each listing and sale | 64 |
 | `src/AgentLoan.sol` | Collateralised loan between agents; events announce each offer and each step | 104 |
 | `src/AgentStaking.sol` | Staking of agent-only NFTs for ERC-20 rewards (Synthetix-style accounting, one NFT = one unit) | 130 |
 | `src/AgentWrapped721.sol` | Wrapper that makes any existing ERC-721 agent-only | 80 |
 | `src/AgentWrappedUniV3.sol` | Non-unwrappable wrapper for Uniswap V3 liquidity positions | 98 |
 | `src/AgentReputationBadge.sol` | Reputation badges: agent-only and soulbound (ERC-5192). An issuer offers, the agent claims; issuers post a refundable deposit and have a daily quota | 218 |
-| `examples/enclave-agent/` | The agent program that ran in a real TDX machine, the quotes it produced and the record of the first enrollment by hardware attestation | |
+| `examples/enclave-agent/` | The two agent programs that ran in real TDX machines, the quotes they produced, and the record of both runs: the first enrollment by hardware attestation, then an enclave agent paying by x402 | |
 | `.github/workflows/test.yml` | Runs the tests and the symbolic proofs on every push | |
 | `examples/x402/` | x402 demo: an agent account buys from a paid API through the x402 reference facilitator, on a local chain. Includes the 28-line signer adapter and a script comparing this repository's USDC code with the one deployed on a chain | |
 | `archive/` | Two earlier tracks that were set aside (signed-intent core in Solidity, Rust model) | |
@@ -85,7 +86,7 @@ The hardware verifiers and SHA-384 are newer and less reviewed than the
 standard; they live in `src/experimental`, with their tests and fixtures in
 `test/experimental`. Nothing in the standard depends on them.
 
-One hundred and two tests run locally; two more run only against Base
+One hundred and fifteen tests run locally; three more run only against Base
 Sepolia and are reported as skipped without an RPC address. They cover: classic ERC-721 behaviour between agents,
 refusal of humans as holder, recipient, minter or approved operator, refusal
 of unsolicited tokens and of unapproved wrapper contracts, sale, loan (repaid
@@ -102,12 +103,13 @@ a raw signature, changed terms, or while frozen.
 `examples/x402` runs the same payment outside Foundry, through the x402
 reference facilitator and the standard x402 client (see "x402 payments" below).
 
-Thirty-four tests cover enrollment by hardware attestation and SHA-384 (see
+Forty-seven tests cover enrollment by hardware attestation and SHA-384 (see
 "Enrollment by hardware attestation" below). They use a real Intel TDX quote
-(`test/experimental/tdx`) and a real dstack quote with its event log (`test/experimental/dstack`). In
-these local tests a stand-in replaces the DCAP verifier. The real one is
-exercised by the two fork tests in `test/fork` and was run on Base Sepolia
-(see "Test on Base Sepolia" below).
+(`test/experimental/tdx`), a real dstack quote with its event log
+(`test/experimental/dstack`) and four quotes from our own machines
+(`test/experimental/phala`). In these local tests a stand-in replaces the DCAP
+verifier. The real one is exercised by the three fork tests in `test/fork` and
+was run on Base Sepolia (see "Test on Base Sepolia" below).
 
 One test is fuzzed over 512 random addresses. One is a stateful invariant
 test: two agents, a human and an unapproved contract perform 128 runs of 100
@@ -252,12 +254,17 @@ and id from its own code). The saving pays for about 260 calls per agent.
 
 - "No human" rests on the attesters, who also approve venues. A dishonest
   approved venue could wrap tokens for humans. Attesters are fixed at deployment.
-- Hardware attestation: one agent was enrolled by attestation, on Base Sepolia,
-  from one machine of one provider (see "First agent enrolled by hardware
-  attestation"). The manifest dstack hashes includes the provider's pre-launch
-  script, which was not reviewed, and the base image was taken from the quote,
-  not rebuilt. TDX 1.5 reports and the cheaper zk route are not supported. The
-  default registry still only checks attester signatures.
+- Hardware attestation: two agents were enrolled by attestation, on Base
+  Sepolia, from two machines of one provider (see "First agent enrolled by
+  hardware attestation" and "An enclave agent pays by x402"). The manifest
+  dstack hashes includes the provider's pre-launch script, which was not
+  reviewed, and the base image was taken from the quote, not rebuilt. TDX 1.5
+  reports and the cheaper zk route are not supported. The default registry
+  still only checks attester signatures.
+- `DstackConfigIdVerifier` rests on one more behaviour of the base image than
+  the event-log verifier: the dstack OS must refuse to boot when `MRCONFIGID`
+  does not match the manifest it loads. That check was read in dstack's source,
+  not provoked on a machine.
 - dstack: the verifier identifies the code (base image and compose hash) and
   does not look at the `key-provider` event, nor at the environment variables
   given to the application. Approved code must therefore keep its session key
@@ -289,12 +296,13 @@ and id from its own code). The saving pays for about 260 calls per agent.
 - Staking: rewards streamed while nothing is staked stay in the contract, and
   fee-on-transfer reward tokens are not supported. Mint fees and quotas are
   left to each collection.
-- x402: the whole flow runs on a local chain only; no payment was made on Base
-  or on a testnet. The facilitator is the open-source reference code, and a
-  hosted facilitator may run other code or add its own rules. The written
-  specification still describes a signature that recovers to the payer, so
-  another facilitator may refuse a payer that is a contract. USDC is
-  upgradeable: Circle can change the code the comparison was made against.
+- x402: payments were made on a local chain and on Base Sepolia, never on a
+  main network. On Base Sepolia the facilitator was the hosted test one of
+  x402.org and the shop its demonstration page. A production facilitator may
+  run other code or add its own rules. The written specification still
+  describes a signature that recovers to the payer, so another facilitator may
+  refuse a payer that is a contract. USDC is upgradeable: Circle can change
+  the code the comparison was made against.
 - Noted by the independent review, not fixed: anyone can take a free agent id
   first when no identity registry is set; after an ERC-8004 identity changes
   hands, the old sponsor keeps its rights; an approved dstack application that
@@ -311,9 +319,10 @@ enrollments only. It takes an optional *enrollment verifier*: any contract that
 approves an enrollment digest through ERC-1271. Attesters keep approving venues
 and revoking agents.
 
-Two such verifiers exist for Intel TDX: `TdxEnrollmentVerifier`, for images
-whose measurements are the same for every instance, and
-`DstackEnrollmentVerifier`, for agents on [dstack](https://github.com/Dstack-TEE/dstack/blob/master/docs/attestation-tdx.md):
+Three such verifiers exist for Intel TDX: `TdxEnrollmentVerifier`, for images
+whose measurements are the same for every instance, and two for agents on
+[dstack](https://github.com/Dstack-TEE/dstack/blob/master/docs/attestation-tdx.md),
+`DstackEnrollmentVerifier` and the simpler `DstackConfigIdVerifier`:
 
 1. The agent's program runs in a TDX confidential virtual machine. It creates
    its session key there, computes the registry's enrollment digest for it and
@@ -338,6 +347,15 @@ author's workspace, so the local tests use a stand-in for it; the real verifier
 was run on Base Sepolia (next section). The dstack path was
 tested on a real dstack quote and its real event log; it costs about 1 million
 gas with eight events, on top of the DCAP verification.
+
+`DstackConfigIdVerifier` needs the quote alone. Since version 0.5.1, dstack
+also writes the compose hash into a field of the quote that the processor
+signs (`MRCONFIGID`), and its OS [refuses to boot](https://github.com/Dstack-TEE/dstack/blob/350a0a73ffdb6041bda69118f13d81591870b565/dstack/dstack-util/src/system_setup/config_id_verifier.rs)
+when that field does not match the manifest it loads. The contract hashes that
+field together with the boot measurements: one identity for the base image and
+the application. On Base Sepolia it cost 3,719,444 gas against 4,777,969 for
+the event-log route, DCAP verification included; without it, 68,064 gas
+against 1,111,564.
 
 ## Test on Base Sepolia, 15 November 2026
 
@@ -401,6 +419,39 @@ A real machine produced a quote for one of our keys, and the chain accepted it.
 Addresses, every step and the limits of this run: `examples/enclave-agent`
 and section 3.13 of the study.
 
+## An enclave agent pays by x402, 16 November 2026
+
+A second program, in another machine, paid for a public x402 page from its
+agent account.
+
+- **Prepared before the machine existed.** The program's compose hash, its
+  code identity, a `DstackConfigIdVerifier` approving that identity only, a
+  registry, and the address of the agent's future account, which received 20
+  test USDC from Circle's faucet.
+- **Enrolled with the quote alone.** The machine's quote carried the identity
+  computed beforehand, although it was not the machine of the first run
+  ([attest](https://sepolia.basescan.org/tx/0xac4c5fe0debd7322a151ce1fc962bf445c8f9bd4a555efcf8bbfa8da0f12f268), 3,719,444 gas; [enroll](https://sepolia.basescan.org/tx/0x0e38885b28658477fa07fb4d9240739a1ce72c742ebf88dcf6ba0b71ed87a2cd)).
+- **The agent pays.** It asked for `https://x402.org/protected`, received HTTP
+  402, signed a 0.01 USDC payment as a message of its account, and received
+  the page. The hosted x402.org facilitator checked the signature through
+  ERC-1271 and settled it
+  ([tx](https://sepolia.basescan.org/tx/0x89e0a73920d855494cbad29a8ec0035a4e07c84da12e409b6c1e2f74aade5ea0), 98,705 gas paid by the facilitator). Four payments in all. The
+  agent's account and keys never held ETH.
+- **The program decides where the money goes.** The shop, the network, the
+  token and a cap of 0.02 USDC per purchase are fixed in the measured code.
+  Asked to pay from another agent's account or from a plain wallet, its
+  signature was refused.
+- **Emergency stop.** [Frozen](https://sepolia.basescan.org/tx/0x8e55e045a422f3073e56e17964cfdff3af783f5dcd2ea1ad2dd6284c9f02fb3e) by its sponsor, the agent's payment was
+  refused by the facilitator and nothing reached the chain; unfrozen, it paid
+  again.
+- **The money follows the agent, not the key.** After a restart the machine
+  had a new key, which could not pay. A new quote [rotated](https://sepolia.basescan.org/tx/0x49c322020ed96cc59537c0d7c138bed963d4827fd6e897ad90762257080e9fb7) it, and the
+  new key [paid](https://sepolia.basescan.org/tx/0xc9d1118cfdd7647e082a1a207cb35f0c16617e9d108d7a3073d88efb84cdf3b8) from the same account. The agent then
+  [minted](https://sepolia.basescan.org/tx/0xe1f1beb4b3574d35014dbae49c304913eb8c8df10aaa97276b51df6aed28d51f) a token holding the hash of that payment.
+
+Every step, the addresses and the limits: `examples/enclave-agent` and section
+3.14 of the study.
+
 ## x402 payments
 
 An agent account can pay an x402 `exact` invoice with no change to the
@@ -429,9 +480,14 @@ compared byte for byte with `test/usdc`: identical, apart from the compiler's
 metadata hash and the library's address. `examples/x402/check-usdc.mjs` repeats
 that comparison.
 
+On 16 November 2026 the same payment was made on Base Sepolia, by an agent
+running in a confidential VM, through the hosted x402.org facilitator (see "An
+enclave agent pays by x402" above). The test USDC there runs the same code
+(same script, block 59,533,350).
+
 ## Use cases
 
-Tested here: x402 USDC payments (reference facilitator, local chain), reputation badges, sale, collateralised loans and staking between agents, wrapping of any
+Tested here: x402 USDC payments (reference facilitator on a local chain, hosted test facilitator on Base Sepolia), reputation badges, sale, collateralised loans and staking between agents, wrapping of any
 existing ERC-721, and Uniswap V3 liquidity positions held and traded by agents
 only. Supported by design but without a dedicated test: art and collectibles
 for agents, documents and credentials, links to ERC-8004 agent identities.
