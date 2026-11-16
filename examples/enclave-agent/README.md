@@ -8,6 +8,10 @@ with no attester signature. The agent then minted an agent-only token. The
 machine was restarted to rotate the key the same way, and a modified build of
 the program was refused.
 
+A second program (`v2/`) ran the same day on another machine: enrolled through
+the simpler `DstackConfigIdVerifier`, it paid for a public x402 page in USDC,
+four times, from its agent account. See "Second program: an agent that pays".
+
 Test network only. Unaudited. Throwaway test keys paid the gas.
 
 ## The program
@@ -86,8 +90,9 @@ sent with the same `cast` commands.
 - dstack leaves the digest of RTMR3 events empty in the log it returns; they
   are recomputed from each event's name and payload.
 - This dstack version also writes the compose hash into the quote itself
-  (`MRCONFIGID` = `01`, the hash, padding). A verifier could read the code
-  identity there, with no event log and no SHA-384. Not done here.
+  (`MRCONFIGID` = `01`, the hash, padding). A verifier can read the code
+  identity there, with no event log and no SHA-384: that became
+  `DstackConfigIdVerifier`, used by the second program below.
 - `allowed_envs` is part of the measured manifest and was empty: the machine
   accepts no environment variable from whoever deploys it.
 - The compose hash is the SHA-256 of the manifest (`app-compose.json`): the
@@ -117,5 +122,96 @@ sent with the same `cast` commands.
 - **The key died with the machine.** That is the intent (nothing durable to
   steal), but this agent cannot act again until a new machine running the same
   code enrolls a new key.
-- One machine, one provider, one day. A second instance of the same build on
-  another machine was not tried.
+- One provider, one day. The second program ran on another machine of that
+  provider, which measured the same base image; the same build was never run
+  on two machines at once.
+
+## Second program: an agent that pays
+
+`v2/agent.js` (194 lines, no dependency) is the first program plus two
+endpoints. It is embedded whole in `v2/docker-compose.yml`, like the first.
+
+- `GET /buy?account=` buys one page, fixed in the code:
+  `https://x402.org/protected`, the public x402 demonstration page. The agent
+  asks for the page, receives HTTP 402, and accepts the offer only if it is an
+  `exact` payment on Base Sepolia, in USDC, of at most 0.02 USDC. It signs the
+  EIP-3009 authorisation as a message of its agent account and sends the
+  request again with the payment. The caller chooses the paying account and
+  nothing else: not the shop, not the token, not the amount.
+- `GET /manifest` returns the outline of the manifest dstack measured.
+
+Before the run it was tested on a local chain against the x402 reference
+facilitator and a merchant: 0.01 USDC paid, and an offer above the cap refused.
+
+### Everything was fixed before the machine existed
+
+| Prepared beforehand | How |
+| --- | --- |
+| Compose hash `580353bb…7ef8` | Shown by the provider's "prepare" step, which deploys nothing |
+| Code identity `0x4b20b334…72fc` | Computed from the first machine's quote, changing only the compose hash in `MRCONFIGID` |
+| `DstackConfigIdVerifier` approving that identity only | [`0xB47e…502A`](https://sepolia.basescan.org/address/0xB47e270E54Af5BE363BF7F3b897AB85502F3502A) |
+| `AttestedAgentRegistry` requiring that verifier | [`0x1410…4059`](https://sepolia.basescan.org/address/0x14109C95422f1ce356521A475eE449e7e7D14059) |
+| The agent's future account, from the registry and the agent id | [`0xa1e1…8899`](https://sepolia.basescan.org/address/0xa1e1d2eCeFCCA827F866E3724fC5a577254e8899) |
+| 20 test USDC sent to that address | Circle's faucet. The account did not exist yet, and neither did its key |
+
+### The run
+
+Machine: Phala Cloud, `tdx.small`, dstack OS 0.5.12, Phala KMS, about twenty
+minutes. It was not the machine of the first run: the platform certificate in
+the quote and the attestation key differ. Attributes, MRTD and RTMR0 to RTMR2
+are byte for byte those of the first machine.
+
+| Step | Result |
+| --- | --- |
+| Quote from the machine | Compose hash and code identity equal to the ones prepared |
+| Automata DCAP verifier on Base Sepolia | Quote genuine, platform level 0 |
+| `DstackConfigIdVerifier.attest`, the quote alone | [tx](https://sepolia.basescan.org/tx/0xac4c5fe0debd7322a151ce1fc962bf445c8f9bd4a555efcf8bbfa8da0f12f268), 3,719,444 gas (4,777,969 with the event log in the first run) |
+| `AttestedAgentRegistry.enroll`, no attester signature | [tx](https://sepolia.basescan.org/tx/0x0e38885b28658477fa07fb4d9240739a1ce72c742ebf88dcf6ba0b71ed87a2cd), 199,382 gas. The account appears at the prepared address, with its 20 USDC |
+| **The agent buys the page** | HTTP 200 and the page. [Payment](https://sepolia.basescan.org/tx/0x89e0a73920d855494cbad29a8ec0035a4e07c84da12e409b6c1e2f74aade5ea0): 0.01 USDC from the agent account to the merchant, sent by the hosted facilitator, 98,705 gas |
+| A second purchase | [Paid](https://sepolia.basescan.org/tx/0x0a23924fed1d2272071bada918d75da60298b63705b2a98534ae93a2ed71f914) |
+| The sponsor freezes the agent ([tx](https://sepolia.basescan.org/tx/0x8e55e045a422f3073e56e17964cfdff3af783f5dcd2ea1ad2dd6284c9f02fb3e)), the agent buys | Refused by the facilitator: `invalid_exact_evm_signature`. Balance unchanged |
+| Unfrozen ([tx](https://sepolia.basescan.org/tx/0x56daf98c5adeb365e3712aff85f0e2e451670f83346d339ca66f8799e850b445)), the agent buys | [Paid](https://sepolia.basescan.org/tx/0x216e790187dce65c541318318e2aa930409a2d5aad0babc8a09462025efbd797) |
+| The agent asked to pay from the first run's agent account, then from a plain wallet | Refused both times: `invalid_exact_evm_signature` |
+| Restart: a new key. It buys before being enrolled | Refused. Balance unchanged |
+| New quote verified, then key rotation | [attest](https://sepolia.basescan.org/tx/0x7945c84e6a65a687d95fcf5a6e6213a17bc791e82dbe8f4047e527441f37d920) 3,719,420 gas, [rotation](https://sepolia.basescan.org/tx/0x49c322020ed96cc59537c0d7c138bed963d4827fd6e897ad90762257080e9fb7) 43,694 gas. Same account, same USDC |
+| The new key buys | [Paid](https://sepolia.basescan.org/tx/0xc9d1118cfdd7647e082a1a207cb35f0c16617e9d108d7a3073d88efb84cdf3b8) |
+| The agent mints a token holding the hash of that payment | [tx](https://sepolia.basescan.org/tx/0xe1f1beb4b3574d35014dbae49c304913eb8c8df10aaa97276b51df6aed28d51f), 161,006 gas, collection [`0x7b30…D555`](https://sepolia.basescan.org/address/0x7b302B9c096Ed23115b34E67C070B9f3f839D555) |
+
+Four payments: the account went from 20 to 19.96 USDC. Neither the account
+nor its keys ever held ETH. Session keys: `0x994dadcf96c65281042cfaf3bad91cb004045aa7`,
+then `0x162af93a704dd852e33aed1e41d3490c89333b95`.
+
+`run-2026-11-16-x402/` holds the two quotes, the event names and payloads, and
+the event digests.
+
+### What this run adds
+
+- **A hosted facilitator accepts a payer that is a contract.** The x402.org
+  facilitator verified the agent account's signature through ERC-1271 and
+  settled with USDC's `transferWithAuthorization`. Until then this had only
+  been shown on a local chain with the reference code.
+- **The code identity does not depend on the machine.** It was computed from
+  one machine's quote and found on another.
+- **An agent's money follows the agent, not the key.** The account was funded
+  before any key existed, and a new key spent from it after a restart.
+- **The emergency stop also stops payments**, at the facilitator: nothing is
+  sent to the chain.
+- USDC on Base Sepolia runs the code this repository tests against
+  (`examples/x402/check-usdc.mjs`, block 59,533,350: identical).
+- The manifest's `name` field is empty: the name given to the deployment is
+  not measured. The manifest is 33,694 bytes; its compose file has the SHA-256
+  of `v2/docker-compose.yml`, and its pre-launch script that of the first run.
+
+### Limits of this run
+
+- One shop, a demonstration page, on a test network, with a test facilitator.
+  A production facilitator may run other code or add its own rules.
+- The very first request to the shop came back as HTTP 502 and the agent gave
+  up; the next request passed. The program does not retry.
+- In the answer of `/buy`, `paid` is the offer the agent signed for. The
+  payment happened only if `receipt.success` is true.
+- Anyone who can reach the machine can make the agent buy that page, up to the
+  account's balance. The policy bounds where the money goes and how much per
+  purchase, not how often.
+- The limits of the first run still apply: pre-launch script not reviewed,
+  manifest not archived, base image not rebuilt.
