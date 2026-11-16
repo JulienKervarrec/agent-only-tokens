@@ -95,7 +95,8 @@ contract SepoliaDemo is Script {
         // Strictly increasing order is only needed for signatures; the list itself is a set.
 
         vm.startBroadcast(deployer);
-        AttestedAgentRegistry reg = new AttestedAgentRegistry(att, 2, BOND, 30 days, IERC721(address(0)), address(0));
+        // Notice delay of 0, so that the venue approved below can be used in the same run.
+        AttestedAgentRegistry reg = new AttestedAgentRegistry(att, 2, BOND, 30 days, 0, IERC721(address(0)), address(0));
         DemoAgentCollection nft = new DemoAgentCollection(IAgentRegistry(address(reg)));
         AgentSwap swap = new AgentSwap();
         TestUSD usd = new TestUSD();
