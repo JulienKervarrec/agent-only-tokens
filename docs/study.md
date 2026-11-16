@@ -4,8 +4,10 @@ Julien Kervarrec · November 2026
 
 This document records how the Agent-Only Tokens draft was reached: what already
 exists, how the design was narrowed down, what the resulting standard says, and
-what it can be used for. Every figure about the prototype comes from tests run
-on a local simulated EVM. Nothing has been deployed or audited.
+what it can be used for. Figures about the prototype come from tests run on a
+local simulated EVM, except those of section 3.12, measured on the Base Sepolia
+test network. Nothing has been deployed on a main network, and nothing has been
+audited.
 
 ## Summary
 
@@ -272,8 +274,8 @@ Improvements made in the same pass:
 - **Badge storage packed.** Issuer, date and revoked flag share one storage
   slot, which makes a claim about 22,000 gas cheaper.
 - **An agent can read a pending badge offer on-chain before claiming it.**
-- **Mutation testing.** Each of 33 security checks (68 with the 35 added in
-  sections 2.5 and 3.11) is removed in turn; the test
+- **Mutation testing.** Each of 33 security checks (80 with those added in
+  sections 2.5, 2.6 and 3.11) is removed in turn; the test
   suite now fails every time.
 
 One more lesson: **a venue that never holds the token must tie each listing to
@@ -316,6 +318,29 @@ The first finding came from a property that was written too strictly at first
 counterexample showed it was right: an approval prepared while frozen is a
 movement deferred.
 
+### 2.6 Fourth pass: full re-read
+
+On 16 November 2026 the whole repository was read again, code and
+documentation, and Slither, the four symbolic proofs and the full test suite
+were run again. No flaw was found in the three rules, the accounts, the
+registry or the hardware verifiers.
+
+| Point found | Consequence | Change |
+| --- | --- | --- |
+| The sale and loan venues emitted no event, and their listings cannot be enumerated on-chain | An agent had no way to discover what is for sale or which loans await funding, short of guessing token ids | Events on every listing, cancellation, sale, loan offer, funding, repayment and claim |
+| The two refund-failure checks (registry bond, issuer deposit) had no test | Removing either would have erased the claim of a sponsor or issuer that cannot receive ETH, unnoticed | One test each; both refunds now emit an event, and the badge contract uses a named error |
+| The two fork tests counted as passed when no RPC address was given | The test total overstated what had run | They are now reported as skipped |
+| This document still said "nothing has been deployed" and "the real DCAP verifier was not run" | It contradicted section 3.12 | Corrected |
+
+Each added line has a test that fails without it: 12 more mutation checks, 80
+in all. Events are emitted before any external call. Two limits were added to
+section 7: the loan pays the lender directly, and the dstack verifier does not
+look at the key provider.
+
+The lesson: **a venue must be discoverable.** A mapping keyed by token cannot
+be listed from outside; without events an agent can only act on offers it was
+told about off-chain.
+
 ## 3. The standard
 
 **A classic ERC-721 plus three rules, 70 lines in the reference implementation.
@@ -344,22 +369,24 @@ The token asks the registry only two questions: `isAgent(address)` and
 | `IERC721AgentOnly` | The interface a compliant token exposes, advertised through ERC-165 | 10 |
 | `IAgentRegistry` | The two questions asked to the registry | 10 |
 | `AgentAccount` | An agent's account, with no human owner. Only its session key makes it act: single calls, all-or-nothing batches, relayed calls, ERC-1271. Each account is an ERC-1167 clone of one implementation | 139 |
-| `AttestedAgentRegistry` | Proof of agent, version 1: attesters, bond, expiring keys, freeze, revocation, venue approval, ERC-8004 link, optional enrollment verifier, bond returned after an exit delay | 249 |
+| `AttestedAgentRegistry` | Proof of agent, version 1: attesters, bond, expiring keys, freeze, revocation, venue approval, ERC-8004 link, optional enrollment verifier, bond returned after an exit delay | 251 |
 | `TdxQuoteVerifier` | Checks shared by the hardware verifiers: genuine quote, accepted platform, no debug mode, report data (`src/experimental`) | 116 |
 | `TdxEnrollmentVerifier` | Enrollment by Intel TDX attestation, for images measured the same for every instance | 41 |
-| `DstackEnrollmentVerifier` | Enrollment of agents on dstack: replays the RTMR3 event log, code = base image + compose hash (`src/experimental`) | 137 |
+| `DstackEnrollmentVerifier` | Enrollment of agents on dstack: replays the RTMR3 event log, code = base image + compose hash (`src/experimental`) | 138 |
 | `Sha384` | SHA-384 for replaying TDX registers (no EVM precompile) | 92 |
-| `AgentSwap` | Fixed-price sale between agents | 54 |
-| `AgentLoan` | Collateralised loan between agents | 84 |
+| `AgentSwap` | Fixed-price sale between agents; events announce each listing and sale | 64 |
+| `AgentLoan` | Collateralised loan between agents; events announce each offer and each step | 104 |
 | `AgentStaking` | Staking for ERC-20 rewards, Synthetix-style accounting, one NFT = one unit | 130 |
 | `AgentWrapped721` | Wrapper making any existing ERC-721 agent-only | 80 |
 | `AgentWrappedUniV3` | Non-unwrappable wrapper for Uniswap V3 positions | 98 |
-| `AgentReputationBadge` | Soulbound reputation badges (ERC-5192): an issuer offers, the named agent claims, the issuer can revoke | 215 |
+| `AgentReputationBadge` | Soulbound reputation badges (ERC-5192): an issuer offers, the named agent claims, the issuer can revoke | 218 |
 
 ### 3.3 What the tests establish
 
-Ninety-eight tests on a local simulated EVM, three fuzzed and one stateful
-invariant test, plus four properties proved symbolically (section 2.5).
+One hundred and two tests on a local simulated EVM, three fuzzed and one
+stateful invariant test, plus four properties proved symbolically
+(section 2.5). Two more tests run only on a fork of Base Sepolia (section 3.12)
+and are reported as skipped otherwise.
 
 | Scenario | Result |
 | --- | --- |
@@ -377,8 +404,10 @@ invariant test, plus four properties proved symbolically (section 2.5).
 | 128 runs of 100 random actions by two agents, a human and an unapproved contract | After every action, no token is held by or approved for anything but an agent account or an approved venue |
 | Several calls in one batch, direct or relayed | All or nothing; a human cannot batch for the agent |
 | The five attacks found by the first review and the weaknesses found by the second (sections 2.3 and 2.4) | Each one is now rejected |
-| Each of 68 security checks removed in turn (mutation testing) | The suite fails every time |
+| Each of 80 security checks removed in turn (mutation testing) | The suite fails every time |
 | The five weaknesses found by the third review (section 2.5) | Each one is now rejected |
+| A listing, its cancellation and its sale; a loan offered, cancelled, funded, repaid, claimed | Each step emits its event, with the terms an agent needs to decide |
+| A sponsor or an issuer that cannot receive ETH asks for its refund | The call fails and the bond or deposit stays recorded |
 | A real dstack quote and its real event log (DCAP verifier replaced by a stand-in) | The log replays to the quote's RTMR3; the quote is accepted; an agent enrolls; another instance of the same application is accepted |
 | Another application, another base image, a compose hash the log does not hold, a compose-hash event written after `boot-mr-done`, a log that does not replay, more than 64 events | Quote rejected |
 | SHA-384 on 13 reference vectors and 2,000 random inputs against a plain-Solidity version | Identical |
@@ -497,7 +526,7 @@ This draft matches the tested prototype. Nobody else has reviewed it yet.
 
 Execution gas per transaction, measured locally with `forge test --isolate`, so
 that each call pays for its first access to storage. On an L2 such as Base the
-L1 data fee comes on top and is not measured.
+L1 data fee comes on top; it was measured on Base Sepolia (section 3.12).
 
 | Operation | Gas |
 | --- | --- |
@@ -505,8 +534,8 @@ L1 data fee comes on top and is not measured.
 | Agent-only `transferFrom`, called directly | 70,432 |
 | Agent-only `transferFrom`, through the agent account | 80,284 |
 | Agent-only mint, through the agent account | 131,452 |
-| List for sale | 111,772 |
-| Buy (NFT against an ERC-20) | 114,365 |
+| List for sale (with its event, since the fourth pass) | 114,596 |
+| Buy (NFT against an ERC-20; with its event) | 116,377 |
 | First enrollment (deploys the account as a clone, 2 attester signatures) | 208,898 |
 | Key rotation (2 attester signatures) | 53,219 |
 | Badge offer, by an issuer | 252,743 |
@@ -592,7 +621,7 @@ later found to be forged.
 Two such verifiers exist for Intel TDX, on top of shared checks
 (`TdxQuoteVerifier`, 116 lines): `TdxEnrollmentVerifier` (41 lines) for images
 whose measurements are the same for every instance, and
-`DstackEnrollmentVerifier` (137 lines) for agents on dstack.
+`DstackEnrollmentVerifier` (138 lines) for agents on dstack.
 
 - **What the agent does.** Its program runs in a TDX confidential virtual
   machine. It creates its session key there, computes the registry's
@@ -640,17 +669,24 @@ real dstack quote with its event log from dstack's tests.
 
 What is not established:
 
-- **The real DCAP verifier was not run.** A stand-in answers in its format. The
-  author's environment refused to execute Automata's code, and its network does
-  not reach Base, where the repository lists a deployment.
+- **The real DCAP verifier runs on a test network only.** In the local tests a
+  stand-in answers in its format, because the author's workspace refused to
+  execute Automata's code. The real verifier was then called on Base Sepolia,
+  in a transaction and on a fork (section 3.12).
 - **No real machine produced a quote for one of our keys.** The tests overwrite
   the report data of the sample quote, which a real verifier would reject.
 - **Trust in the dstack OS.** The verifier relies on the base image to log
   the compose hash before `boot-mr-done` and to start only that application.
   Approving a base image means trusting that build of dstack.
+- **The key provider is not checked.** dstack also logs a `key-provider` event
+  in RTMR3, and its guide tells a verifier to compare it with what it expects.
+  This verifier does not, and it does not see the environment variables given
+  to the application either. Whoever deploys the machine chooses both. Approved
+  code must therefore keep its session key in memory only: never on disk, never
+  derived from the key provider, never taken from the environment.
 - **Cost.** Automata states about 4 to 5 million gas for a direct verification
-  and about 500,000 with a zk proof. Only the direct route is wired, and it was
-  not measured here.
+  and about 500,000 with a zk proof. Only the direct route is wired; it cost
+  4,339,314 gas on Base Sepolia (section 3.12).
 - **Not covered.** TDX 1.5 reports, AMD SEV-SNP, the Proof of Cloud check, and
   everything in section 6 beyond the first row.
 
@@ -762,6 +798,9 @@ were sent as real transactions. The refused attempts were simulated on the live
 state rather than sent, because a script cannot broadcast a transaction that
 fails; the plain-wallet mint above was also sent, and failed on chain.
 
+The contracts above are the version of 15 November 2026. The events added the
+next day (section 2.6) are not deployed there.
+
 What this does not show: no real machine produced a quote for one of our keys,
 so no agent was enrolled by attestation on chain (the sample quote's report data
 is empty, not an enrollment digest). Base Sepolia is a test network.
@@ -852,9 +891,19 @@ Options studied and set aside:
 
 - **Trust in attesters**, for agents and venues. Attesters are fixed at
   deployment.
-- **Hardware attestation.** The enrollment verifier of section 3.11 was tested
-  against a stand-in, not against the real DCAP verifier, and no real machine
-  was used. The default registry still only checks signatures.
+- **Hardware attestation.** The enrollment verifiers of section 3.11 met the
+  real DCAP verifier on Base Sepolia only, with a sample quote. No real machine
+  produced a quote for one of our keys, so no agent was enrolled by
+  attestation. The default registry still only checks signatures.
+- **dstack key provider.** The dstack verifier checks the code, not the
+  `key-provider` event nor the application's environment variables. Approved
+  code must keep its session key in memory only (section 3.11).
+- **Loan repayment is pushed to the lender.** With a currency that lets a
+  recipient refuse a transfer (receive hooks, blocklists), a lender could make
+  repayment fail and then claim the collateral. The borrower chooses the
+  currency and should pick a plain ERC-20. Holding repayments in the venue for
+  the lender to withdraw would remove this, at the price of one more
+  transaction per loan.
 - **The standard protects the NFT, not what it yields.** Tokens withdrawn from
   a position are ordinary ERC-20s.
 - **Selling a position.** The buyer must check its liquidity in the same batch
@@ -891,7 +940,12 @@ Options studied and set aside:
    one of our keys: the first agent enrolled by attestation on chain.
 2. An x402 payment from an agent account on Base Sepolia, through a hosted
    facilitator.
-3. Publication of the idea on [Ethereum Magicians](https://ethereum-magicians.org/),
+3. Enrollment through a zk proof of the quote verification, about 500,000 gas
+   instead of 4.3 million. Checked on chain on 15 November 2026: RISC Zero's
+   verifier router is deployed on Base Sepolia, but Automata's entrypoint
+   there has no zk program configured, so its `verifyAndAttestWithZKProof`
+   cannot be used as it is.
+4. Publication of the idea on [Ethereum Magicians](https://ethereum-magicians.org/),
    then a pull request to [ethereum/ERCs](https://github.com/ethereum/ERCs)
    once a second implementation passes the same tests.
 
@@ -926,10 +980,11 @@ unless stated otherwise.
 | The x402 `exact` EVM specification describes a 65-byte signature that recovers to the payer | Confirmed again on 13 November 2026 | [x402 exact scheme](https://github.com/x402-foundation/x402/blob/main/specs/schemes/exact/scheme_exact_evm.md) |
 | The x402 reference facilitator nevertheless verifies a payer that has code through ERC-1271, and settles a 65-byte signature with the (v, r, s) form | Read in the code at commit `1a08434` (13 November 2026), then executed on 14 November 2026: packages `@x402/core` and `@x402/evm` 2.31.0, local chain, agent payer accepted and settled (`examples/x402`) | [eip3009.ts](https://github.com/x402-foundation/x402/blob/1a084343e165d6f61b60b34f6146d6e4a4a7f3ca/typescript/packages/mechanisms/evm/src/exact/facilitator/eip3009.ts) |
 | USDC `FiatTokenV2_2` checks contract payers through ERC-1271, in both forms of `transferWithAuthorization` | Confirmed by test against the compiled source, commit `fc85788` | [circlefin/stablecoin-evm](https://github.com/circlefin/stablecoin-evm) |
-| Automata DCAP Attestation returns, for a verified quote, its version, body type, security level, platform family and report body, in that order | Read in the source at tag `v1.2.0` (`serializeOutput`), 14 November 2026. Not executed | [automata-dcap-attestation](https://github.com/automata-network/automata-dcap-attestation/tree/v1.2.0) |
+| Automata DCAP Attestation returns, for a verified quote, its version, body type, security level, platform family and report body, in that order | Read in the source at tag `v1.2.0` (`serializeOutput`), 14 November 2026, then confirmed by execution on Base Sepolia on 15 November 2026 (section 3.12) | [automata-dcap-attestation](https://github.com/automata-network/automata-dcap-attestation/tree/v1.2.0) |
 | Automata's verifier does not check the debug flag of a TDX machine | Read in the same source: no test of the machine's attributes in the V4 and V5 verifiers. Not executed | Same |
 | Automata DCAP Attestation is deployed on Base | Stated by its repository (`deployment/current/8453`). **Not checked on-chain** | Same |
 | Automata DCAP Attestation is deployed on Base Sepolia and verifies a real TDX quote | Confirmed on 15 November 2026 by a transaction through our verifier (section 3.12) | [BaseScan](https://sepolia.basescan.org/tx/0x713be5c31abcd1fed0ce5923725520330b3ea0d0d99bcc3241cc55a14241110c) |
+| dstack logs the key provider in RTMR3 and tells verifiers to check it against what they expect | Read in its attestation guide on 16 November 2026 (section 2.1 and conclusion). Our verifier does not check it (section 3.11) | [dstack attestation](https://github.com/Dstack-TEE/dstack/blob/master/docs/attestation-tdx.md) |
 | In dstack, the last runtime register contains the instance id and differs for each instance | Confirmed in its documentation, commit `b936f86` (13 November 2026) | [dstack attestation](https://github.com/Dstack-TEE/dstack/blob/master/docs/attestation-tdx.md) |
 | dstack extends RTMR3 as SHA-384(RTMR3 \|\| event digest) from zero; V1 digest = SHA-384(type LE \|\| ":" \|\| name \|\| ":" \|\| payload) | Read in `cc-eventlog/src/runtime_events.rs` (commit `b936f86`), then confirmed on 15 November 2026 by replaying the real event log of `verifier/fixtures/quote-report.json`, offline and in the tests | [dstack](https://github.com/Dstack-TEE/dstack) |
 | The USDC deployed on Base is `FiatTokenV2_2` | Confirmed on 14 November 2026 at block 57,208,253: the implementation `0x2Ce6311ddAE708829bc0784C967b7d77D19FD779` and its signature library are byte-identical to the code compiled from commit `fc85788`, apart from the metadata hash and the library address. Read through the public RPC `https://mainnet.base.org` | `examples/x402/check-usdc.mjs` |
