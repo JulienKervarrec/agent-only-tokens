@@ -64,7 +64,7 @@ interface IAgentRegistry {
 | `src/AgentWrapped721.sol` | Wrapper that makes any existing ERC-721 agent-only | 80 |
 | `src/AgentWrappedUniV3.sol` | Non-unwrappable wrapper for Uniswap V3 liquidity positions | 98 |
 | `src/AgentReputationBadge.sol` | Reputation badges: agent-only and soulbound (ERC-5192). An issuer offers, the agent claims; issuers post a refundable deposit and have a daily quota | 218 |
-| `examples/enclave-agent/` | The two agent programs that ran in real TDX machines, the quotes they produced, and the record of both runs: the first enrollment by hardware attestation, then an enclave agent paying by x402 | |
+| `examples/enclave-agent/` | The three agent programs that ran in real TDX machines, the quotes they produced, and the record of the runs: the first enrollment by hardware attestation, then an enclave agent paying by x402. `manifest/` rebuilds the manifest dstack measures, so each program's compose hash can be recomputed | |
 | `.github/workflows/test.yml` | Runs the tests and the symbolic proofs on every push | |
 | `examples/x402/` | x402 demo: an agent account buys from a paid API through the x402 reference facilitator, on a local chain. Includes the 28-line signer adapter and a script comparing this repository's USDC code with the one deployed on a chain | |
 | `archive/` | Two earlier tracks that were set aside (signed-intent core in Solidity, Rust model) | |
@@ -254,13 +254,20 @@ and id from its own code). The saving pays for about 260 calls per agent.
 
 - "No human" rests on the attesters, who also approve venues. A dishonest
   approved venue could wrap tokens for humans. Attesters are fixed at deployment.
-- Hardware attestation: two agents were enrolled by attestation, on Base
+- Hardware attestation: three agents were enrolled by attestation, on Base
   Sepolia, from two machines of one provider (see "First agent enrolled by
-  hardware attestation" and "An enclave agent pays by x402"). The manifest
-  dstack hashes includes the provider's pre-launch script, which was not
-  reviewed, and the base image was taken from the quote, not rebuilt. TDX 1.5
-  reports and the cheaper zk route are not supported. The default registry
-  still only checks attester signatures.
+  hardware attestation" and "An enclave agent pays by x402"). The base image
+  was taken from the quote, not rebuilt. TDX 1.5 reports and the cheaper zk
+  route are not supported. The default registry still only checks attester
+  signatures.
+- The manifest dstack hashes includes the provider's pre-launch script. It was
+  read: it adds to root's authorized keys the SSH keys listed in a file that
+  the host supplies and dstack does not measure. The agent's key is therefore
+  only as private as the approved base image is closed to SSH, which we did
+  not check ourselves (see `examples/enclave-agent`).
+- A new version of an agent's program is a new agent. A verifier's list of
+  approved code is fixed at deployment, and so is a registry's verifier:
+  tokens and money do not follow from one version to the next.
 - `DstackConfigIdVerifier` rests on one more behaviour of the base image than
   the event-log verifier: the dstack OS must refuse to boot when `MRCONFIGID`
   does not match the manifest it loads. That check was read in dstack's source,
@@ -452,6 +459,14 @@ agent account.
 Every step, the addresses and the limits: `examples/enclave-agent` and section
 3.14 of the study.
 
+Three defects of that program were then fixed in a third one: it tries again
+when the shop fails, its answer says whether the payment was settled, and it
+has a budget of 0.05 USDC for the life of its key. Its compose hash was
+computed from this repository before deployment, with the provider's public
+pre-launch script, and the machine measured the same value. Enrolled on Base
+Sepolia, it paid four times ([first payment](https://sepolia.basescan.org/tx/0xeb9af69f1d33e8939ae407097ea5c54b93b9d151fbbe0993920faa368c63dbfa)) and then refused to sign:
+its budget was spent (section 3.15 of the study).
+
 ## x402 payments
 
 An agent account can pay an x402 `exact` invoice with no change to the
@@ -500,4 +515,5 @@ The root of the repository is in English. The two archived tracks under
 
 ## License
 
-CC0-1.0.
+CC0-1.0, except `examples/enclave-agent/manifest/prelaunch.sh`: a third-party
+file kept unchanged, under the Apache License 2.0 (`LICENSE-prelaunch` beside it).
