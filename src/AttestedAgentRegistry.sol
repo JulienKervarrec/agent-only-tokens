@@ -15,7 +15,9 @@ import {AgentAccount, IAgentKeys} from "./AgentAccount.sol";
 /// code, then sign. The contract only verifies their signatures. The hash of the evidence
 /// is published, so that anyone can re-check it and ask for a revocation.
 /// Bond, key lifetime and notice delay are fixed at deployment. The attesters can hand over
-/// to another set of attesters, with its own threshold.
+/// to another set of attesters, with its own threshold. An attester is a key, or a contract
+/// that signs by ERC-1271, for example a multi-signature wallet, never both: an account that
+/// a key controls signs by that key only, even when it delegates to code (EIP-7702).
 /// If an ERC-8004 identity registry is provided, the agent id is the ERC-8004 one and the
 /// sponsor must own it.
 /// If an enrollment verifier is provided, it replaces the attesters' signatures for
@@ -375,7 +377,8 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
     /// force again cancels it. What the previous sets decided stays decided.
     /// `sigs`: signatures of the set in force. `accepted`: signatures of the same digest by
     /// enough members of the new set to reach its threshold, so that a registry is not handed
-    /// by mistake to keys that nobody holds. Both sorted by increasing address.
+    /// by mistake to keys that nobody holds. A contract only has to answer yes: its code is
+    /// to be read before it is appointed. Both sorted by increasing address.
     /// Once the new set is in force, every signature given under the previous one is void:
     /// what attesters sign names their set.
     function setAttesters(
@@ -390,10 +393,11 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
         bytes32 digest = hashAttesters(attesters, threshold_, evidenceHash, deadline);
         (uint64 current, uint32 needed) = _attestersNow();
         _requireSigners(current, needed, digest, sigs);
-        attestersNonce += 1;
         uint64 next = (_sets.announced > current ? _sets.announced : current) + 1;
         _writeSet(next, attesters, threshold_);
+        // A contract asked to accept still sees the digest it is asked about: the counter moves after.
         _requireSigners(next, threshold_, digest, accepted);
+        attestersNonce += 1;
         uint64 since = uint64(block.timestamp) + noticeDelay;
         _sets = AttesterSets(current, needed, next, uint32(threshold_), since);
         emit AttestersSet(next, attesters, threshold_, evidenceHash, since);
@@ -489,17 +493,33 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
         _requireSigners(set, needed, digest, sigs);
     }
 
-    /// At least `needed` signatures of `digest`, each by a member of `set`.
+    /// At least `needed` signatures of `digest`, each by a different member of `set`.
+    /// A member that is a key signs as usual: 65 bytes. A member that is a contract, for example
+    /// a multi-signature wallet, is named with what it accepts by ERC-1271:
+    /// `abi.encode(member, signature)`. Only members are ever called, and an account that a key
+    /// controls is not asked as a contract, even when it delegates to code (EIP-7702).
     function _requireSigners(uint64 set, uint256 needed, bytes32 digest, bytes[] calldata sigs) private view {
         if (sigs.length < needed) revert NotEnoughAttesters();
         address last;
         for (uint256 i; i < sigs.length; ++i) {
-            (address signer, ECDSA.RecoverError err,) = ECDSA.tryRecover(digest, sigs[i]);
+            bytes calldata sig = sigs[i];
+            bool byKey = sig.length == 65;
+            address signer;
+            bytes memory proof;
+            if (byKey) (signer,,) = ECDSA.tryRecover(digest, sig); // address(0) on failure: never a member
+            else (signer, proof) = abi.decode(sig, (address, bytes));
             // Strictly increasing order: prevents counting the same attester twice.
-            if (err != ECDSA.RecoverError.NoError || !isAttesterIn[set][signer] || signer <= last) {
+            if (!isAttesterIn[set][signer] || signer <= last) revert BadAttester();
+            if (!byKey && (_delegates(signer) || !SignatureChecker.isValidERC1271SignatureNow(signer, digest, proof))) {
                 revert BadAttester();
             }
             last = signer;
         }
+    }
+
+    /// True for an account that a key controls and that delegates to code (EIP-7702): its code is
+    /// then 0xef0100 followed by an address, which the code of a contract cannot be.
+    function _delegates(address account) private view returns (bool) {
+        return account.code.length == 23 && bytes3(account.code) == 0xef0100;
     }
 }

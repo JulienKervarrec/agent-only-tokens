@@ -349,11 +349,11 @@ tool, `tools/mutate.py`, which builds the list from the code:
 - every `if (...) revert` guard under `src/` is disabled in turn, and for a
   guard written `a || b` each alternative is dropped in turn;
 - every unconditional revert is removed in turn;
-- the <!--f:mutants.listed-->148<!--/f--> changes written in `tools/mutations.json` are applied in turn: a
+- the <!--f:mutants.listed-->160<!--/f--> changes written in `tools/mutations.json` are applied in turn: a
   state update dropped, a field left out of a signed digest, a comparison
   weakened, an event removed.
 
-That makes <!--f:mutants-->283<!--/f--> mutants. A mutant the test suite does not catch fails the
+That makes <!--f:mutants-->295<!--/f--> mutants. A mutant the test suite does not catch fails the
 tool, unless it is listed with a reason in `tools/mutations-accepted.json`.
 
 **First run: 63 of the 212 mutants went unnoticed.** Sections 2.4 to 2.6 say
@@ -374,15 +374,15 @@ target or carry another value; a claimed badge cannot be cancelled.
 
 Two more checks joined the automated ones the same day. Slither runs against a
 list of accepted findings with the reason for each
-(`tools/slither-accepted.json`, <!--f:slither.accepted-->54<!--/f--> names for <!--f:slither.findings-->56<!--/f--> findings): a new
+(`tools/slither-accepted.json`, <!--f:slither.accepted-->57<!--/f--> names for <!--f:slither.findings-->59<!--/f--> findings): a new
 finding fails the check.
 And the figures of sections 3.2, 3.3 and 3.9 are compared with the repository
 by `tools/figures.py`.
 
-The code of the deployed contracts can now be read. Of the <!--f:deployed-->57<!--/f--> contracts
-deployed on Base Sepolia for the tests, <!--f:deployed.clones-->16<!--/f--> are agent accounts, clones
-of an implementation. <!--f:deployed.verified-->41<!--/f--> of the others are verified on Sourcify:
-<!--f:deployed.exact-->38<!--/f--> match their source exactly, <!--f:deployed.match-->3<!--/f--> on code only (their sources
+The code of the deployed contracts can now be read. Of the <!--f:deployed-->66<!--/f--> contracts
+deployed on Base Sepolia for the tests, <!--f:deployed.clones-->18<!--/f--> are agent accounts, clones
+of an implementation. <!--f:deployed.verified-->48<!--/f--> of the others are verified on Sourcify:
+<!--f:deployed.exact-->45<!--/f--> match their source exactly, <!--f:deployed.match-->3<!--/f--> on code only (their sources
 differed by comments). `deployments/base-sepolia.json` names, for each one, the
 commit of the repository that compiles to it; nine of them run earlier
 versions of the code, which were found by recompiling the history, and two
@@ -468,12 +468,53 @@ decision accepted for another; malleable and compact signatures refused; the
 six digests equal to those of an independent EIP-712 library; one storage
 read on the enrollment path.
 
-After the corrections: <!--f:tests-->182<!--/f--> tests, <!--f:proofs-->8<!--/f--> proofs checked against
-<!--f:proofs.broken-->12<!--/f--> broken registries, <!--f:mutants-->283<!--/f--> mutants all caught or explained, and
-the run on Base Sepolia made again on the corrected registry (section 3.18).
+After the corrections: 182 tests, 8 proofs checked against 12 broken
+registries, 283 mutants all caught or explained, and the run on Base Sepolia
+made again on the corrected registry (section 3.18).
 The seven digests of that registry, the six that attesters sign and the one a
 verifier approves, were compared again with an independent EIP-712 library on
 the deployed contract, once the second set was in force.
+
+### 2.10 Eighth pass: independent review of contract attesters
+
+On 17 November 2026 the attesters that are contracts (section 3.19) were
+reviewed before publication, the same way as the two previous changes: an
+independent agent with the code, the tests and the tools, asked to break the
+change and to check the documentation against the code. It wrote 49 tests, 7
+of them against the real Safe contracts on a fork of Base Sepolia, and 34
+broken variants of the new code.
+
+**It found no critical, high or medium flaw**, one design risk of low
+severity, and nine other points worth acting on.
+
+| Found | Done |
+| --- | --- |
+| A key attester whose account delegates to code (EIP-7702) could be named as a contract: that code then signed alone, without the key. One authorization signed by that key for any purpose gave its seat to whatever that code accepts | The registry no longer asks such an account as a contract: it signs by its key only. Checked with a real delegation, in a test and on Base Sepolia |
+| 16 of the reviewer's 34 broken variants passed every test. Three mattered: one address counted twice when it signed in both forms, a wallet counted twice around another member, a member asked by a call that lets it change the registry. The code was right, but nothing checked it | A test for each of 11; 7 are now listed mutants. Four are left without a test, by choice: a cap on the gas given to a member, and three about encodings accepted or refused without consequence. One is an equivalent change |
+| A contract asked to accept a handover no longer saw the digest it was asked about: the counter had already moved | The counter now moves after the new set is asked |
+| "A wallet can take back what it accepted" is false for what a Safe approved on chain: that approval outlives its owners | Reworded, with a test on the real Safe |
+| "The new set must accept, so a registry is not handed to keys that nobody holds" holds for keys only: a contract accepts by answering yes once | Reworded here and in the code's comments, with a test |
+| The threshold counts addresses, not people: a wallet and one of its owners are two members | Written as a limit, with a test |
+| A member is given all the gas left and its whole answer is copied: an answer of one megabyte costs about 4 million gas. Only the sender pays, and a contract that is not a member is never called | Written as a limit |
+| How malformed signatures are refused was described wrongly, and the encoding was called "standard" although other encodings that decode are accepted | Reworded; the test now asserts each case |
+| The 73,000 gas of the fork test was measured with accounts already loaded | Replaced by the gas of the real transactions |
+| Four tests proved less than their names: adjacent repeats only, one form of a key's signature only, any revert accepted | Strengthened |
+
+What held, by the reviewer's own tests: a key or a contract that is not a
+member never counts and is never called, checked by a differential fuzz test
+against a model and by recording every account touched; fewer distinct
+members than the threshold never suffice; a failed signature recovery always
+yields the zero address, which is never a member, so that the explicit error
+test removed with this change was redundant; a wallet in both sets of a
+handover signs once for each, and its signature dies with its set; with a
+real Safe, an owner who approved a hash counts whoever sends the transaction,
+a Safe owned by a Safe works, and a Safe without a fallback handler never
+signs. The code deployed for the first run of the day is the code of the
+repository, outside its immutable values.
+
+After the corrections: 207 tests and 5 more on a fork, 8 proofs checked against 12 broken
+registries, 295 mutants all caught or explained; the run on Base Sepolia was made again
+on the corrected registry (section 3.19).
 
 ## 3. The standard
 
@@ -503,7 +544,7 @@ The token asks the registry only two questions: `isAgent(address)` and
 | `IERC721AgentOnly` | The interface a compliant token exposes, advertised through ERC-165 | <!--f:lines.IERC721AgentOnly-->10<!--/f--> |
 | `IAgentRegistry` | The two questions asked to the registry | <!--f:lines.IAgentRegistry-->10<!--/f--> |
 | `AgentAccount` | An agent's account, with no human owner. Only its session key makes it act: single calls, all-or-nothing batches, relayed calls, ERC-1271. Each account is an ERC-1167 clone of one implementation | <!--f:lines.AgentAccount-->139<!--/f--> |
-| `AttestedAgentRegistry` | Proof of agent, version 1: attesters, bond, expiring keys, freeze, revocation, venue approval, ERC-8004 link, optional enrollment verifier that the attesters can replace, bond returned after an exit delay, notice delay on approvals and replacements, enrollment halt (section 3.17) | <!--f:lines.AttestedAgentRegistry-->505<!--/f--> |
+| `AttestedAgentRegistry` | Proof of agent, version 1: attesters, bond, expiring keys, freeze, revocation, venue approval, ERC-8004 link, optional enrollment verifier that the attesters can replace, bond returned after an exit delay, notice delay on approvals and replacements, enrollment halt (section 3.17) | <!--f:lines.AttestedAgentRegistry-->525<!--/f--> |
 | `TdxQuoteVerifier` | Checks shared by the hardware verifiers: genuine quote, accepted platform, no debug mode, report data (`src/experimental`) | <!--f:lines.TdxQuoteVerifier-->116<!--/f--> |
 | `TdxEnrollmentVerifier` | Enrollment by Intel TDX attestation, for images measured the same for every instance | <!--f:lines.TdxEnrollmentVerifier-->41<!--/f--> |
 | `DstackEnrollmentVerifier` | Enrollment of agents on dstack: replays the RTMR3 event log, code = base image + compose hash (`src/experimental`) | <!--f:lines.DstackEnrollmentVerifier-->138<!--/f--> |
@@ -518,10 +559,10 @@ The token asks the registry only two questions: `isAgent(address)` and
 
 ### 3.3 What the tests establish
 
-<!--f:tests-->182<!--/f--> tests on a local simulated EVM, <!--f:tests.fuzz-->5<!--/f--> of them fuzzed and one a
+<!--f:tests-->207<!--/f--> tests on a local simulated EVM, <!--f:tests.fuzz-->5<!--/f--> of them fuzzed and one a
 stateful invariant test, plus <!--f:proofs-->8<!--/f--> properties proved symbolically
-(sections 2.5 and 3.17). <!--f:tests.fork-->3<!--/f--> more tests run only on a fork of Base Sepolia
-(section 3.12) and are reported as skipped otherwise.
+(sections 2.5 and 3.17). <!--f:tests.fork-->5<!--/f--> more tests run only on a fork of Base Sepolia
+(sections 3.12 and 3.19) and are reported as skipped otherwise.
 
 | Scenario | Result |
 | --- | --- |
@@ -539,7 +580,7 @@ stateful invariant test, plus <!--f:proofs-->8<!--/f--> properties proved symbol
 | 128 runs of 100 random actions by two agents, a human and an unapproved contract | After every action, no token is held by or approved for anything but an agent account or an approved venue |
 | Several calls in one batch, direct or relayed | All or nothing; a human cannot batch for the agent |
 | The five attacks found by the first review and the weaknesses found by the second (sections 2.3 and 2.4) | Each one is now rejected |
-| <!--f:mutants-->283<!--/f--> mutants built from the code: every guard disabled, every listed change applied (mutation testing, section 2.7) | Each one is caught by the suite, or is one of the <!--f:mutants.accepted-->2<!--/f--> that cannot change behaviour |
+| <!--f:mutants-->295<!--/f--> mutants built from the code: every guard disabled, every listed change applied (mutation testing, section 2.7) | Each one is caught by the suite, or is one of the <!--f:mutants.accepted-->1<!--/f--> that cannot change behaviour |
 | A venue is approved, or the enrollment verifier replaced (section 3.17) | Nothing changes before the notice delay has passed; removing the venue or announcing again cancels. An address without code is refused |
 | The attesters halt enrollments (section 3.17) | No new agent and no new key at once; agents keep their current key; enrollments resume one notice delay after a verifier is announced |
 | The attesters replace the enrollment verifier to accept a new program (section 3.16) | The agent keeps its id, account, tokens and current key; its next key must come from the new program; one attester alone, another verifier or a replayed decision is refused |
@@ -679,20 +720,22 @@ L1 data fee comes on top; it was measured on Base Sepolia (section 3.12).
 | Agent-only mint, through the agent account | <!--f:gas.04-->131,409<!--/f--> |
 | List for sale (with its event, since the fourth pass) | <!--f:gas.05-->114,575<!--/f--> |
 | Buy (NFT against an ERC-20; with its event) | <!--f:gas.06-->116,392<!--/f--> |
-| First enrollment (deploys the account as a clone, 2 attester signatures) | <!--f:gas.07-->214,411<!--/f--> |
-| Key rotation (2 attester signatures) | <!--f:gas.08-->58,720<!--/f--> |
+| First enrollment (deploys the account as a clone, 2 attester signatures) | <!--f:gas.07-->214,549<!--/f--> |
+| Key rotation (2 attester signatures) | <!--f:gas.08-->58,858<!--/f--> |
 | Badge offer, by an issuer | <!--f:gas.09-->252,996<!--/f--> |
 | Badge claim, through the agent account | <!--f:gas.10-->95,526<!--/f--> |
 | Stake, through the agent account | <!--f:gas.11-->165,384<!--/f--> |
 | Claim staking rewards | <!--f:gas.12-->116,668<!--/f--> |
 | Unstake with rewards | <!--f:gas.13-->133,594<!--/f--> |
 | Approval, through the agent account (since the third review) | <!--f:gas.14-->72,826<!--/f--> |
-| Key rotation once an announced verifier has taken over (section 3.17) | <!--f:gas.15-->60,840<!--/f--> |
-| Attesters hand over to a set of three, 2 signatures (section 3.18) | <!--f:gas.16-->157,994<!--/f--> |
+| Key rotation once an announced verifier has taken over (section 3.17) | <!--f:gas.15-->60,978<!--/f--> |
+| Attesters hand over to a set of three, 2 signatures (section 3.18) | <!--f:gas.16-->158,273<!--/f--> |
+| Venue approval signed by two keys (section 3.19) | <!--f:gas.17-->93,008<!--/f--> |
+| Venue approval signed by a key and a wallet of two owners (section 3.19) | <!--f:gas.18-->109,032<!--/f--> |
 
 The standard adds about 15,000 gas to a transfer: the registry is asked about
 the caller and the holder, and about the recipient when it is not the caller. Agent accounts are ERC-1167 clones of a single implementation, which brought
-the first enrollment down from 1,154,831 to <!--f:gas.07-->214,411<!--/f--> gas. The price is about
+the first enrollment down from 1,154,831 to <!--f:gas.07-->214,549<!--/f--> gas. The price is about
 3,650 extra gas on every call through an account, which reads its registry and
 id from its own code; the saving pays for about 260 calls per agent. The
 implementation itself refuses every call.
@@ -1441,14 +1484,15 @@ anyone. A registry is frozen as soon as fewer keys remain than the threshold:
 agents keep acting until their keys expire, and nothing new is decided. A key
 can therefore be replaced only while the members who remain still reach the
 threshold; with three of three, one lost key is enough to freeze everything.
-An attester is a plain key: a multi-signature wallet cannot be one yet.
+An attester was a plain key that day; a multi-signature wallet can be one
+since section 3.19.
 
 **Cost.** The threshold was written in the code at deployment; it now lives in
 storage with the set number, in one slot. Each check of the attesters'
 signatures reads that slot, and what they sign has one more field: about
-3,200 gas more when the change was made: a first enrollment costs <!--f:gas.07-->214,411<!--/f--> gas and a key rotation
-<!--f:gas.08-->58,720<!--/f-->. A handover to a set of three, accepted by two of its members,
-costs <!--f:gas.16-->157,994<!--/f--> gas.
+3,200 gas more when the change was made: a first enrollment costs <!--f:gas.07-->214,549<!--/f--> gas and a key rotation
+<!--f:gas.08-->58,858<!--/f-->. A handover to a set of three, accepted by two of its members,
+costs <!--f:gas.16-->158,273<!--/f--> gas.
 
 **Proved.** One symbolic proof, for every delay and every time, with sets of
 one member and a threshold of one. One attester hands over to a second; then
@@ -1531,7 +1575,7 @@ then before signatures named their set
 **Limits.**
 
 - No fast path removes an attester; a quorum can hand the registry to anyone.
-- An attester is a plain key, not a contract.
+- An attester was a plain key, not a contract: changed in section 3.19.
 - The deadline is chosen by the signers and nothing caps it. Until that
   deadline, or until another set is in force, a signature given and not sent
   can be sent by anyone.
@@ -1544,6 +1588,168 @@ then before signatures named their set
   then. The outgoing set can announce the lift itself; keys should live
   several notice delays.
 - The notice delay still cannot be changed after deployment.
+
+### 3.19 Attesters that are contracts
+
+Added on 17 November 2026, after section 3.18, and corrected the same day
+after an independent review (section 2.10).
+
+An attester can be a contract that signs by ERC-1271, for example a
+multi-signature wallet, as well as a key. Until then a set of attesters was a
+set of keys: an organisation that keeps its keys in a wallet with several
+signers could not be one.
+
+**What it gives.**
+
+- **A member of a set is an address: a key or a contract.** Nothing says which
+  when a set is appointed; the form of the signature does.
+- **A key signs as before**, in 65 bytes. **A contract is named with what it
+  accepts**: `abi.encode(member, signature)`. The registry asks that contract,
+  by ERC-1271, whether it accepts the signature for the decision.
+- **Only members are asked.** A contract that is not in the set is refused
+  without being called, and a member counts once whatever it sends.
+- **A key stays a key.** An account that a key controls can delegate to code
+  (EIP-7702). The registry does not ask such an account as a contract: it
+  signs by its key only, so the code it delegates to cannot take its seat.
+- **Nothing else changes.** Threshold, set number, deadline and counters apply
+  to a contract as to a key. A contract appointed by a handover accepts its
+  appointment by answering yes to that handover.
+- **A wallet can take back what it accepted** and that was not sent, for
+  example by changing its owners; a key cannot. The exception is what the
+  wallet approved on chain, as a Safe can: that approval outlives its owners.
+
+**What it does not give.**
+
+- **The registry believes what the contract answers.** A wallet whose owners
+  can be changed, or a contract that can be upgraded, changes who decides
+  without a handover and without the notice delay. The code of a contract
+  attester has to be read before it is appointed, as a venue's is.
+- **A contract accepts its appointment by answering yes once**, possibly to an
+  empty signature that anyone can write. For a key, the acceptance shows that
+  someone holds it; for a contract it shows nothing of the kind.
+- **The threshold counts addresses, not people.** A wallet and one of its
+  owners are two members and the same people.
+- **A member that is a contract is given all the gas left, and its whole
+  answer is copied.** It can make a decision expensive to send, or make it
+  fail. Only the sender pays, and a contract that is not a member is never
+  called.
+- **What cannot be read is refused**: by a revert without data, or a panic,
+  when the bytes do not decode; by `BadAttester` when they decode to an
+  address that is not a member. Encodings other than the standard one that
+  still decode are accepted.
+
+**How the registry reads a signature.** Each element of the list the attesters
+send is read by its length. 65 bytes: a key's signature, and the signer is
+recovered from it as before. Anything else is decoded by `abi.decode` as
+`(address member, bytes signature)`. The standard encoding of that pair has a
+length that is a multiple of 32, so it is never mistaken for a key's
+signature; whatever is sent, 65 bytes are always read as a key's signature.
+In both cases the signer must be a member of the set and come after the
+previous signer in increasing order of address. Only then, for a contract,
+the registry checks that the account is not one that a key controls and that
+delegates to code, and calls `isValidSignature(digest, signature)` on it. The
+call is read-only: the contract cannot change the registry while it is asked.
+
+**Why this shape.**
+
+| Question | Choice | Why |
+| --- | --- | --- |
+| How a contract is told from a key | By the form of the signature | The signer of a contract's signature cannot be recovered from it, so it has to be named, and a key's signature needs no name |
+| An account that a key controls and that delegates to code (EIP-7702) | Signs by its key only; named as a contract, it is refused | Otherwise one authorization signed by that key, for any purpose, would give its seat to whatever that code accepts. The registry recognises such an account by its code: `0xef0100` followed by an address, which the code of a contract cannot be |
+| Who is called | Members of the set only, after the membership and order checks | Whoever sends the transaction does not choose which contracts the registry calls |
+| When the handover counter moves | After the new set has been asked | A contract that recomputes the digest from the registry while it is asked finds the one it is asked about |
+| The functions and what attesters sign | Unchanged | The six functions the attesters call keep their arguments, and the digests are the same |
+
+**Cost.** A key's signature costs about 70 gas more to check than before. The
+same venue approval costs <!--f:gas.17-->93,008<!--/f--> gas signed by two keys and <!--f:gas.18-->109,032<!--/f--> gas
+signed by a key and a test wallet of two owners. On Base Sepolia, with a real
+Safe of three owners, two of them signing, an enrollment cost 249,978 gas and
+a venue approval 128,223.
+
+**Tested.** <!--f:tests.ContractAttesters-->24<!--/f--> tests, with a small wallet written for them:
+
+- a wallet and a key approve a venue; a wallet alone enrolls and revokes;
+- what the wallet refuses is refused: one owner, the same owner twice, another
+  decision, the registry's digest instead of what the wallet asks its owners
+  to sign, another wallet with the same owners;
+- a wallet counts once, next to itself or around another member, and comes in
+  order like a key; a bad element after the threshold is refused; one address
+  counts once in whatever form it signs;
+- a wallet takes back what it accepted;
+- a contract that is not a member is not called; a member already counted is
+  not asked again; a member is asked about the decision itself, with the
+  signature it was given; a member cannot change the registry while it is
+  asked;
+- a key cannot be named as a contract, and a wallet cannot sign as a key;
+- an account that delegates to code signs by its key only, with a real
+  EIP-7702 delegation to code that says yes to every question;
+- a member that reverts, answers another value, answers too few bytes or
+  answers the right value followed by something else only fails;
+- what cannot be read is refused, each case by the error named above; the
+  other forms of a key's signature are refused: high `s`, `v` written 0 or 1,
+  the personal-message form, the compact form;
+- a wallet takes over only if it accepts, decides nothing during the notice,
+  and hands over in turn; a contract accepts by answering yes; a contract
+  asked about a handover sees its digest;
+- the threshold counts addresses, not people.
+
+Two more tests run on a fork of Base Sepolia against the Safe contracts
+deployed there (`test/fork/SafeBaseSepolia.t.sol`, Safe 1.4.1): the owners
+sign the Safe message that wraps the registry's digest; and what a Safe
+approved on chain is accepted with an empty signature, even after every owner
+has been replaced. The symbolic proofs still use keys only: they do not cover
+a contract's answer. The explicit error test on a recovered signature, found
+redundant by the fifth pass, was removed with this change: one mutant is left
+explained instead of two.
+
+**Run on Base Sepolia**, with a real Safe and a notice delay of 120 seconds,
+sale venue [`0x6264…E006`](https://sepolia.basescan.org/address/0x6264C99D654Da516e2f09Ad8957160e065fAE006),
+contract that says yes [`0xDA93…1323`](https://sepolia.basescan.org/address/0xDA937901c80e51Db41163f5e90F8b979Fd591323).
+
+| Step | Result |
+| --- | --- |
+| A Safe 1.4.1 created through Safe's own proxy factory: three owners, two must sign ([tx](https://sepolia.basescan.org/tx/0xcd0ddbde6fd05f9b948ed0280279175249fbfd1f909931b963cf5019138e111d)) | Safe [`0x75Bf…FBE1`](https://sepolia.basescan.org/address/0x75BfBf6A02AF5a05Df9dAC47AEd1EcBf9DddFBE1) |
+| A registry is deployed with two attesters, the Safe and key 1, two of two | Registry [`0x4F8f…FCAE`](https://sepolia.basescan.org/address/0x4F8f69F116E2aA182999F6dd0D70e6677539FCAE) |
+| Agent 1 is enrolled by key 1 and the Safe, owners 3 and 4 signing ([tx](https://sepolia.basescan.org/tx/0xda94d388dff207888cbbb46e5bcc536d9f3e96f066f2ba77dce810f61abbbcbc)) | 249,978 gas |
+| Key 1 alone; the Safe alone | Refused (`NotEnoughAttesters`), both |
+| Key 1 and the Safe with one owner's signature | Refused (`BadAttester`) |
+| Key 1 and the Safe, whose owners signed the registry's digest instead of the Safe message | Refused (`BadAttester`) |
+| Key 1 and the Safe, whose owners signed the removal of the venue | Refused (`BadAttester`) |
+| Key 1 and an owner of the Safe signing as a key | Refused (`BadAttester`) |
+| Key 1 and a contract that is not an attester and says yes to every question | Refused (`BadAttester`) |
+| Key 1 named as a contract, and the Safe | Refused (`BadAttester`) |
+| The Safe twice, signed by two different pairs of owners | Refused (`BadAttester`) |
+| The sale venue is approved by key 1 and the Safe, owners 4 and 5 signing ([tx](https://sepolia.basescan.org/tx/0x03748bba05d455c11d661399f9fc247e48f6253c96b4e5ca115e0f39a5affff5)) | 128,223 gas |
+| A handover to the Safe and key 2, accepted by key 2 only | Refused (`NotEnoughAttesters`) |
+| The same handover, accepted by key 2 and one owner of the Safe | Refused (`BadAttester`) |
+| The same handover, signed by key 1 and the Safe as the set in force, accepted by key 2 and the Safe as the new set ([tx](https://sepolia.basescan.org/tx/0xb5ef4ba02e937bfe209809528c3d75a2bfd202f696649e356f91af3f0a56dda8)) | 189,246 gas. `attesterSet` is still 1 |
+| After the notice of 120 seconds | `attesterSet` is 2, key 1 is no longer an attester, the venue is in force |
+| A revocation of agent 1 signed under the first set by key 2 and the Safe | Refused (`BadAttester`): it names the first set |
+| The venue removed by key 1 and the Safe | Refused (`BadAttester`) |
+| The account of key 2 delegates, by an EIP-7702 authorization, to a contract that says yes to every question ([tx](https://sepolia.basescan.org/tx/0x3e62f534d45d152b3711c119f7cae88a4083b8a70c4e40474d7c2d0d26f1beb9)) | The account holds `0xef0100` followed by that contract's address. Asked directly, it answers yes |
+| The venue removed by key 2 named as a contract, and the Safe | Refused (`BadAttester`): an account that a key controls is not asked as a contract |
+| The venue removed by key 2, signing as a key, and the Safe, owners 4 and 5 signing ([tx](https://sepolia.basescan.org/tx/0xc0e366afb0fd41759ae7701637a4ef16c5d82e4142e79f02e4ee1486e435a8ee)) | Accepted, 86,277 gas |
+| Agent 1 revoked by key 2 and the Safe, owners 3 and 5 signing under the second set ([tx](https://sepolia.basescan.org/tx/0xd939b73e7362149bbb963dd5fa688dc4492776e59b50ee9596af6a35c4f92cdb)) | Accepted, 86,090 gas. Account 1 is no longer an agent |
+
+The refusals were simulated on the chain's state at that moment; the other
+steps are transactions, sent with `cast`: no script in this repository replays
+the run. Owners and keys were made for the tests. An earlier run the same day
+used the registry as it was before the review
+([`0xa7F1…A1c2`](https://sepolia.basescan.org/address/0xa7F15B9e9864f4fD1859C0b06cE8Ae19D857A1c2)); the Safe was
+created for it.
+
+**Limits.**
+
+- The registry believes what a contract attester answers: its code, and who
+  can change it, are part of what a holder has to trust.
+- Changing the owners of a wallet changes who decides, without a handover and
+  without the notice delay.
+- A contract accepts its appointment by answering yes once: that does not
+  show that someone controls it.
+- The threshold counts addresses, not people.
+- A member that is a contract is given all the gas left and its whole answer
+  is copied; only the sender pays.
+- Only Safe 1.4.1 and the wallet of the tests were tried.
 
 ## 4. Use cases
 
@@ -1641,8 +1847,14 @@ Options studied and set aside:
 - **The attesters can hand the registry over** to another set of attesters,
   after the notice delay (section 3.18). A dishonest quorum can therefore hand
   it to anyone; holders see it coming. Nothing removes an attester faster than
-  the delay, a key can be replaced only while the others still reach the
-  threshold, and an attester is a plain key, not a contract.
+  the delay, and a key can be replaced only while the others still reach the
+  threshold.
+- **An attester that is a contract decides whatever its code accepts**
+  (section 3.19). A wallet whose owners can be changed, or a contract that
+  can be upgraded, changes who decides without a handover and without the
+  notice delay. It accepts its appointment by answering yes once, which does
+  not show that someone controls it, and the threshold counts addresses, not
+  people.
 - **A signature given and not sent stays usable** by anyone until its
   deadline, which its signers choose and nothing caps, or until another set
   of attesters is in force (section 3.18). A revocation has no counter.
@@ -1720,8 +1932,10 @@ Options studied and set aside:
    widens who can hold tokens, and an immediate halt of enrollments, reviewed
    independently (section 2.8). Done on 17 November 2026 (section 3.18):
    attesters that can be replaced, with the same delay, and a deadline on the
-   signatures for venues and revocations. Next: attesters that are contracts
-   (a multi-signature wallet), and an independent review of section 3.18.
+   signatures for venues and revocations, reviewed independently (section
+   2.9). Done the same day (section 3.19): attesters that are contracts, such
+   as a multi-signature wallet, tried with a real Safe and reviewed
+   independently (section 2.10).
 4. Enrollment through a zk proof of the quote verification, about 500,000 gas
    instead of 4.3 million. Checked on chain on 15 November 2026: RISC Zero's
    verifier router is deployed on Base Sepolia, but Automata's entrypoint
@@ -1778,7 +1992,7 @@ unless stated otherwise.
 | dstack extends RTMR3 as SHA-384(RTMR3 \|\| event digest) from zero; V1 digest = SHA-384(type LE \|\| ":" \|\| name \|\| ":" \|\| payload) | Read in `cc-eventlog/src/runtime_events.rs` (commit `b936f86`), then confirmed on 15 November 2026 by replaying the real event log of `verifier/fixtures/quote-report.json`, offline and in the tests | [dstack](https://github.com/Dstack-TEE/dstack) |
 | The USDC deployed on Base is `FiatTokenV2_2` | Confirmed on 14 November 2026 at block 57,208,253: the implementation `0x2Ce6311ddAE708829bc0784C967b7d77D19FD779` and its signature library are byte-identical to the code compiled from commit `fc85788`, apart from the metadata hash and the library address. Read through the public RPC `https://mainnet.base.org` | `examples/x402/check-usdc.mjs` |
 | The standard x402 client pays from an agent account once given the 28-line signer adapter | Confirmed by execution on 14 November 2026: packages `@x402/fetch` and `@x402/express` 2.31.0, local chain | `examples/x402/demo.mjs` |
-| Every contract cited in this document is at its address on Base Sepolia, with the code recorded | Confirmed on 17 November 2026 for the <!--f:deployed-->57<!--/f--> contracts of `deployments/base-sepolia.json` and the 3 external ones (code hash read on chain); checked again every night | `tools/deployments.py` |
+| Every contract cited in this document is at its address on Base Sepolia, with the code recorded | Confirmed on 17 November 2026 for the <!--f:deployed-->66<!--/f--> contracts of `deployments/base-sepolia.json` and the 3 external ones (code hash read on chain); checked again every night | `tools/deployments.py` |
 
 ## 10. Sources
 

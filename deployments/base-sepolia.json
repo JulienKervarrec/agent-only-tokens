@@ -499,7 +499,7 @@
     {
       "address": "0xaD00cF7F3cc559431Ba404993a1B575305378587",
       "name": "AttestedAgentRegistry",
-      "role": "registry with replaceable attesters and a notice delay of 120 seconds; current source",
+      "role": "registry with replaceable attesters and a notice delay of 120 seconds; source of version 0.3.0",
       "run": "attester handover and deadlines, 17 November 2026 (study 3.18)",
       "block": 59877319,
       "codeHash": "0x7b9b93a34cbac4390e40030654186e1d676ba8026dc17c6fbee1ebf0b9a48aef",
@@ -541,6 +541,92 @@
       "run": "attester handover and deadlines, 17 November 2026 (study 3.18)",
       "block": 59878148,
       "codeHash": "0xdce16ed76699d86568db144a2bbb587c30066c3608b291a9b40e342b6bdb9994"
+    },
+    {
+      "address": "0xa7F15B9e9864f4fD1859C0b06cE8Ae19D857A1c2",
+      "name": "AttestedAgentRegistry",
+      "role": "registry whose attesters are a Safe and a key, as it was before the independent review (study 2.10)",
+      "run": "contract attesters with a real Safe, first run before the independent review, 17 November 2026 (study 2.10)",
+      "block": 59901895,
+      "codeHash": "0x76418f76f12750a18760a4c23dee43bf48e62d87f354427d9db01f1e9a3d68fd",
+      "source": "fb9d37e",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0x9aF3B2ded26aace440D9685E8687C9dC2c93146b",
+      "name": "AgentAccount (implementation)",
+      "role": "account code that the clones of registry 0xa7F1…A1c2 run",
+      "run": "contract attesters with a real Safe, first run before the independent review, 17 November 2026 (study 2.10)",
+      "block": 59901895,
+      "codeHash": "0x9407fdd2956c9c9b55cdc367bb7b2fff8d5d703dceb077ac229e204c7b9d7fd0",
+      "source": "1eb3e2a",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0xD64A12C4f39A72982Eb51d7348a8db76D7E38604",
+      "name": "AgentSwap",
+      "role": "sale venue approved and removed by a key and the Safe; the code an attester key delegated to by EIP-7702",
+      "run": "contract attesters with a real Safe, first run before the independent review, 17 November 2026 (study 2.10)",
+      "block": 59901907,
+      "codeHash": "0x172a28eb433bf70bd7a2f7bf4bb0b6c8dcfdf90d808cb152546b235fb1ce5839",
+      "source": "1eb3e2a",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0x04AeF68297c40C999f267BCb301B3dC13c6DED03",
+      "name": "AgentAccount (clone)",
+      "role": "account of agent 1 of that run, revoked by a key and the Safe",
+      "run": "contract attesters with a real Safe, first run before the independent review, 17 November 2026 (study 2.10)",
+      "block": 59901930,
+      "codeHash": "0xd49b623113b81c61b685b1094a773af47c033eaa697ff3e5fefce1aabf6298d3"
+    },
+    {
+      "address": "0x4F8f69F116E2aA182999F6dd0D70e6677539FCAE",
+      "name": "AttestedAgentRegistry",
+      "role": "registry whose attesters are a Safe and a key, notice delay of 120 seconds; current source",
+      "run": "contract attesters with a real Safe, 17 November 2026 (study 3.19)",
+      "block": 59934905,
+      "codeHash": "0x28075948f14927b4f671868167ba53676dec2fe165952f5bb5cfdeaef620ee6c",
+      "source": "3eaab9c",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0xe81C11197F174511fBE03878Beb4cdf61D430355",
+      "name": "AgentAccount (implementation)",
+      "role": "account code that the clones of registry 0x4F8f…FCAE run",
+      "run": "contract attesters with a real Safe, 17 November 2026 (study 3.19)",
+      "block": 59934905,
+      "codeHash": "0x2679c7f5839f99da85e06f553f277dfad5e7c575e8676a3c29b27ae7f458eb1b",
+      "source": "1eb3e2a",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0x6264C99D654Da516e2f09Ad8957160e065fAE006",
+      "name": "AgentSwap",
+      "role": "sale venue approved and removed by a key and the Safe",
+      "run": "contract attesters with a real Safe, 17 November 2026 (study 3.19)",
+      "block": 59934909,
+      "codeHash": "0x172a28eb433bf70bd7a2f7bf4bb0b6c8dcfdf90d808cb152546b235fb1ce5839",
+      "source": "1eb3e2a",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0xDA937901c80e51Db41163f5e90F8b979Fd591323",
+      "name": "YesToAll",
+      "role": "contract of the tests that says yes to every ERC-1271 question: not an attester, and the code an attester key delegated to by EIP-7702",
+      "run": "contract attesters with a real Safe, 17 November 2026 (study 3.19)",
+      "block": 59934915,
+      "codeHash": "0x07f8095272794a982bb88209a7aaebd59e925a792801edf994822235b612d352",
+      "source": "a1888c3",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0xcC391e89289985184b2fD5D5EeE3177BdD8C4eA8",
+      "name": "AgentAccount (clone)",
+      "role": "account of agent 1 of that run, revoked by a key and the Safe",
+      "run": "contract attesters with a real Safe, 17 November 2026 (study 3.19)",
+      "block": 59934940,
+      "codeHash": "0xf0789fe19961dbf6cc155ca5ea72cd15f5cdacf4c7f08f8ea046cf0debb52182"
     }
   ],
   "external": [
@@ -564,6 +650,41 @@
       "role": "compared byte for byte with test/usdc at block 59,533,350",
       "block": 3152122,
       "codeHash": "0x1254951e5483b882fd5def9452f58fe786eb3380c0bf9bb2744fa21a0a97a16c"
+    },
+    {
+      "address": "0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67",
+      "name": "Safe proxy factory 1.4.1",
+      "role": "creates Safe wallets; used by the fork test and to create the Safe of the run of 17 November 2026",
+      "block": 5172579,
+      "codeHash": "0x50c3cdc4074750a7a974204a716c999edd37482f907608d960b2b025ee0b3317"
+    },
+    {
+      "address": "0x41675C099F32341bf84BFc5382aF534df5C7461a",
+      "name": "Safe singleton 1.4.1",
+      "role": "code that Safe wallets run; VERSION() read on chain",
+      "block": 5172602,
+      "codeHash": "0x1fe2df852ba3299d6534ef416eefa406e56ced995bca886ab7a553e6d0c5e1c4"
+    },
+    {
+      "address": "0xfd0732Dc9E303f09fCEf3a7388Ad10A83459Ec99",
+      "name": "Safe compatibility fallback handler 1.4.1",
+      "role": "answers ERC-1271 for a Safe",
+      "block": 5172585,
+      "codeHash": "0x7c6007a5d711cea8dfd5d91f5940ec29c7f200fe511eb1fc1397b367af3c42f9"
+    },
+    {
+      "address": "0x75BfBf6A02AF5a05Df9dAC47AEd1EcBf9DddFBE1",
+      "name": "Safe (proxy)",
+      "role": "the Safe created for the runs of 17 November 2026: three owners, two must sign; an attester of registries 0xa7F1…A1c2 and 0x4F8f…FCAE",
+      "block": 59901871,
+      "codeHash": "0xd7d408ebcd99b2b70be43e20253d6d92a8ea8fab29bd3be7f55b10032331fb4c"
+    },
+    {
+      "address": "0xd53cd0aB83D845Ac265BE939c57F53AD838012c9",
+      "name": "Safe SignMessageLib 1.4.1",
+      "role": "lets a Safe approve a message on chain; used by a fork test",
+      "block": 5172597,
+      "codeHash": "0x525c754a46b79e05543a59bb61e8de3c9eee0d955a59352409cbe67ea1077528"
     }
   ],
   "sessionKeys": [

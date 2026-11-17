@@ -886,5 +886,77 @@
     "name": "a verifier approves the digest meant for attesters",
     "find": "verifier, hashEnrollment(agentId, sessionKey, evidenceHash, msg.sender, a.enrollments, deadline), \"\"",
     "replace": "verifier, hashAttestedEnrollment(agentId, sessionKey, evidenceHash, msg.sender, a.enrollments, deadline), \"\""
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a contract attester is asked about another digest",
+    "find": "!SignatureChecker.isValidERC1271SignatureNow(signer, digest, proof)",
+    "replace": "!SignatureChecker.isValidERC1271SignatureNow(signer, bytes32(0), proof)"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a contract attester is asked without the signature it was given",
+    "find": "!SignatureChecker.isValidERC1271SignatureNow(signer, digest, proof)",
+    "replace": "!SignatureChecker.isValidERC1271SignatureNow(signer, digest, \"\")"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "an account that carries code can no longer sign by its key",
+    "find": "            if (byKey) (signer,,) = ECDSA.tryRecover(digest, sig);",
+    "replace": "            if (byKey) { (signer,,) = ECDSA.tryRecover(digest, sig); if (signer.code.length != 0) signer = address(0); }"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a contract is asked before it is known to be an attester",
+    "find": "            if (!isAttesterIn[set][signer] || signer <= last) revert BadAttester();\n            if (!byKey && (_delegates(signer) || !SignatureChecker.isValidERC1271SignatureNow(signer, digest, proof))) {\n                revert BadAttester();\n            }\n",
+    "replace": "            if (!byKey && (_delegates(signer) || !SignatureChecker.isValidERC1271SignatureNow(signer, digest, proof))) {\n                revert BadAttester();\n            }\n            if (!isAttesterIn[set][signer] || signer <= last) revert BadAttester();\n"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a key named as a contract is taken at its word",
+    "find": "!SignatureChecker.isValidERC1271SignatureNow(signer, digest, proof)",
+    "replace": "(signer.code.length != 0 && !SignatureChecker.isValidERC1271SignatureNow(signer, digest, proof))"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "an account that delegates to code is asked as a contract",
+    "find": "_delegates(signer) || ",
+    "replace": ""
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "the handover counter moves before the new set is asked",
+    "find": "        _requireSigners(next, threshold_, digest, accepted);\n        attestersNonce += 1;\n",
+    "replace": "        attestersNonce += 1;\n        _requireSigners(next, threshold_, digest, accepted);\n"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "keys and named contracts are ordered apart",
+    "find": "        address last;\n        for (uint256 i; i < sigs.length; ++i) {\n            bytes calldata sig = sigs[i];\n            bool byKey = sig.length == 65;\n            address signer;\n            bytes memory proof;\n            if (byKey) (signer,,) = ECDSA.tryRecover(digest, sig); // address(0) on failure: never a member\n            else (signer, proof) = abi.decode(sig, (address, bytes));\n            // Strictly increasing order: prevents counting the same attester twice.\n            if (!isAttesterIn[set][signer] || signer <= last) revert BadAttester();\n            if (!byKey && (_delegates(signer) || !SignatureChecker.isValidERC1271SignatureNow(signer, digest, proof))) {\n                revert BadAttester();\n            }\n            last = signer;\n",
+    "replace": "        address last;\n        address lastNamed;\n        for (uint256 i; i < sigs.length; ++i) {\n            bytes calldata sig = sigs[i];\n            bool byKey = sig.length == 65;\n            address signer;\n            bytes memory proof;\n            if (byKey) (signer,,) = ECDSA.tryRecover(digest, sig); // address(0) on failure: never a member\n            else (signer, proof) = abi.decode(sig, (address, bytes));\n            // Strictly increasing order: prevents counting the same attester twice.\n            if (!isAttesterIn[set][signer] || signer <= (byKey ? last : lastNamed)) revert BadAttester();\n            if (!byKey && (_delegates(signer) || !SignatureChecker.isValidERC1271SignatureNow(signer, digest, proof))) {\n                revert BadAttester();\n            }\n            if (byKey) last = signer;\n            else lastNamed = signer;\n"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a named contract is refused only right after itself",
+    "find": "        address last;\n        for (uint256 i; i < sigs.length; ++i) {\n            bytes calldata sig = sigs[i];\n            bool byKey = sig.length == 65;\n            address signer;\n            bytes memory proof;\n            if (byKey) (signer,,) = ECDSA.tryRecover(digest, sig); // address(0) on failure: never a member\n            else (signer, proof) = abi.decode(sig, (address, bytes));\n            // Strictly increasing order: prevents counting the same attester twice.\n            if (!isAttesterIn[set][signer] || signer <= last) revert BadAttester();\n            if (!byKey && (_delegates(signer) || !SignatureChecker.isValidERC1271SignatureNow(signer, digest, proof))) {\n                revert BadAttester();\n            }\n            last = signer;\n",
+    "replace": "        address last;\n        address lastNamed;\n        for (uint256 i; i < sigs.length; ++i) {\n            bytes calldata sig = sigs[i];\n            bool byKey = sig.length == 65;\n            address signer;\n            bytes memory proof;\n            if (byKey) (signer,,) = ECDSA.tryRecover(digest, sig); // address(0) on failure: never a member\n            else (signer, proof) = abi.decode(sig, (address, bytes));\n            // Strictly increasing order: prevents counting the same attester twice.\n            if (!isAttesterIn[set][signer] || (byKey ? signer <= last : signer == lastNamed)) revert BadAttester();\n            if (!byKey && (_delegates(signer) || !SignatureChecker.isValidERC1271SignatureNow(signer, digest, proof))) {\n                revert BadAttester();\n            }\n            if (byKey) last = signer;\n            else lastNamed = signer;\n"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "only as many signatures as the threshold are checked",
+    "find": "        for (uint256 i; i < sigs.length; ++i) {\n            bytes calldata sig = sigs[i];",
+    "replace": "        for (uint256 i; i < needed; ++i) {\n            bytes calldata sig = sigs[i];"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a contract out of order is asked before it is refused",
+    "find": "            if (!isAttesterIn[set][signer] || signer <= last) revert BadAttester();\n            if (!byKey && (_delegates(signer) || !SignatureChecker.isValidERC1271SignatureNow(signer, digest, proof))) {\n                revert BadAttester();\n            }\n",
+    "replace": "            if (!isAttesterIn[set][signer]) revert BadAttester();\n            if (!byKey && (_delegates(signer) || !SignatureChecker.isValidERC1271SignatureNow(signer, digest, proof))) {\n                revert BadAttester();\n            }\n            if (signer <= last) revert BadAttester();\n"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "the compact form of a key's signature is accepted",
+    "find": "            else (signer, proof) = abi.decode(sig, (address, bytes));",
+    "replace": "            else if (sig.length == 64) { (signer,,) = ECDSA.tryRecover(digest, bytes32(sig[:32]), bytes32(sig[32:])); byKey = true; }\n            else (signer, proof) = abi.decode(sig, (address, bytes));"
   }
 ]

@@ -5,14 +5,16 @@
   "04 mint, through the account": "131409",
   "05 list for sale": "114575",
   "06 buy": "116392",
-  "07 first enrollment": "214411",
-  "08 key rotation": "58720",
+  "07 first enrollment": "214549",
+  "08 key rotation": "58858",
   "09 badge offer": "252996",
   "10 badge claim, through the account": "95526",
   "11 stake, through the account": "165384",
   "12 claim staking rewards": "116668",
   "13 unstake with rewards": "133594",
   "14 approval, through the account": "72826",
-  "15 key rotation after an announced verifier took over": "60840",
-  "16 attesters hand over to a set of three": "157994"
+  "15 key rotation after an announced verifier took over": "60978",
+  "16 attesters hand over to a set of three": "158273",
+  "17 venue approval by two keys": "93008",
+  "18 venue approval by a key and a two-owner wallet": "109032"
 }
