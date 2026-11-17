@@ -74,6 +74,12 @@ abstract contract TdxQuoteVerifier is IERC1271 {
         bool genuine;
         (genuine, output) = dcap.verifyAndAttestOnChain{value: msg.value}(quote);
         if (!genuine) revert QuoteRejected(output);
+        digest = _checkOutput(output);
+    }
+
+    /// The checks shared by every verifier, on an output the DCAP verifier vouched for; returns
+    /// the digest it carries.
+    function _checkOutput(bytes memory output) internal view returns (bytes32 digest) {
         if (output.length < BODY + TD10_BODY_LENGTH || uint16(bytes2(_word(output, 2))) != TD10_BODY_TYPE) {
             revert UnsupportedReport();
         }

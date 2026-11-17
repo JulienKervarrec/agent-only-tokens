@@ -42,11 +42,17 @@ contract DstackConfigIdVerifier is TdxQuoteVerifier {
     function attest(bytes calldata quote) external payable returns (bytes32 digest) {
         bytes memory output;
         (output, digest) = _verify(quote);
+        _approveConfigId(output, digest, quote);
+    }
+
+    /// Approves `digest` if the verified output comes from approved code. `evidence` is what was
+    /// submitted, hashed into the event.
+    function _approveConfigId(bytes memory output, bytes32 digest, bytes calldata evidence) internal {
         uint8 format = uint8(output[BODY + MR_CONFIG_ID]);
         if (format == 0 || format > 3) revert BadConfigId();
         bytes32 code = codeOf(output);
         if (!isApprovedCode[code]) revert UnknownCode(code);
-        _approve(digest, code, quote);
+        _approve(digest, code, evidence);
     }
 
     /// The identity of the code in a verified output: base image and MRCONFIGID together.
