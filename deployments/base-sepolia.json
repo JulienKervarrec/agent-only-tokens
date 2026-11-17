@@ -627,6 +627,44 @@
       "run": "contract attesters with a real Safe, 17 November 2026 (study 3.19)",
       "block": 59934940,
       "codeHash": "0xf0789fe19961dbf6cc155ca5ea72cd15f5cdacf4c7f08f8ea046cf0debb52182"
+    },
+    {
+      "address": "0x120D6d17c744900e94Ef59Fa6123Ac29e82D3A74",
+      "name": "DstackConfigIdVerifier",
+      "role": "approves the third program started by our own pre-launch script",
+      "run": "our own pre-launch script, 17 November 2026 (study 3.21)",
+      "block": 59998592,
+      "codeHash": "0x3e16d9615a11093500b4ef127ddbd7b335ec203b0ed83ab2652a890677af29fc",
+      "source": "b69cc2f",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0xE78420EDf016b1249F2F8664ab172240C43BaD52",
+      "name": "AttestedAgentRegistry",
+      "role": "registry requiring that verifier",
+      "run": "our own pre-launch script, 17 November 2026 (study 3.21)",
+      "block": 59998605,
+      "codeHash": "0xdc77874e50affee55de9c4f74bcc6775907cd94cc320d68cb0d90ff0d77f17cd",
+      "source": "b69cc2f",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0x0D1Fed293341B63Ec0719ea6Fec312bA7263905A",
+      "name": "AgentAccount (implementation)",
+      "role": "account code that the clones of registry 0xE784…aD52 run",
+      "run": "our own pre-launch script, 17 November 2026 (study 3.21)",
+      "block": 59998605,
+      "codeHash": "0xf9530ca4c48abd13fc8629cdc3ad67c88b37d71b91f80ba3ae59272f090dd968",
+      "source": "b69cc2f",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0xD6eC25de098d6f23A8Bc180C1A95B8a1A5c238e7",
+      "name": "AgentAccount (clone)",
+      "role": "account of the agent started by our own pre-launch script",
+      "run": "our own pre-launch script, 17 November 2026 (study 3.21)",
+      "block": 59998622,
+      "codeHash": "0x3744866c2ef138e04791e5d941510372b519e2db808c911c91f7ca4925c45eaf"
     }
   ],
   "external": [
@@ -715,6 +753,14 @@
     {
       "address": "0x4fe28108aea6e09c3d490966e7e077ce0167a46b",
       "role": "program upgrade, key under the third program (generated inside the enclave; never held ETH)"
+    },
+    {
+      "address": "0x808ef3634f4df8e607f931ef00b0069af5acf43a",
+      "role": "third program under our own pre-launch script, first key (generated inside the enclave; never held ETH)"
+    },
+    {
+      "address": "0x7296ba58669ab91b4707b02f764b0d52bff9853d",
+      "role": "third program under our own pre-launch script, key after restart (generated inside the enclave; never held ETH)"
     }
   ],
   "otherChains": [
