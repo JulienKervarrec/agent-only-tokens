@@ -13,13 +13,14 @@ remappings = [
 ]
 
 # Read access to the official Uniswap V3 artifacts, to the compiled USDC contract and to the
-# sample Intel TDX quote, for the tests.
+# sample Intel TDX quote and zk proof, for the tests.
 fs_permissions = [
     { access = "read", path = "./node_modules/@uniswap" },
     { access = "read", path = "./test/usdc" },
     { access = "read", path = "./test/experimental/tdx" },
     { access = "read", path = "./test/experimental/dstack" },
     { access = "read", path = "./test/experimental/phala" },
+    { access = "read", path = "./test/fork/zk" },
 ]
 
 [fuzz]
