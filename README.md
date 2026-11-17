@@ -432,15 +432,17 @@ and id from its own code). The saving pays for about 260 calls per agent.
   notice is the time to read the code, and to refuse to use one that can.
 - Hardware attestation: three agents were enrolled by attestation, on Base
   Sepolia, from two machines of one provider (see "First agent enrolled by
-  hardware attestation" and "An enclave agent pays by x402"). The base image
-  was taken from the quote, not rebuilt. TDX 1.5 reports and the cheaper zk
+  hardware attestation" and "An enclave agent pays by x402"). Their base image
+  is exactly the one dstack published for that version (see "The base image
+  checked"), but it was not rebuilt from source. TDX 1.5 reports and the cheaper zk
   route are not supported. The default registry still only checks attester
   signatures.
 - The manifest dstack hashes includes the provider's pre-launch script. It was
   read: it adds to root's authorized keys the SSH keys listed in a file that
-  the host supplies and dstack does not measure. The agent's key is therefore
-  only as private as the approved base image is closed to SSH, which we did
-  not check ourselves (see `examples/enclave-agent`).
+  the host supplies and dstack does not measure. The approved base image
+  starts no SSH server and no console login, so those keys open nothing (see
+  "The base image checked"); what an application's own compose starts
+  remains its own concern.
 - The attesters can replace the enrollment verifier. That is how a program is
   upgraded, and it has a price: the hardware proof binds a registry only as
   long as its attesters keep a verifier that demands it. Two of three could
@@ -908,6 +910,34 @@ the run. Owners and keys were made for the tests. An earlier run the same day
 used the registry as it was before the review
 ([`0xa7F1…A1c2`](https://sepolia.basescan.org/address/0xa7F15B9e9864f4fD1859C0b06cE8Ae19D857A1c2)); the Safe was
 created for it. Section 3.19 of the study.
+
+## The base image checked, 17 November 2026
+
+Every agent enrolled by attestation ran on the production image of dstack OS
+0.5.12. It is exactly the image dstack published for that version, and it has
+no way in.
+
+- **The same image.** `tools/dstack_image.py` recomputes, from the published
+  archive (`dstack-0.5.12.tar.gz`, SHA-256 `e3037d99…eb176`), the three boot
+  registers that cover the firmware, the kernel, the initrd and the kernel
+  command line: MRTD, RTMR1 and RTMR2. All three equal those of the eleven
+  quotes of our runs, on two machines. One byte changed in any of those files
+  changes the register that covers it. The image hash our machines logged,
+  `8db40cb2…15bd`, is that of the archive's file list.
+- **The whole image.** The command line carries the root hash of the root
+  file system, which the initrd mounts only through dm-verity with that hash;
+  `veritysetup verify` confirms it for the published file system.
+- **No way in.** No SSH, Dropbear or Telnet server, no qemu guest agent, no
+  login on the console, root's password locked. The SSH keys that the
+  provider's pre-launch script installs therefore open nothing.
+- **Every night**, a job downloads the archive, checks its hash and compares
+  the registers of every archived quote.
+
+Not done: the image was not rebuilt from its sources (dstack builds it with
+Yocto inside Docker; this workspace has neither the Docker service nor access
+to the sites the build downloads from), and RTMR0, which covers the virtual
+hardware that QEMU describes, was not recomputed. It is equal in all eleven
+quotes. Section 3.20 of the study.
 
 ## An enclave agent pays by x402, 16 November 2026
 

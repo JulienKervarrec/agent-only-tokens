@@ -1181,8 +1181,8 @@ images, image pull, root password, SSH keys for root.
 - **Consequence.** The secrecy of an agent's key rests on the approved base
   image being closed to SSH. Our runs used the production image, which the
   provider presents that way and which is part of the approved identity; a
-  development image has other measurements and is refused. We did not check
-  the production image ourselves.
+  development image has other measurements and is refused. Checked the next
+  day: that image starts no SSH server (section 3.20).
 
 **The third program** (222 lines) fixes the three defects noted in section
 3.14.
@@ -1751,6 +1751,79 @@ created for it.
   is copied; only the sender pays.
 - Only Safe 1.4.1 and the wallet of the tests were tried.
 
+### 3.20 The base image checked against its published build
+
+Added on 17 November 2026. Every agent of sections 3.13 to 3.15 ran on the
+production image of dstack OS 0.5.12, read from its quotes. This section
+checks that image against the one dstack published, and looks for a way in.
+
+**What was compared.** The archive `dstack-0.5.12.tar.gz` of the meta-dstack
+release v0.5.12 (182,790,928 bytes, SHA-256 `e3037d99…eb176`): firmware,
+kernel, initrd, root file system and the kernel command line, built from
+commit `7f7b276` of meta-dstack. Its files match its own `sha256sum.txt`, and
+the SHA-256 of that list, `8db40cb2…15bd`, is the OS image hash that the
+machines of our three runs wrote into their RTMR3 event logs.
+
+**How.** `tools/dstack_image.py` recomputes three of the four boot registers
+from the files, the way dstack's measurement tool (`dstack-mr`, at the commit
+of the release) does, written a second time in Python without running it:
+
+- MRTD, what the TDX module measures while the firmware pages are added;
+- RTMR1, the kernel as the firmware measures it, after QEMU has written into
+  its header where the initrd was loaded, which depends on the memory size;
+- RTMR2, the kernel command line and the initrd.
+
+| Quote | MRTD | RTMR1 | RTMR2 |
+| --- | --- | --- | --- |
+| The eleven quotes of our three runs on Phala Cloud, on two machines (`test/experimental/phala`, `examples/enclave-agent/run-*`) | Equal | Equal, for 2,048 MiB of memory | Equal |
+| A copy of the image with one byte of the firmware changed | Different | Equal | Equal |
+| The same with the kernel, the initrd, or the command line changed | Equal | Different for the kernel | Different for the initrd and the command line |
+| Quotes from other images (`test/experimental/dstack`, `test/experimental/tdx`) | Different | Different | Different |
+
+The firmware pages were added in two passes, all the pages first and then
+their content: that is how the host's QEMU loads them, and the tool computes
+both orders. The command line carries the root hash of the root file system,
+and the initrd opens that file system only through dm-verity with that hash,
+stopping the machine at the first block that does not match.
+`veritysetup verify` confirms that the published root file system has that
+hash. So the measured registers bind the whole image, not only its kernel.
+
+**No way in.** Read in the image itself, not in its documentation:
+
+- no SSH server, Dropbear or Telnet server, no `authorized_keys`, and no
+  qemu guest agent; `ssh` appears only as the name of a DNS record type in
+  the dstack programs;
+- no login on the console: the kernel writes to the serial port, but no
+  `getty` runs there, and root's password is locked (`*`);
+- the services started are the dstack agent and preparation, Docker and its
+  sandbox, time, network and WireGuard checks, and the application's compose.
+
+The SSH keys that the provider's pre-launch script copies from an unmeasured
+file (section 3.15) therefore open nothing: no program in the image reads
+them. What remains is what the application's own compose starts; ours starts
+one container, without privileges, that only reads the dstack socket.
+
+**Every night.** A new job of the nightly workflow downloads the archive,
+checks its SHA-256, compares the registers of every archived quote and checks
+the root file system against its hash.
+
+**Not done.**
+
+- **The image was not rebuilt from its sources.** dstack's script builds it
+  with Yocto inside Docker; this workspace has no Docker service, and the
+  build fetches its sources from sites outside the workspace's network
+  allowlist (yoctoproject.org and kernel.org were refused). What is shown is
+  that our machines ran exactly what dstack published for commit `7f7b276`,
+  not that this commit produces it. The command is in the release:
+  `git checkout 7f7b2762…; cd repro-build && ./repro-build.sh -n`.
+- **RTMR0 was not recomputed.** It covers the ACPI tables that QEMU generates
+  for the machine, which only QEMU itself produces. Running dstack's patched
+  QEMU was not done in this workspace. RTMR0 is equal across the eleven
+  quotes, so every run had the same virtual hardware, but that hardware was
+  not compared with a reference.
+- **The review of the image is a reading, not an audit**: the programs that
+  run were listed and searched, not read line by line.
+
 ## 4. Use cases
 
 The standard is content-agnostic: the token can be anything an ERC-721 can be.
@@ -1859,11 +1932,10 @@ Options studied and set aside:
   deadline, which its signers choose and nothing caps, or until another set
   of attesters is in force (section 3.18). A revocation has no counter.
 - **Hardware attestation.** Three agents were enrolled by attestation, on Base
-  Sepolia, from two machines of one provider (sections 3.13 to 3.15). The
-  base image was not rebuilt from source. The provider's pre-launch script,
-  part of the measured manifest, installs SSH keys from a file dstack does not
-  measure: an agent's key is only as private as the approved base image is
-  closed to SSH, which was not checked (section 3.15).
+  Sepolia, from two machines of one provider (sections 3.13 to 3.15). Their
+  base image is exactly the one dstack published for that version, and it
+  starts no SSH server and no console login (section 3.20). It was not
+  rebuilt from source, and RTMR0, the virtual hardware, was not recomputed.
 - **The attesters can replace the enrollment verifier.** A program can be
   upgraded without changing the account, but the hardware proof binds a
   registry only as long as its attesters keep a verifier that demands it.
@@ -1920,9 +1992,11 @@ Options studied and set aside:
 1. Done on 16 November 2026 (sections 3.13 and 3.14): quotes produced by two
    real dstack machines for our keys, two agents enrolled by attestation, and
    a verifier reading the compose hash from `MRCONFIGID`. The manifest was
-   then rebuilt and the pre-launch script read (section 3.15). Next on that
-   path: a base image rebuilt from dstack's sources and checked for SSH, a
-   pre-launch script of our own, and the same build on two machines at once.
+   then rebuilt and the pre-launch script read (section 3.15). Done on 17
+   November 2026 (section 3.20): the base image checked against the one
+   dstack published, and found closed to SSH. Next on that path: the image
+   rebuilt from dstack's sources on a machine that can, a pre-launch script
+   of our own, and the same build on two machines at once.
 2. Done on 16 November 2026 (section 3.14): x402 payments from an agent
    account on Base Sepolia, through a hosted facilitator, then a budget per
    key (section 3.15). Next: a purchase whose result the agent uses.
