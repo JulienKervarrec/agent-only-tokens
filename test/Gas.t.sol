@@ -5,7 +5,10 @@ import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import {IAgentRegistry} from "../src/IAgentRegistry.sol";
 import {AgentStaking} from "../src/AgentStaking.sol";
 import {AgentReputationBadge} from "../src/AgentReputationBadge.sol";
+import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import {AttestedAgentRegistry} from "../src/AttestedAgentRegistry.sol";
 import {AgentOnlyBase} from "./AgentOnly.t.sol";
+import {TestWallet} from "./ContractAttesters.t.sol";
 
 contract PlainNft is ERC721 {
     constructor() ERC721("Plain", "PLN") {}
@@ -102,6 +105,34 @@ contract GasTest is AgentOnlyBase {
         bytes32 digest = reg.hashAttesters(next, 2, why, FAR);
         reg.setAttesters(next, 2, why, FAR, _attest(A1, A2, digest), _attest(0xB1, 0xB2, digest));
         _measure("16 attesters hand over to a set of three");
+    }
+
+    /// The same decision signed by two keys, then by a key and a wallet whose two owners sign.
+    function test_GasContractAttester() public {
+        bytes32 why = keccak256("code");
+        address venue = address(new PlainNft());
+        reg.setVenue(venue, true, why, FAR, _attest(A1, A2, reg.hashVenue(venue, true, why, FAR)));
+        _measure("17 venue approval by two keys");
+
+        address[] memory owners = new address[](2);
+        (owners[0], owners[1]) = (vm.addr(0xD1), vm.addr(0xD2));
+        TestWallet wallet = new TestWallet(owners, 2);
+        address[] memory members = new address[](2);
+        (members[0], members[1]) = (address(wallet), vm.addr(A1));
+        AttestedAgentRegistry mixed =
+            new AttestedAgentRegistry(members, 2, BOND, TTL, NOTICE, IERC721(address(0)), address(0));
+        bytes32 digest = mixed.hashVenue(venue, true, why, FAR);
+        bytes memory byWallet = abi.encode(address(wallet), _attestPacked(0xD1, 0xD2, wallet.hashFor(digest)));
+        bytes[] memory sigs = new bytes[](2);
+        (sigs[0], sigs[1]) =
+            address(wallet) < vm.addr(A1) ? (byWallet, _sign(A1, digest)) : (_sign(A1, digest), byWallet);
+        mixed.setVenue(venue, true, why, FAR, sigs);
+        _measure("18 venue approval by a key and a two-owner wallet");
+    }
+
+    function _attestPacked(uint256 pkA, uint256 pkB, bytes32 hash) private pure returns (bytes memory) {
+        bytes[] memory two = _attest(pkA, pkB, hash);
+        return bytes.concat(two[0], two[1]);
     }
 
     function test_GasBadge() public {
