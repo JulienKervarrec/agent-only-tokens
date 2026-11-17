@@ -17,3 +17,7 @@ They are our own runs; the full record is in `examples/enclave-agent`.
 Automata's DCAP verifier accepted all four on Base Sepolia, platform level 0.
 In the local tests a stand-in replaces it, as in `../tdx`; `../../fork` runs the
 first, the third and the fourth through the real one.
+
+All four were produced by the production image of dstack OS 0.5.12 exactly as dstack
+published it: `tools/dstack_image.py` recomputes their MRTD, RTMR1 and RTMR2 from
+`dstack-0.5.12.tar.gz` (study, section 3.20).
