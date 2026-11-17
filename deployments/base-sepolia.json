@@ -351,7 +351,7 @@
     {
       "address": "0x6E9b127e0FB218CfD12fE0D45264F7e3D0A58134",
       "name": "AttestedAgentRegistry",
-      "role": "registry with a notice delay of 120 seconds, corrected after the independent review; current source",
+      "role": "registry with a notice delay of 120 seconds, corrected after the independent review; source of version 0.2.0",
       "run": "notice delay and halt, replayed after the independent review, 16 November 2026 (study 3.17)",
       "block": 59720318,
       "codeHash": "0xebd09ce508a994041388b3202431e1260de33aa3b43139ae319e92454dddb559",
@@ -403,6 +403,144 @@
       "run": "notice delay and halt, replayed after the independent review, 16 November 2026 (study 3.17)",
       "block": 59720429,
       "codeHash": "0xebea0199ec407def2aa464df8c0aecc78490b777992bf472b7d576e12c4ebd5a"
+    },
+    {
+      "address": "0xEcDD47fb89fC7514cd37aFFf3E2E97B881Cd8a4e",
+      "name": "AttestedAgentRegistry",
+      "role": "registry with replaceable attesters, as it was before the independent review: the new set did not have to accept (study 2.9)",
+      "run": "attester handover, first run before the independent review, 17 November 2026 (study 2.9)",
+      "block": 59837568,
+      "codeHash": "0xd9f985b286556d0e442cd370b46f6ea63f73f26fea2a27cfa8df18a0b1fbfc10",
+      "source": "b04d301",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0x335A47295230e90117E2D7180d626062E432158e",
+      "name": "AgentAccount (implementation)",
+      "role": "account code that the clones of registry 0xEcDD…8a4e run",
+      "run": "attester handover, first run before the independent review, 17 November 2026 (study 2.9)",
+      "block": 59837568,
+      "codeHash": "0x8ec2b058c3dbb84fee405e6432e857c0e7d5b80b77b6b5a83064dea359f325ce",
+      "source": "1eb3e2a",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0xD0Bf3aB2Ffb355994262F0974c3FA0B1888c4c62",
+      "name": "AgentSwap",
+      "role": "sale venue approved by the first set of attesters and removed by the second",
+      "run": "attester handover, first run before the independent review, 17 November 2026 (study 2.9)",
+      "block": 59837581,
+      "codeHash": "0x172a28eb433bf70bd7a2f7bf4bb0b6c8dcfdf90d808cb152546b235fb1ce5839",
+      "source": "1eb3e2a",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0xf2bb117e6c44892F19e058B97Cfb27c1C42Eec5b",
+      "name": "AgentAccount (clone)",
+      "role": "account of agent 1 of that run, revoked by the second set of attesters",
+      "run": "attester handover, first run before the independent review, 17 November 2026 (study 2.9)",
+      "block": 59837605,
+      "codeHash": "0xcd32c9e43dd78db04391ea34a22d5dbbdebdf47517f5acc1f9e88e51b9901d76"
+    },
+    {
+      "address": "0x96fc59083d2e22D3A6Ff57187F21aB6a0ea312c3",
+      "name": "AgentAccount (clone)",
+      "role": "account of agent 2 of that run",
+      "run": "attester handover, first run before the independent review, 17 November 2026 (study 2.9)",
+      "block": 59838289,
+      "codeHash": "0x669f2d2e5af5484f4f55476b7e98ef9dd5aeaeba58f32f5d0cbec5015151dcb4"
+    },
+    {
+      "address": "0xAcD92D8Bc79342f79b5E4EF89e55c1077284f814",
+      "name": "AttestedAgentRegistry",
+      "role": "registry with replaceable attesters, after the independent review and before signatures named the attester set (study 2.9)",
+      "run": "attester handover, second run after the independent review, 17 November 2026 (study 2.9)",
+      "block": 59859252,
+      "codeHash": "0xbc2623b0ffb3616af535668d510bf4a1e310acec4b8ca683f0de6aaa2014c92e",
+      "source": "dfb13fb",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0xE81A9f143b8930466EFef6eA61cf9A25467a41f7",
+      "name": "AgentAccount (implementation)",
+      "role": "account code that the clones of registry 0xAcD9…f814 run",
+      "run": "attester handover, second run after the independent review, 17 November 2026 (study 2.9)",
+      "block": 59859252,
+      "codeHash": "0x7e5584b97066c7c84c4493f3b9057ac66be6188bc8a645fffe1a0deac41b2ed5",
+      "source": "1eb3e2a",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0xADDE71Ed8cD6421eE19A2F103BDAf38dAa4C2fA8",
+      "name": "AgentSwap",
+      "role": "sale venue approved by the first set of attesters and removed by the second",
+      "run": "attester handover, second run after the independent review, 17 November 2026 (study 2.9)",
+      "block": 59859267,
+      "codeHash": "0x172a28eb433bf70bd7a2f7bf4bb0b6c8dcfdf90d808cb152546b235fb1ce5839",
+      "source": "1eb3e2a",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0x8B95C74e94d4e3F318d2220fADc977685EbfB6d2",
+      "name": "AgentAccount (clone)",
+      "role": "account of agent 1 of that run, revoked by the second set of attesters",
+      "run": "attester handover, second run after the independent review, 17 November 2026 (study 2.9)",
+      "block": 59859292,
+      "codeHash": "0xc3b9b1460f0c38d4e743836f92b08895aaa8bbdacf32bed53290379199a2fdde"
+    },
+    {
+      "address": "0x966B824E6DD0a103F1804c9c3e58Ea45B334a281",
+      "name": "AgentAccount (clone)",
+      "role": "account of agent 2 of that run",
+      "run": "attester handover, second run after the independent review, 17 November 2026 (study 2.9)",
+      "block": 59860019,
+      "codeHash": "0x0ae95ede4374747229c78b88db065e8941c82084c5175ab1566c2ee81f00fedf"
+    },
+    {
+      "address": "0xaD00cF7F3cc559431Ba404993a1B575305378587",
+      "name": "AttestedAgentRegistry",
+      "role": "registry with replaceable attesters and a notice delay of 120 seconds; current source",
+      "run": "attester handover and deadlines, 17 November 2026 (study 3.18)",
+      "block": 59877319,
+      "codeHash": "0x7b9b93a34cbac4390e40030654186e1d676ba8026dc17c6fbee1ebf0b9a48aef",
+      "source": "a3dab7d",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0x36A775e700182b8296FBD6aE37001F9Cefd413F0",
+      "name": "AgentAccount (implementation)",
+      "role": "account code that the clones of registry 0xaD00…8587 run",
+      "run": "attester handover and deadlines, 17 November 2026 (study 3.18)",
+      "block": 59877319,
+      "codeHash": "0x6b8dc3553e69091f53b09579216459b9198f3f5f107fc9a440eb52360f07df3b",
+      "source": "1eb3e2a",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0x42174abC89c90b2Ad9B01b324973E89A465a3854",
+      "name": "AgentSwap",
+      "role": "sale venue approved by the first set of attesters and removed by the second",
+      "run": "attester handover and deadlines, 17 November 2026 (study 3.18)",
+      "block": 59877331,
+      "codeHash": "0x172a28eb433bf70bd7a2f7bf4bb0b6c8dcfdf90d808cb152546b235fb1ce5839",
+      "source": "1eb3e2a",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0x0F4Cf6775d52162fdC146465A05C4dae0e06F2b5",
+      "name": "AgentAccount (clone)",
+      "role": "account of agent 1 of that run, revoked by the second set of attesters",
+      "run": "attester handover and deadlines, 17 November 2026 (study 3.18)",
+      "block": 59877354,
+      "codeHash": "0x6dfed2cb68add10cc7052397d4d95ef451644914ab520449225186e3f5b43617"
+    },
+    {
+      "address": "0xeb4c86319C68F8f865c627b407e6a0E7c64150f7",
+      "name": "AgentAccount (clone)",
+      "role": "account of agent 2 of that run",
+      "run": "attester handover and deadlines, 17 November 2026 (study 3.18)",
+      "block": 59878148,
+      "codeHash": "0xdce16ed76699d86568db144a2bbb587c30066c3608b291a9b40e342b6bdb9994"
     }
   ],
   "external": [

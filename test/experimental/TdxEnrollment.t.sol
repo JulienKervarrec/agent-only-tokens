@@ -275,14 +275,15 @@ contract TdxEnrollmentTest is AgentOnlyBase {
             address(swap),
             true,
             keccak256("code"),
-            _attest(A1, A2, treg.hashVenue(address(swap), true, keccak256("code")))
+            FAR,
+            _attest(A1, A2, treg.hashVenue(address(swap), true, keccak256("code"), FAR))
         );
         assertFalse(treg.isVenue(address(swap)));
         skip(NOTICE);
         assertTrue(treg.isVenue(address(swap)));
 
         // If a quote turns out to be forged, the attesters can still revoke the agent.
-        treg.revoke(7, _attest(A1, A3, treg.hashRevocation(7)));
+        treg.revoke(7, FAR, _attest(A1, A3, treg.hashRevocation(7, FAR)));
         assertFalse(treg.isAgent(account));
     }
 }

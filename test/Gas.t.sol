@@ -96,6 +96,12 @@ contract GasTest is AgentOnlyBase {
         skip(NOTICE);
         _enroll(reg, sponsor, 3, address(0x5555), 0);
         _measure("15 key rotation after an announced verifier took over");
+
+        address[] memory next = new address[](3);
+        (next[0], next[1], next[2]) = (vm.addr(0xB1), vm.addr(0xB2), vm.addr(0xB3));
+        bytes32 digest = reg.hashAttesters(next, 2, why, FAR);
+        reg.setAttesters(next, 2, why, FAR, _attest(A1, A2, digest), _attest(0xB1, 0xB2, digest));
+        _measure("16 attesters hand over to a set of three");
     }
 
     function test_GasBadge() public {

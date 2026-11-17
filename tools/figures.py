@@ -61,7 +61,8 @@ def figures(forge_args):
 
     halmos = "".join(p.read_text() for p in (ROOT / "test" / "halmos").glob("*.sol"))
     out["proofs"] = number(len(re.findall(r"function check_", halmos)))
-    out["proofs.notice"] = number(len(re.findall(r"function check_\w*(?:Notice|Halted)\(", halmos)))
+    out["proofs.notice"] = number(len(re.findall(r"function check_(?:Venue|Verifier|NoEnrollment)\w*\(", halmos)))
+    out["proofs.broken"] = number(len(json.loads((ROOT / "tools" / "broken-registries.json").read_text())))
 
     mutants = subprocess.run([sys.executable, "tools/mutate.py", "--list"], cwd=ROOT, capture_output=True, text=True, check=True)
     total = int(mutants.stdout.split()[-2])
@@ -75,7 +76,7 @@ def figures(forge_args):
     deployed = json.loads((ROOT / "deployments" / "base-sepolia.json").read_text())["contracts"]
     verified = [c["sourcify"] for c in deployed if "sourcify" in c]
     out["deployed"] = number(len(deployed))
-    out["deployed.clones"] = number(len(deployed) - len(verified))
+    out["deployed.clones"] = number(sum(c["name"].endswith("(clone)") for c in deployed))
     out["deployed.verified"] = number(len(verified))
     out["deployed.exact"] = number(verified.count("exact_match"))
     out["deployed.match"] = number(verified.count("match"))

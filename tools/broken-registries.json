@@ -1,0 +1,98 @@
+[
+  {
+    "name": "a halt is skipped once an announced verifier has taken over",
+    "find": "        announcedVerifierAt = 0;",
+    "replace": "        if (block.timestamp < announcedVerifierAt) announcedVerifierAt = 0;",
+    "fails": [
+      "check_NoEnrollmentWhileHalted"
+    ]
+  },
+  {
+    "name": "an enrollment does not read the halt",
+    "find": "        if (halted) revert Halted();\n",
+    "replace": "",
+    "fails": [
+      "check_NoEnrollmentWhileHalted"
+    ]
+  },
+  {
+    "name": "a halt keeps the pending announcement",
+    "find": "        announcedVerifierAt = 0;\n",
+    "replace": "",
+    "fails": [
+      "check_NoEnrollmentWhileHalted"
+    ]
+  },
+  {
+    "name": "the date of a venue is ignored",
+    "find": "        return since != 0 && block.timestamp >= since;",
+    "replace": "        return since != 0;",
+    "fails": [
+      "check_VenueOnlyAfterItsNotice"
+    ]
+  },
+  {
+    "name": "approving a venue again moves its date",
+    "find": "            if (since == 0) since = uint64(block.timestamp) + noticeDelay;",
+    "replace": "            since = uint64(block.timestamp) + noticeDelay;",
+    "fails": [
+      "check_VenueOnlyAfterItsNotice"
+    ]
+  },
+  {
+    "name": "a verifier is replaced at once",
+    "find": "        announcedVerifierAt = uint64(block.timestamp) + noticeDelay;",
+    "replace": "        announcedVerifierAt = uint64(block.timestamp);",
+    "fails": [
+      "check_VerifierOnlyAfterItsNotice"
+    ]
+  },
+  {
+    "name": "a replacement forgets which verifier was in force",
+    "find": "        (_verifier, _halted) = _verifierNow();\n",
+    "replace": "",
+    "fails": [
+      "check_VerifierOnlyAfterItsNotice"
+    ]
+  },
+  {
+    "name": "a new set of attesters decides at once",
+    "find": "        uint64 since = uint64(block.timestamp) + noticeDelay;\n        _sets =",
+    "replace": "        uint64 since = uint64(block.timestamp);\n        _sets =",
+    "fails": [
+      "check_AttestersOnlyAfterTheirNotice"
+    ]
+  },
+  {
+    "name": "an announced set of attesters never takes over",
+    "find": "        if (s.announcedAt != 0 && block.timestamp >= s.announcedAt) return (s.announced, s.announcedThreshold);\n",
+    "replace": "",
+    "fails": [
+      "check_AttestersOnlyAfterTheirNotice"
+    ]
+  },
+  {
+    "name": "a handover forgets which set was in force",
+    "find": "        _sets = AttesterSets(current, needed, next,",
+    "replace": "        _sets = AttesterSets(_sets.current, _sets.threshold, next,",
+    "fails": [
+      "check_AttestersOnlyAfterTheirNotice"
+    ]
+  },
+  {
+    "name": "signatures are checked against the settled set only",
+    "find": "        (uint64 set, uint32 needed) = _attestersNow();\n        _requireSigners(set, needed, digest, sigs);",
+    "replace": "        _requireSigners(_sets.current, _sets.threshold, digest, sigs);",
+    "fails": [
+      "check_AttestersOnlyAfterTheirNotice"
+    ]
+  },
+  {
+    "name": "membership of a set is not checked",
+    "find": "!isAttesterIn[set][signer] || ",
+    "replace": "",
+    "fails": [
+      "check_AttestersOnlyAfterTheirNotice"
+    ]
+  }
+]

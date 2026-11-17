@@ -24,7 +24,9 @@ Foundry v1.5.1 and solc 0.8.28 are what the automated checks use.
    notices. A line that is not a guard is covered only if you add its removal
    to that list: do it for every state update, signed field and event.
 3. **A proof is run against the broken code.** A new or changed symbolic proof
-   must fail when the rule it states is removed from the contract.
+   must fail when the rule it states is removed from the contract: add that
+   broken contract to `tools/broken-registries.json`, which `tools/proofs.py`
+   checks.
 4. **Nothing is claimed without proof.** A figure in the documentation is either
    generated (`tools/figures.py`), a transaction on a public chain, or a source
    that was read.
@@ -43,9 +45,11 @@ Foundry v1.5.1 and solc 0.8.28 are what the automated checks use.
 | `halmos --match-contract "AgentOnlyProps\|RegistryProps"` | Symbolic proofs (Halmos 0.3.3) |
 | `python3 tools/slither_check.py slither.json` | Slither report against `tools/slither-accepted.json` (see the workflow for the Slither command) |
 | `python3 tools/mutate.py` | Mutation testing; about half an hour |
+| `python3 tools/proofs.py` | Each proof of the registry fails on the registries broken on purpose; a few minutes |
 
 The first seven run on every push and pull request. The fork tests against Base
-Sepolia run every night, mutation testing every week.
+Sepolia run every night, mutation testing and the check of the proofs against
+broken registries every week.
 
 ## License
 

@@ -74,7 +74,7 @@ contract SepoliaDemo is Script {
 
     function _enroll(AttestedAgentRegistry reg, uint256 id, address key, address sponsor) internal returns (AgentAccount) {
         bytes32 evidence = keccak256(abi.encode("sepolia demo agent", id));
-        bytes[] memory sigs = _sorted2(reg.hashEnrollment(id, key, evidence, sponsor, 0, uint64(block.timestamp + 1 hours)));
+        bytes[] memory sigs = _sorted2(reg.hashAttestedEnrollment(id, key, evidence, sponsor, 0, uint64(block.timestamp + 1 hours)));
         reg.enroll{value: BOND}(id, key, evidence, uint64(block.timestamp + 1 hours), sigs);
         return AgentAccount(payable(reg.accountOf(id)));
     }
@@ -101,7 +101,7 @@ contract SepoliaDemo is Script {
         AgentSwap swap = new AgentSwap();
         TestUSD usd = new TestUSD();
 
-        reg.setVenue(address(swap), true, keccak256("AgentSwap"), _sorted2(reg.hashVenue(address(swap), true, keccak256("AgentSwap"))));
+        reg.setVenue(address(swap), true, keccak256("AgentSwap"), uint64(block.timestamp + 1 hours), _sorted2(reg.hashVenue(address(swap), true, keccak256("AgentSwap"), uint64(block.timestamp + 1 hours))));
         AgentAccount acc1 = _enroll(reg, 1, vm.addr(k1), me);
         AgentAccount acc2 = _enroll(reg, 2, vm.addr(k2), me);
         usd.mint(address(acc2), 100e6);

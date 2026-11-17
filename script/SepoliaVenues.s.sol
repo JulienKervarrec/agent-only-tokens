@@ -55,6 +55,11 @@ contract SepoliaVenues is AgentScript {
     AgentAccount constant ACC1 = AgentAccount(payable(0x90c55bB78C4f13822dA7Bb6bfD6777e471602FeA));
     AgentAccount constant ACC2 = AgentAccount(payable(0xF392e59B2bFef511D1d6AA18e0eBB00948d5c70c));
 
+    function _approve(uint256 a1, uint256 a2, address venue, bytes32 why) internal {
+        uint64 deadline = uint64(block.timestamp + 1 hours);
+        REG.setVenue(venue, true, why, deadline, _sigs(a1, a2, REG.hashVenue(venue, true, why, deadline)));
+    }
+
     function run() external {
         uint256 deployer = vm.envUint("DEPLOYER_KEY");
         uint256 a1 = vm.envUint("ATTESTER1");
@@ -70,8 +75,8 @@ contract SepoliaVenues is AgentScript {
         ClassicNFT classic = new ClassicNFT();
         AgentWrapped721 wrapper =
             new AgentWrapped721(IERC721(address(classic)), IAgentRegistry(address(REG)), true, "Agent-Only Classic", "AO-CLS");
-        REG.setVenue(address(loan), true, keccak256("AgentLoan"), _sigs(a1, a2, REG.hashVenue(address(loan), true, keccak256("AgentLoan"))));
-        REG.setVenue(address(staking), true, keccak256("AgentStaking"), _sigs(a1, a2, REG.hashVenue(address(staking), true, keccak256("AgentStaking"))));
+        _approve(a1, a2, address(loan), keccak256("AgentLoan"));
+        _approve(a1, a2, address(staking), keccak256("AgentStaking"));
         USD.mint(address(ACC1), 100e6);
         USD.mint(address(ACC2), 100e6);
 
