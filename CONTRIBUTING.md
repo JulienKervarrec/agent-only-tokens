@@ -46,6 +46,7 @@ Foundry v1.5.1 and solc 0.8.28 are what the automated checks use.
 | `python3 tools/slither_check.py slither.json` | Slither report against `tools/slither-accepted.json` (see the workflow for the Slither command) |
 | `python3 tools/mutate.py` | Mutation testing; about half an hour |
 | `python3 tools/proofs.py` | Each proof of the registry fails on the registries broken on purpose; a few minutes |
+| `python3 tools/dstack_image.py <image> <quotes>` | MRTD, RTMR1 and RTMR2 of a dstack image against quotes (see the nightly workflow) |
 
 The first seven run on every push and pull request. The fork tests against Base
 Sepolia run every night, mutation testing and the check of the proofs against
