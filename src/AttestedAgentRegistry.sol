@@ -14,7 +14,8 @@ import {AgentAccount, IAgentKeys} from "./AgentAccount.sol";
 /// @dev Attesters check off-chain that the agent runs in an attested environment with approved
 /// code, then sign. The contract only verifies their signatures. The hash of the evidence
 /// is published, so that anyone can re-check it and ask for a revocation.
-/// Attesters, threshold, bond, key lifetime and notice delay are fixed at deployment.
+/// Bond, key lifetime and notice delay are fixed at deployment. The attesters can hand over
+/// to another set of attesters, with its own threshold.
 /// If an ERC-8004 identity registry is provided, the agent id is the ERC-8004 one and the
 /// sponsor must own it.
 /// If an enrollment verifier is provided, it replaces the attesters' signatures for
@@ -22,9 +23,10 @@ import {AgentAccount, IAgentKeys} from "./AgentAccount.sol";
 /// a proof itself, for example a hardware attestation. Attesters still decide on venues and
 /// revocations, and they can replace the verifier: that is how the agents' program is upgraded
 /// without changing their ids, accounts or tokens.
-/// A decision that widens what the registry accepts (a venue, a verifier) is announced and
-/// takes effect after `noticeDelay`. A decision that narrows it (removing a venue, halting
-/// enrollments, revoking an agent) is immediate.
+/// A decision that widens what the registry accepts (a venue, a verifier) or changes who
+/// decides (the attesters) is announced and takes effect after `noticeDelay`. A decision that
+/// narrows it (removing a venue, halting enrollments, revoking an agent) is immediate.
+/// Every decision of the attesters carries a deadline: signatures not sent by then are void.
 contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
     struct Agent {
         address key;
@@ -40,14 +42,25 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
     bytes32 private constant ENROLL_TYPEHASH = keccak256(
         "Enrollment(uint256 agentId,address sessionKey,bytes32 evidenceHash,address sponsor,uint256 nonce,uint64 deadline)"
     );
-    bytes32 private constant REVOKE_TYPEHASH = keccak256("Revocation(uint256 agentId)");
+    bytes32 private constant REVOKE_TYPEHASH = keccak256("Revocation(uint256 agentId,uint64 deadline)");
     bytes32 private constant VENUE_TYPEHASH =
-        keccak256("Venue(address venue,bool approved,bytes32 evidenceHash,uint256 nonce)");
+        keccak256("Venue(address venue,bool approved,bytes32 evidenceHash,uint256 nonce,uint64 deadline)");
     bytes32 private constant VERIFIER_TYPEHASH =
         keccak256("Verifier(address verifier,bytes32 evidenceHash,uint256 nonce,uint64 deadline)");
     bytes32 private constant HALT_TYPEHASH = keccak256("Halt(bytes32 evidenceHash,uint256 nonce,uint64 deadline)");
+    bytes32 private constant ATTESTERS_TYPEHASH = keccak256(
+        "Attesters(address[] attesters,uint256 threshold,bytes32 evidenceHash,uint256 nonce,uint64 deadline)"
+    );
 
-    uint256 public immutable threshold;
+    /// Attester sets are numbered from 1. One storage slot: a signature check reads it once.
+    struct AttesterSets {
+        uint64 current; // in force until the announced one takes over
+        uint32 threshold;
+        uint64 announced; // 0: none was ever announced
+        uint32 announcedThreshold;
+        uint64 announcedAt; // 0: nothing announced; in the past: it has taken over
+    }
+
     uint256 public immutable bond; // anti-Sybil bond, in wei
     /// After retiring, the bond stays revocable this long before the sponsor can take it back,
     /// so a sponsor cannot escape a pending revocation by retiring first.
@@ -63,7 +76,9 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
     uint256 public verifierNonce; // one signature set = one replacement; a halt voids the unused ones
     uint256 public haltNonce; // one signature set = one halt
 
-    mapping(address => bool) public isAttester;
+    AttesterSets private _sets;
+    mapping(uint256 => mapping(address => bool)) public isAttesterIn; // set number => member
+    uint256 public attestersNonce; // one signature set = one handover
     mapping(uint256 => Agent) private _agents;
     mapping(uint256 => address) public accountOf;
     mapping(address => uint256) public agentIdOf;
@@ -79,6 +94,7 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
     event VenueSet(address indexed venue, bool approved, bytes32 evidenceHash, uint64 since);
     event EnrollmentVerifierSet(address indexed verifier, bytes32 evidenceHash, uint64 since);
     event EnrollmentsHalted(address indexed verifier, bytes32 evidenceHash);
+    event AttestersSet(uint256 indexed set, address[] attesters, uint256 threshold, bytes32 evidenceHash, uint64 since);
 
     error BadConfig();
     error BadInput();
@@ -104,13 +120,11 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
         address enrollmentVerifier_
     ) EIP712("AttestedAgentRegistry", "1") {
         // Keys must outlive the notice delay, or a halt could not be lifted before every key expires.
-        if (threshold_ == 0 || threshold_ > attesters.length || noticeDelay_ >= keyTtl_) revert BadConfig();
+        if (noticeDelay_ >= keyTtl_) revert BadConfig();
         if (enrollmentVerifier_ != address(0) && enrollmentVerifier_.code.length == 0) revert BadConfig();
-        for (uint256 i; i < attesters.length; ++i) {
-            if (attesters[i] == address(0) || isAttester[attesters[i]]) revert BadConfig();
-            isAttester[attesters[i]] = true;
-        }
-        threshold = threshold_;
+        _writeSet(1, attesters, threshold_);
+        (_sets.current, _sets.threshold) = (1, uint32(threshold_));
+        emit AttestersSet(1, attesters, threshold_, bytes32(0), uint64(block.timestamp));
         bond = bond_;
         keyTtl = keyTtl_;
         noticeDelay = noticeDelay_;
@@ -148,6 +162,27 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
         (, halted) = _verifierNow();
     }
 
+    /// Number of the attester set in force.
+    function attesterSet() external view returns (uint256 set) {
+        (set,) = _attestersNow();
+    }
+
+    /// Signatures needed from the set in force.
+    function threshold() external view returns (uint256 needed) {
+        (, needed) = _attestersNow();
+    }
+
+    function isAttester(address account) external view returns (bool) {
+        (uint64 set,) = _attestersNow();
+        return isAttesterIn[set][account];
+    }
+
+    /// The last set announced, its threshold and the time it takes over. `since` is 0 when
+    /// nothing is announced, and in the past once that set is the one in force.
+    function announcedAttesters() external view returns (uint256 set, uint256 needed, uint64 since) {
+        return (_sets.announced, _sets.announcedThreshold, _sets.announcedAt);
+    }
+
     function sponsorOf(uint256 agentId) external view returns (address) {
         return _agents[agentId].sponsor;
     }
@@ -169,8 +204,8 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
         );
     }
 
-    function hashRevocation(uint256 agentId) public view returns (bytes32) {
-        return _hashTypedDataV4(keccak256(abi.encode(REVOKE_TYPEHASH, agentId)));
+    function hashRevocation(uint256 agentId, uint64 deadline) public view returns (bytes32) {
+        return _hashTypedDataV4(keccak256(abi.encode(REVOKE_TYPEHASH, agentId, deadline)));
     }
 
     // ------------------------------------------------------------ state changes
@@ -220,9 +255,12 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
     /// Attesters approve or remove a venue contract, after checking its code. An approval takes
     /// effect after `noticeDelay`; a removal is immediate, and also cancels a pending approval.
     /// The venue must already hold its code: the notice is there for that code to be read.
-    function setVenue(address venue, bool approved, bytes32 evidenceHash, bytes[] calldata sigs) external {
+    function setVenue(address venue, bool approved, bytes32 evidenceHash, uint64 deadline, bytes[] calldata sigs)
+        external
+    {
+        if (deadline < block.timestamp) revert Expired();
         if (approved && venue.code.length == 0) revert BadInput();
-        _requireAttesters(hashVenue(venue, approved, evidenceHash), sigs);
+        _requireAttesters(hashVenue(venue, approved, evidenceHash, deadline), sigs);
         venueNonce[venue] += 1;
         uint64 since;
         if (approved) {
@@ -235,8 +273,14 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
 
     /// Digest for the next decision on `venue`. It changes after each decision, so that
     /// an old approval cannot be replayed once the venue has been removed.
-    function hashVenue(address venue, bool approved, bytes32 evidenceHash) public view returns (bytes32) {
-        return _hashTypedDataV4(keccak256(abi.encode(VENUE_TYPEHASH, venue, approved, evidenceHash, venueNonce[venue])));
+    function hashVenue(address venue, bool approved, bytes32 evidenceHash, uint64 deadline)
+        public
+        view
+        returns (bytes32)
+    {
+        return _hashTypedDataV4(
+            keccak256(abi.encode(VENUE_TYPEHASH, venue, approved, evidenceHash, venueNonce[venue], deadline))
+        );
     }
 
     /// Attesters replace the enrollment verifier, after checking what the new one accepts: for
@@ -289,6 +333,50 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
         return _hashTypedDataV4(keccak256(abi.encode(HALT_TYPEHASH, evidenceHash, haltNonce, deadline)));
     }
 
+    /// The attesters in force hand over to a new set of attesters, with its own threshold: to
+    /// replace a member, to add or remove one, or to change the threshold. The new set takes
+    /// over after `noticeDelay`; until then the set in force keeps deciding, and the new one
+    /// decides nothing. A new announcement replaces the pending one: announcing the set in
+    /// force again cancels it. What the previous sets decided stays decided. Signatures they
+    /// gave and never sent count only for the signers who are members of the set in force.
+    function setAttesters(
+        address[] calldata attesters,
+        uint256 threshold_,
+        bytes32 evidenceHash,
+        uint64 deadline,
+        bytes[] calldata sigs
+    ) external {
+        if (deadline < block.timestamp) revert Expired();
+        _requireAttesters(hashAttesters(attesters, threshold_, evidenceHash, deadline), sigs);
+        attestersNonce += 1;
+        (uint64 current, uint32 needed) = _attestersNow();
+        uint64 next = (_sets.announced > current ? _sets.announced : current) + 1;
+        _writeSet(next, attesters, threshold_);
+        uint64 since = uint64(block.timestamp) + noticeDelay;
+        _sets = AttesterSets(current, needed, next, uint32(threshold_), since);
+        emit AttestersSet(next, attesters, threshold_, evidenceHash, since);
+    }
+
+    /// Digest for the next handover. It changes after each handover.
+    function hashAttesters(address[] calldata attesters, uint256 threshold_, bytes32 evidenceHash, uint64 deadline)
+        public
+        view
+        returns (bytes32)
+    {
+        return _hashTypedDataV4(
+            keccak256(
+                abi.encode(
+                    ATTESTERS_TYPEHASH,
+                    keccak256(abi.encodePacked(attesters)),
+                    threshold_,
+                    evidenceHash,
+                    attestersNonce,
+                    deadline
+                )
+            )
+        );
+    }
+
     /// The sponsor can freeze or unfreeze its agent.
     function setFrozen(uint256 agentId, bool frozen) external {
         if (_agents[agentId].sponsor != msg.sender) revert NotSponsor();
@@ -299,11 +387,12 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
     /// Attesters revoke an agent whose evidence turns out to be false. The bond is forfeited:
     /// it stays locked in this contract for good.
     /// A retired agent can still be revoked until its sponsor has taken the bond back.
-    function revoke(uint256 agentId, bytes[] calldata sigs) external {
+    function revoke(uint256 agentId, uint64 deadline, bytes[] calldata sigs) external {
+        if (deadline < block.timestamp) revert Expired();
         Agent storage a = _agents[agentId];
         if (a.sponsor == address(0)) revert Closed();
         if (a.closed && (a.retiredAt == 0 || a.bondHeld == 0)) revert Closed();
-        _requireAttesters(hashRevocation(agentId), sigs);
+        _requireAttesters(hashRevocation(agentId, deadline), sigs);
         a.closed = true;
         a.bondHeld = 0;
         emit Revoked(agentId);
@@ -338,13 +427,30 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
         return (_verifier, _halted);
     }
 
+    function _attestersNow() private view returns (uint64 set, uint32 needed) {
+        AttesterSets memory s = _sets;
+        if (s.announcedAt != 0 && block.timestamp >= s.announcedAt) return (s.announced, s.announcedThreshold);
+        return (s.current, s.threshold);
+    }
+
+    function _writeSet(uint64 set, address[] memory attesters, uint256 threshold_) private {
+        if (threshold_ == 0 || threshold_ > attesters.length) revert BadConfig();
+        for (uint256 i; i < attesters.length; ++i) {
+            if (attesters[i] == address(0) || isAttesterIn[set][attesters[i]]) revert BadConfig();
+            isAttesterIn[set][attesters[i]] = true;
+        }
+    }
+
     function _requireAttesters(bytes32 digest, bytes[] calldata sigs) private view {
-        if (sigs.length < threshold) revert NotEnoughAttesters();
+        (uint64 set, uint32 needed) = _attestersNow();
+        if (sigs.length < needed) revert NotEnoughAttesters();
         address last;
         for (uint256 i; i < sigs.length; ++i) {
             (address signer, ECDSA.RecoverError err,) = ECDSA.tryRecover(digest, sigs[i]);
             // Strictly increasing order: prevents counting the same attester twice.
-            if (err != ECDSA.RecoverError.NoError || !isAttester[signer] || signer <= last) revert BadAttester();
+            if (err != ECDSA.RecoverError.NoError || !isAttesterIn[set][signer] || signer <= last) {
+                revert BadAttester();
+            }
             last = signer;
         }
     }
