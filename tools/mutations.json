@@ -958,5 +958,23 @@
     "name": "the compact form of a key's signature is accepted",
     "find": "            else (signer, proof) = abi.decode(sig, (address, bytes));",
     "replace": "            else if (sig.length == 64) { (signer,,) = ECDSA.tryRecover(digest, bytes32(sig[:32]), bytes32(sig[32:])); byKey = true; }\n            else (signer, proof) = abi.decode(sig, (address, bytes));"
+  },
+  {
+    "file": "src/experimental/DstackConfigIdVerifier.sol",
+    "name": "format 3 refused",
+    "find": "if (format == 0 || format > 3) revert BadConfigId();",
+    "replace": "if (format == 0 || format > 2) revert BadConfigId();"
+  },
+  {
+    "file": "src/experimental/DstackConfigIdVerifier.sol",
+    "name": "a format dstack does not define is accepted",
+    "find": "if (format == 0 || format > 3) revert BadConfigId();",
+    "replace": "if (format == 0 || format > 4) revert BadConfigId();"
+  },
+  {
+    "file": "src/experimental/DstackConfigIdVerifier.sol",
+    "name": "the compose hash is read from any format",
+    "find": "if (output[BODY + MR_CONFIG_ID] != 0x01) revert BadConfigId();\n        return",
+    "replace": "return"
   }
 ]
