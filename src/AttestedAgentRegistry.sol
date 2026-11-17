@@ -26,7 +26,8 @@ import {AgentAccount, IAgentKeys} from "./AgentAccount.sol";
 /// A decision that widens what the registry accepts (a venue, a verifier) or changes who
 /// decides (the attesters) is announced and takes effect after `noticeDelay`. A decision that
 /// narrows it (removing a venue, halting enrollments, revoking an agent) is immediate.
-/// Every decision of the attesters carries a deadline: signatures not sent by then are void.
+/// Every decision of the attesters carries a deadline chosen by its signers: signatures not
+/// sent by then are void.
 contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
     struct Agent {
         address key;
@@ -337,21 +338,28 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
     /// replace a member, to add or remove one, or to change the threshold. The new set takes
     /// over after `noticeDelay`; until then the set in force keeps deciding, and the new one
     /// decides nothing. A new announcement replaces the pending one: announcing the set in
-    /// force again cancels it. What the previous sets decided stays decided. Signatures they
-    /// gave and never sent count only for the signers who are members of the set in force.
+    /// force again cancels it. What the previous sets decided stays decided.
+    /// `sigs`: signatures of the set in force. `accepted`: signatures of the same digest by
+    /// enough members of the new set to reach its threshold, so that a registry is not handed
+    /// by mistake to keys that nobody holds. Both sorted by increasing address.
+    /// A signature given before a handover and never sent is not voided by it: it counts
+    /// again whenever its signer is a member of the set in force, until its deadline.
     function setAttesters(
         address[] calldata attesters,
         uint256 threshold_,
         bytes32 evidenceHash,
         uint64 deadline,
-        bytes[] calldata sigs
+        bytes[] calldata sigs,
+        bytes[] calldata accepted
     ) external {
         if (deadline < block.timestamp) revert Expired();
-        _requireAttesters(hashAttesters(attesters, threshold_, evidenceHash, deadline), sigs);
-        attestersNonce += 1;
+        bytes32 digest = hashAttesters(attesters, threshold_, evidenceHash, deadline);
         (uint64 current, uint32 needed) = _attestersNow();
+        _requireSigners(current, needed, digest, sigs);
+        attestersNonce += 1;
         uint64 next = (_sets.announced > current ? _sets.announced : current) + 1;
         _writeSet(next, attesters, threshold_);
+        _requireSigners(next, threshold_, digest, accepted);
         uint64 since = uint64(block.timestamp) + noticeDelay;
         _sets = AttesterSets(current, needed, next, uint32(threshold_), since);
         emit AttestersSet(next, attesters, threshold_, evidenceHash, since);
@@ -443,6 +451,11 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
 
     function _requireAttesters(bytes32 digest, bytes[] calldata sigs) private view {
         (uint64 set, uint32 needed) = _attestersNow();
+        _requireSigners(set, needed, digest, sigs);
+    }
+
+    /// At least `needed` signatures of `digest`, each by a member of `set`.
+    function _requireSigners(uint64 set, uint256 needed, bytes32 digest, bytes[] calldata sigs) private view {
         if (sigs.length < needed) revert NotEnoughAttesters();
         address last;
         for (uint256 i; i < sigs.length; ++i) {
