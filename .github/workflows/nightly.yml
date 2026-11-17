@@ -31,6 +31,9 @@ jobs:
           FOUNDRY_EVM_VERSION: osaka
       - name: Code at every recorded address
         run: python3 tools/deployments.py --rpc "$BASE_SEPOLIA_RPC"
+      # Intel's data on chain expires about monthly; fails 3 days before a quote would be refused.
+      - name: Intel's data behind the DCAP verifier
+        run: python3 tools/collateral.py --rpc "$BASE_SEPOLIA_RPC" --warn-days 3
 
   image:
     name: dstack image against our quotes
