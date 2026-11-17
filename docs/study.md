@@ -349,11 +349,11 @@ tool, `tools/mutate.py`, which builds the list from the code:
 - every `if (...) revert` guard under `src/` is disabled in turn, and for a
   guard written `a || b` each alternative is dropped in turn;
 - every unconditional revert is removed in turn;
-- the <!--f:mutants.listed-->160<!--/f--> changes written in `tools/mutations.json` are applied in turn: a
+- the <!--f:mutants.listed-->163<!--/f--> changes written in `tools/mutations.json` are applied in turn: a
   state update dropped, a field left out of a signed digest, a comparison
   weakened, an event removed.
 
-That makes <!--f:mutants-->295<!--/f--> mutants. A mutant the test suite does not catch fails the
+That makes <!--f:mutants-->300<!--/f--> mutants. A mutant the test suite does not catch fails the
 tool, unless it is listed with a reason in `tools/mutations-accepted.json`.
 
 **First run: 63 of the 212 mutants went unnoticed.** Sections 2.4 to 2.6 say
@@ -549,7 +549,7 @@ The token asks the registry only two questions: `isAgent(address)` and
 | `TdxEnrollmentVerifier` | Enrollment by Intel TDX attestation, for images measured the same for every instance | <!--f:lines.TdxEnrollmentVerifier-->41<!--/f--> |
 | `DstackEnrollmentVerifier` | Enrollment of agents on dstack: replays the RTMR3 event log, code = base image + compose hash (`src/experimental`) | <!--f:lines.DstackEnrollmentVerifier-->138<!--/f--> |
 | `Sha384` | SHA-384 for replaying TDX registers (no EVM precompile) | <!--f:lines.Sha384-->92<!--/f--> |
-| `DstackConfigIdVerifier` | Enrollment of agents on dstack from the quote alone: the compose hash is read in `MRCONFIGID` (`src/experimental`, section 3.14) | <!--f:lines.DstackConfigIdVerifier-->58<!--/f--> |
+| `DstackConfigIdVerifier` | Enrollment of agents on dstack from the quote alone: the compose hash is read in `MRCONFIGID` (`src/experimental`, section 3.14) | <!--f:lines.DstackConfigIdVerifier-->64<!--/f--> |
 | `AgentSwap` | Fixed-price sale between agents; events announce each listing and sale | <!--f:lines.AgentSwap-->64<!--/f--> |
 | `AgentLoan` | Collateralised loan between agents; repayments wait in the venue for the lender; events announce each offer and each step | <!--f:lines.AgentLoan-->116<!--/f--> |
 | `AgentStaking` | Staking for ERC-20 rewards, Synthetix-style accounting, one NFT = one unit | <!--f:lines.AgentStaking-->130<!--/f--> |
@@ -559,7 +559,7 @@ The token asks the registry only two questions: `isAgent(address)` and
 
 ### 3.3 What the tests establish
 
-<!--f:tests-->207<!--/f--> tests on a local simulated EVM, <!--f:tests.fuzz-->5<!--/f--> of them fuzzed and one a
+<!--f:tests-->208<!--/f--> tests on a local simulated EVM, <!--f:tests.fuzz-->5<!--/f--> of them fuzzed and one a
 stateful invariant test, plus <!--f:proofs-->8<!--/f--> properties proved symbolically
 (sections 2.5 and 3.17). <!--f:tests.fork-->5<!--/f--> more tests run only on a fork of Base Sepolia
 (sections 3.12 and 3.19) and are reported as skipped otherwise.
@@ -580,7 +580,7 @@ stateful invariant test, plus <!--f:proofs-->8<!--/f--> properties proved symbol
 | 128 runs of 100 random actions by two agents, a human and an unapproved contract | After every action, no token is held by or approved for anything but an agent account or an approved venue |
 | Several calls in one batch, direct or relayed | All or nothing; a human cannot batch for the agent |
 | The five attacks found by the first review and the weaknesses found by the second (sections 2.3 and 2.4) | Each one is now rejected |
-| <!--f:mutants-->295<!--/f--> mutants built from the code: every guard disabled, every listed change applied (mutation testing, section 2.7) | Each one is caught by the suite, or is one of the <!--f:mutants.accepted-->1<!--/f--> that cannot change behaviour |
+| <!--f:mutants-->300<!--/f--> mutants built from the code: every guard disabled, every listed change applied (mutation testing, section 2.7) | Each one is caught by the suite, or is one of the <!--f:mutants.accepted-->1<!--/f--> that cannot change behaviour |
 | A venue is approved, or the enrollment verifier replaced (section 3.17) | Nothing changes before the notice delay has passed; removing the venue or announcing again cancels. An address without code is refused |
 | The attesters halt enrollments (section 3.17) | No new agent and no new key at once; agents keep their current key; enrollments resume one notice delay after a verifier is announced |
 | The attesters replace the enrollment verifier to accept a new program (section 3.16) | The agent keeps its id, account, tokens and current key; its next key must come from the new program; one attester alone, another verifier or a replayed decision is refused |
@@ -873,8 +873,9 @@ What is not established:
   Approving a base image means trusting that build of dstack.
 - **The key provider is not checked.** dstack also logs a `key-provider` event
   in RTMR3, and its guide tells a verifier to compare it with what it expects.
-  This verifier does not, and it does not see the environment variables given
-  to the application either. Whoever deploys the machine chooses both. Approved
+  This verifier does not (the verifier of section 3.14 can, through formats 2
+  and 3 of `MRCONFIGID`, section 3.22), and it does not see the environment
+  variables given to the application either. Whoever deploys the machine chooses both. Approved
   code must therefore keep its session key in memory only: never on disk, never
   derived from the key provider, never taken from the environment.
 - **Cost.** Automata states about 4 to 5 million gas for a direct verification
@@ -1086,11 +1087,12 @@ identity in the quote itself.
   RTMR2, compared with a list fixed at deployment. That hash identifies the
   base image and the application together.
 - **What it refuses on purpose.** An unset `MRCONFIGID` (all zeros), which
-  dstack tolerates, and formats 2 and 3, which bind more than the compose hash.
+  dstack tolerates. It also refused formats 2 and 3 until section 3.22,
+  which accepts them.
 - **What it does not read.** RTMR3, hence neither the instance id nor the
   key-provider event. The remark of section 3.11 on the key provider applies
   unchanged.
-- **Cost.** 68,064 gas against 1,111,564 for the event-log route, measured
+- **Cost.** 68,064 gas (68,086 since section 3.22) against 1,111,564 for the event-log route, measured
   locally without the DCAP verification. On Base Sepolia, DCAP verification
   included: 3,719,444 gas against 4,777,969.
 - **Tests.** Thirteen, on four real quotes from our machines; removing any of
@@ -1872,6 +1874,59 @@ machine was then deleted: nothing in the following steps depends on it, since
 the verifier reads neither the application id nor the instance id, and the
 account holds nothing.
 
+### 3.22 The other formats of `MRCONFIGID`
+
+Decided on 17 November 2026, step 1.6 of the plan. The verifier of section
+3.14 accepted format 1 only, the compose hash. dstack defines two more.
+
+**What the formats are**, read in dstack's source: release v0.5.12 (commit
+`43f69f4`), which our machines ran, and the main branch of 17 November 2026
+(commit `0e75b44`).
+
+| Format | Content after the format byte | Produced by |
+| --- | --- | --- |
+| 1 | The compose hash | Every dstack host that sets the field and pins no key provider. Phala Cloud, in all our runs |
+| 2 | keccak-256 of the compose hash, the application id, the key-provider kind and its id (for a KMS, its public key) | Hosts of version 0.5, when the manifest pins a key provider. The current host no longer writes it on TDX |
+| 3 | SHA-256, under a domain tag, of a JSON document that always holds the compose hash and the key-provider kind, and may pin the application id, the key provider's id, the instance id, the GPU policy and the init scripts | The current host, when the manifest pins a key provider. Not understood by OS 0.5.12, which refuses to boot on it |
+
+In every format the OS recomputes the value from what it loaded and refuses to
+boot when it differs; an all-zero field is accepted without any check, and
+any other first byte stops the boot. Every format binds the compose hash.
+
+**The decision: accept formats 1, 2 and 3; still refuse an unset field and
+any other format.** The verifier hashes the whole field, format byte
+included, with the boot measurements, and accepts only a hash on its list. A
+format can therefore never let through a program the attesters did not
+approve: what they approve is one exact base image and one exact field. What
+formats 2 and 3 add is the key provider: a program that takes a secret from
+its KMS can now be approved together with that KMS, which the remark of
+section 3.11 left to the program. The cost: such an identity also depends on
+the application id, and in format 3 on the instance id unless it is left out,
+so it must be computed for each deployment rather than once per build. Our own
+program keeps its key in memory and does not need it; format 1 stays its
+identity. One line of the contract changed, and `composeHashOf` now answers
+only for format 1, the only one that carries the compose hash in clear.
+
+**Tests.**
+
+| Check | Result |
+| --- | --- |
+| The real quotes of our machines, format 1, through Automata's verifier on a copy of Base Sepolia | Accepted, as before (`test/fork`) |
+| Formats 2 and 3 built from the values of the machine of section 3.21 (compose hash, application id, KMS key and instance id read in its RTMR3 events) | Each accepted by a verifier that approves it, refused by one that approves another form of the same machine |
+| An unset field, formats 0, 4, 128 and 255, each approved | Refused |
+| `composeHashOf` on formats 2 and 3 | Refused |
+| Mutations of the new line, including "format 3 refused" and "format 4 accepted" | 9 of 9 caught |
+
+**Not done.**
+
+- **No real quote in format 2 or 3.** Phala Cloud writes format 1, and none
+  appears in dstack's own test files. The checks above change the field of a
+  real quote; the quote's signature no longer matches, which the stand-in of
+  the local tests does not check.
+- **The formulas were read, not run.** Running dstack's own Rust code to
+  compute the two values was refused by the workspace. The document of format
+  3 follows the one dstack's own test expects, byte for byte in its shape.
+
 ## 4. Use cases
 
 The standard is content-agnostic: the token can be anything an ERC-721 can be.
@@ -1996,9 +2051,11 @@ Options studied and set aside:
   that cannot repay loses the token it pledged. Enrollments that attesters
   signed before a halt work again once it is lifted in favour of signed
   enrollments, until their deadline, if their signers are still attesters.
-- **dstack key provider.** The dstack verifier checks the code, not the
-  `key-provider` event nor the application's environment variables. Approved
-  code must keep its session key in memory only (section 3.11).
+- **dstack key provider.** The dstack verifiers check the code, not the
+  application's environment variables, and the key provider only when the
+  approved `MRCONFIGID` is in format 2 or 3 (section 3.22), which Phala Cloud
+  does not write. Approved code must keep its session key in memory only
+  (section 3.11).
 - **Loan currencies that take a fee on transfers** are not supported: the
   venue would owe lenders more than it holds.
 - **The standard protects the NFT, not what it yields.** Tokens withdrawn from
@@ -2044,8 +2101,10 @@ Options studied and set aside:
    then rebuilt and the pre-launch script read (section 3.15). Done on 17
    November 2026 (section 3.20): the base image checked against the one
    dstack published, and found closed to SSH; then a pre-launch script of
-   our own (section 3.21). Next on that path: the image rebuilt from dstack's
-   sources on a machine that can, and the same build on two machines at once.
+   our own (section 3.21), and the verifier accepting the other formats of
+   `MRCONFIGID`, which can bind the key provider (section 3.22). Next on that
+   path: the image rebuilt from dstack's sources on a machine that can, and
+   the same build on two machines at once.
 2. Done on 16 November 2026 (section 3.14): x402 payments from an agent
    account on Base Sepolia, through a hosted facilitator, then a budget per
    key (section 3.15). Next: a purchase whose result the agent uses.
@@ -2108,6 +2167,7 @@ unless stated otherwise.
 | dstack writes the compose hash into `MRCONFIGID` (format `01`) and its OS refuses to boot when the field does not match the manifest; an all-zero field is tolerated | Read in the source at commit `350a0a7` on 16 November 2026. The field's content was confirmed on the quotes of two production machines; the refusal to boot was not provoked | [config_id_verifier.rs](https://github.com/Dstack-TEE/dstack/blob/350a0a73ffdb6041bda69118f13d81591870b565/dstack/dstack-util/src/system_setup/config_id_verifier.rs) |
 | The pre-launch script our machines ran is the public one, version 0.0.21 | Confirmed on 16 November 2026: same SHA-256 (`c452d712…0765`) as the file at commit `3811c90`, and the manifest rebuilt with it gives the four compose hashes measured | [prelaunch.sh](https://github.com/Dstack-TEE/dstack-examples/blob/3811c903df9643b68d5510b0a63828384ab2c1c3/phala-cloud-prelaunch-script/prelaunch.sh) |
 | Phala Cloud runs a pre-launch script given by its user, and the machine measures it in the manifest | Confirmed on 17 November 2026: the compose hash computed beforehand was the one measured, and the boot log shows the script's line (section 3.21) | `examples/enclave-agent/run-2026-11-17-prelaunch` |
+| dstack defines three formats of `MRCONFIGID` (compose hash; with application id and key provider; a hashed document), all binding the compose hash, and its OS refuses to boot on a mismatch or an unknown format | Read in the source at v0.5.12 (`43f69f4`, formats 1 and 2) and on the main branch (`0e75b44`, format 3) on 17 November 2026 (section 3.22). No real quote in formats 2 or 3 seen | [mr_config.rs](https://github.com/Dstack-TEE/dstack/blob/0e75b442ce29001f30ee1e0cbfd17094988846c6/dstack/dstack-types/src/mr_config.rs) |
 | dstack does not measure `user_config` | Read in its documentation at commit `350a0a7` (`docs/security/cvm-boundaries.md`), 16 November 2026. Not tested | [dstack](https://github.com/Dstack-TEE/dstack/blob/350a0a73ffdb6041bda69118f13d81591870b565/docs/security/cvm-boundaries.md) |
 | The hosted x402.org facilitator accepts a payer that is a contract and settles its payment | Confirmed on 16 November 2026 by four payments on Base Sepolia from an agent account (section 3.14) | [BaseScan](https://sepolia.basescan.org/tx/0x89e0a73920d855494cbad29a8ec0035a4e07c84da12e409b6c1e2f74aade5ea0) |
 | The test USDC on Base Sepolia is `FiatTokenV2_2` | Confirmed on 16 November 2026 at block 59,533,350: the implementation `0xd74cc5d436923b8ba2c179b4bca2841d8a52c5b5` and its signature library are byte-identical to the code these tests use, apart from the metadata hash and the library address | `examples/x402/check-usdc.mjs` |

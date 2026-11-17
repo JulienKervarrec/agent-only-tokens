@@ -10,7 +10,8 @@ verifier, any contract that answers ERC-1271.
 | `TdxQuoteVerifier.sol` | Checks shared by the hardware verifiers |
 | `TdxEnrollmentVerifier.sol` | Enrollment by Intel TDX attestation, fixed measurements |
 | `DstackEnrollmentVerifier.sol` | Enrollment of agents on dstack, by event-log replay |
+| `DstackConfigIdVerifier.sol` | Enrollment of agents on dstack from the quote alone, by `MRCONFIGID` (formats 1 to 3) |
 | `Sha384.sol` | SHA-384, needed by the dstack verifier |
 
 Tests and fixtures: `../../test/experimental`. What was checked and what was
-not: section 3.11 of `../../docs/study.md`.
+not: sections 3.11, 3.14 and 3.22 of `../../docs/study.md`.
