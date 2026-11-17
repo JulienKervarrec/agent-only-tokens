@@ -224,9 +224,9 @@ contract RegistryProps is Test {
         AttestedAgentRegistry reg = _registry(t1, delay, address(0));
         address venue = address(new YesVerifier()); // any contract: a venue must hold code
         assert(!reg.isVenue(venue));
-        reg.setVenue(venue, first, 0, _signed(reg.hashVenue(venue, first, 0)));
+        reg.setVenue(venue, first, 0, NEVER, _signed(reg.hashVenue(venue, first, 0, NEVER)));
         vm.warp(t2);
-        reg.setVenue(venue, second, 0, _signed(reg.hashVenue(venue, second, 0)));
+        reg.setVenue(venue, second, 0, NEVER, _signed(reg.hashVenue(venue, second, 0, NEVER)));
         vm.warp(t3);
         uint256 approvedAt = first ? t1 : t2;
         assert(reg.isVenue(venue) == (second && t3 >= approvedAt + delay));
@@ -287,5 +287,105 @@ contract RegistryProps is Test {
         (bool ok,) = address(reg)
             .call(abi.encodeCall(AttestedAgentRegistry.enroll, (agentId, key, 0, type(uint64).max, new bytes[](0))));
         assert(!ok);
+    }
+
+    // ------------------------------------------------------------ attesters
+
+    uint256 constant SECOND = 0xB0B0B0B0;
+    uint256 constant THIRD = 0xC0C0C0C0;
+
+    function _sole(uint256 pk) internal pure returns (address[] memory set) {
+        set = new address[](1);
+        set[0] = vm.addr(pk);
+    }
+
+    function _signedBy(uint256 pk, bytes32 digest) internal pure returns (bytes[] memory sigs) {
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, digest);
+        sigs = new bytes[](1);
+        sigs[0] = abi.encodePacked(r, s, v);
+    }
+
+    /// Whether a halt, a decision reserved to the attesters, passes with these signatures.
+    function _halts(AttestedAgentRegistry reg, bytes[] memory sigs) internal returns (bool ok) {
+        (ok,) = address(reg).call(abi.encodeCall(AttestedAgentRegistry.haltEnrollments, (0, NEVER, sigs)));
+    }
+
+    function _typed(AttestedAgentRegistry reg, bytes32 structHash) internal view returns (bytes32) {
+        bytes32 domain = keccak256(
+            abi.encode(
+                keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"),
+                keccak256("AttestedAgentRegistry"),
+                keccak256("1"),
+                block.chainid,
+                address(reg)
+            )
+        );
+        return keccak256(abi.encodePacked("\x19\x01", domain, structHash));
+    }
+
+    /// What a member of set `set` signs to halt enrollments, on a registry never halted.
+    function _haltDigest(AttestedAgentRegistry reg, uint256 set) internal view returns (bytes32) {
+        bytes32 kind = keccak256("Halt(bytes32 evidenceHash,uint256 nonce,uint64 deadline,uint256 attesterSet)");
+        return _typed(reg, keccak256(abi.encode(kind, bytes32(0), uint256(0), NEVER, set)));
+    }
+
+    /// What a member of set `set` signs to hand over to `member` alone, as the second handover.
+    function _handoverDigest(AttestedAgentRegistry reg, address member, uint256 set) internal view returns (bytes32) {
+        bytes32 kind = keccak256(
+            "Attesters(address[] attesters,uint256 threshold,bytes32 evidenceHash,uint256 nonce,uint64 deadline,uint256 attesterSet)"
+        );
+        return _typed(
+            reg,
+            keccak256(abi.encode(kind, keccak256(abi.encode(member)), uint256(1), bytes32(0), uint256(1), NEVER, set))
+        );
+    }
+
+    /// One attester hands over to a second one; then whoever is in force hands over to a third.
+    /// At any later time the registry names exactly one of the three as attester, the third
+    /// once its notice has passed and until then the one in force when it was announced. A
+    /// halt naming the set in force and signed by either of the two others is refused. Sets
+    /// of one member, threshold 1. That a signature naming another set is refused rests on the
+    /// signature scheme, which the prover does not model: the tests show it.
+    /// Every signature is made before the paths split on time: halmos 0.3.3 ties a signature
+    /// to its signer only on the path where it is first made. That the attester in force does
+    /// decide is shown by the tests, not here: the prover also follows the path where a
+    /// signature is refused for its form.
+    function check_AttestersOnlyAfterTheirNotice(uint64 delay, uint64 t1, uint64 t2, uint64 t3) public {
+        vm.assume(0 < t1 && t1 <= t2 && t2 <= t3 && uint256(t3) + delay < type(uint64).max);
+        AttestedAgentRegistry reg = _registry(t1, delay, address(0));
+        uint256[3] memory keys = [ATTESTER, SECOND, THIRD];
+        // halt[3 * (set - 1) + key]: a halt naming `set`, signed by `key`.
+        bytes[][9] memory halt;
+        for (uint256 set = 1; set <= 3; ++set) {
+            for (uint256 k; k < 3; ++k) {
+                halt[3 * (set - 1) + k] = _signedBy(keys[k], _haltDigest(reg, set));
+            }
+        }
+        assert(_haltDigest(reg, 1) == reg.hashHalt(0, NEVER));
+        // The second handover, to the third: by the first naming set 1, or by the second naming
+        // set 2; accepted by the third in both cases.
+        address[] memory next = _sole(THIRD);
+        bytes32[2] memory digest = [_handoverDigest(reg, next[0], 1), _handoverDigest(reg, next[0], 2)];
+        bytes[][2] memory handover = [_signedBy(ATTESTER, digest[0]), _signedBy(SECOND, digest[1])];
+        bytes[][2] memory accepted = [_signedBy(THIRD, digest[0]), _signedBy(THIRD, digest[1])];
+        address[] memory second = _sole(SECOND);
+        bytes32 first = reg.hashAttesters(second, 1, 0, NEVER);
+        reg.setAttesters(second, 1, 0, NEVER, _signedBy(ATTESTER, first), _signedBy(SECOND, first));
+
+        vm.warp(t2);
+        uint256 inForce = t2 >= uint256(t1) + delay ? 1 : 0; // index of the attester in force, and of its set
+        assert(reg.hashAttesters(next, 1, 0, NEVER) == digest[inForce]);
+        reg.setAttesters(next, 1, 0, NEVER, handover[inForce], accepted[inForce]);
+        vm.warp(t3);
+        if (t3 >= uint256(t2) + delay) inForce = 2;
+        assert(reg.attesterSet() == inForce + 1);
+        assert(reg.threshold() == 1);
+        assert(_haltDigest(reg, inForce + 1) == reg.hashHalt(0, NEVER));
+        for (uint256 k; k < 3; ++k) {
+            assert(reg.isAttester(vm.addr(keys[k])) == (k == inForce));
+        }
+        for (uint256 k; k < 3; ++k) {
+            if (k != inForce) assert(!_halts(reg, halt[3 * inForce + k]));
+        }
     }
 }
