@@ -338,6 +338,96 @@ contract DstackConfigIdTest is AgentOnlyBase {
         assertEq(tnft.ownerOf(1), address(acc));
     }
 
+    // ------------------------------------------------------------ a platform falls out of date
+    // docs/platform-updates.md: what happens to an enrolled agent when Intel's data says its
+    // machine is no longer up to date, and what the sponsor and the attesters can do.
+
+    function _enrolled() internal returns (AttestedAgentRegistry treg, AgentAccount acc, AnyCollection tnft) {
+        treg = _registry(address(verifier));
+        tnft = new AnyCollection(IAgentRegistry(address(treg)));
+        address key = vm.addr(ENCLAVE_KEY);
+        verifier.attest(_quoteFor(quote, treg.hashEnrollment(9, key, COMPOSE, SPONSOR1, 0, FAR)));
+        vm.prank(SPONSOR1);
+        treg.enroll{value: BOND}(9, key, COMPOSE, FAR, new bytes[](0));
+        acc = AgentAccount(payable(treg.accountOf(9)));
+    }
+
+    function test_OutOfDatePlatformKeepsItsKeyUntilExpiryThenRotatesOncePatched() public {
+        (AttestedAgentRegistry treg, AgentAccount acc, AnyCollection tnft) = _enrolled();
+        address key = vm.addr(ENCLAVE_KEY);
+        address nextKey = vm.addr(ENCLAVE_KEY + 1);
+        dcap.set(true, 4, 2); // Intel's data now says "out of date" for this platform
+
+        // The key already enrolled keeps working: the registry does not see the platform level.
+        vm.prank(key);
+        acc.execute(address(tnft), 0, abi.encodeCall(tnft.mint, (bytes32(uint256(1)))));
+        // No new key: a quote from that platform is refused.
+        bytes memory rotation = _quoteFor(quote, treg.hashEnrollment(9, nextKey, COMPOSE, SPONSOR1, 1, FAR));
+        vm.expectRevert(abi.encodeWithSelector(TdxQuoteVerifier.PlatformNotAccepted.selector, uint8(4)));
+        verifier.attest(rotation);
+
+        // The sponsor can stop its agent at once, and start it again.
+        vm.prank(SPONSOR1);
+        treg.setFrozen(9, true);
+        assertFalse(treg.isAgent(address(acc)));
+        vm.prank(SPONSOR1);
+        treg.setFrozen(9, false);
+
+        // Otherwise the key lasts until its expiry, and no longer.
+        skip(TTL);
+        assertFalse(treg.isAgent(address(acc)));
+        vm.prank(key);
+        vm.expectRevert(AgentAccount.NotKey.selector);
+        acc.execute(address(tnft), 0, abi.encodeCall(tnft.mint, (bytes32(uint256(2)))));
+
+        // The provider updates the machine: the platform is up to date again, a new key is
+        // enrolled on the same account, and the token is still there.
+        dcap.set(true, 0, 2);
+        verifier.attest(rotation);
+        vm.prank(SPONSOR1);
+        treg.enroll(9, nextKey, COMPOSE, FAR, new bytes[](0));
+        assertTrue(treg.isAgent(address(acc)));
+        assertEq(tnft.ownerOf(1), address(acc));
+    }
+
+    function test_OutOfDatePlatformIsAcceptedOnlyAfterTheNotice() public {
+        (AttestedAgentRegistry treg, AgentAccount acc,) = _enrolled();
+        address nextKey = vm.addr(ENCLAVE_KEY + 1);
+        dcap.set(true, 4, 2);
+        bytes memory rotation = _quoteFor(quote, treg.hashEnrollment(9, nextKey, COMPOSE, SPONSOR1, 1, FAR));
+
+        // The attesters choose to accept "out of date" for a while: a second verifier, same
+        // code, levels 0 and 4. It takes effect after the notice delay only.
+        bytes32[] memory list = new bytes32[](1);
+        list[0] = code;
+        DstackConfigIdVerifier lax = new DstackConfigIdVerifier(dcap, 1 | (1 << 4), list);
+        lax.attest(rotation);
+        _replace(treg, address(lax));
+        vm.prank(SPONSOR1);
+        vm.expectRevert(AttestedAgentRegistry.NotVerified.selector);
+        treg.enroll(9, nextKey, COMPOSE, FAR, new bytes[](0));
+        skip(NOTICE);
+        vm.prank(SPONSOR1);
+        treg.enroll(9, nextKey, COMPOSE, FAR, new bytes[](0));
+        assertEq(treg.keyOf(9), nextKey);
+        assertEq(treg.accountOf(9), address(acc));
+
+        // A level the attesters did not accept is still refused.
+        dcap.set(true, 3, 2);
+        bytes memory later = _quoteFor(quote, treg.hashEnrollment(9, nextKey, COMPOSE, SPONSOR1, 2, FAR));
+        vm.expectRevert(abi.encodeWithSelector(TdxQuoteVerifier.PlatformNotAccepted.selector, uint8(3)));
+        lax.attest(later);
+
+        // And they can stop every enrollment at once, without notice.
+        bytes32 halt = treg.hashHalt(keccak256("advisory"), FAR);
+        treg.haltEnrollments(keccak256("advisory"), FAR, _attest(A1, A2, halt));
+        dcap.set(true, 0, 2);
+        lax.attest(_quoteFor(quote, treg.hashEnrollment(9, vm.addr(ENCLAVE_KEY + 2), COMPOSE, SPONSOR1, 2, FAR)));
+        vm.prank(SPONSOR1);
+        vm.expectRevert(AttestedAgentRegistry.Halted.selector);
+        treg.enroll(9, vm.addr(ENCLAVE_KEY + 2), COMPOSE, FAR, new bytes[](0));
+    }
+
     function test_OnlyTheAttestersReplaceTheVerifier() public {
         AttestedAgentRegistry treg = _registry(address(verifier));
         address next = address(_verifier(V2_CODE));
