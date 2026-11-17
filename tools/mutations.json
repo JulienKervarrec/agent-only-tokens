@@ -104,26 +104,26 @@
   {
     "file": "src/AttestedAgentRegistry.sol",
     "name": "venue digest leaves out the venue",
-    "find": "abi.encode(VENUE_TYPEHASH, venue, approved, evidenceHash, venueNonce[venue])",
-    "replace": "abi.encode(VENUE_TYPEHASH, address(0), approved, evidenceHash, venueNonce[venue])"
+    "find": "abi.encode(VENUE_TYPEHASH, venue, approved, evidenceHash, venueNonce[venue], deadline, attesterSet())",
+    "replace": "abi.encode(VENUE_TYPEHASH, address(0), approved, evidenceHash, venueNonce[venue], deadline, attesterSet())"
   },
   {
     "file": "src/AttestedAgentRegistry.sol",
     "name": "venue digest leaves out the decision",
-    "find": "abi.encode(VENUE_TYPEHASH, venue, approved, evidenceHash, venueNonce[venue])",
-    "replace": "abi.encode(VENUE_TYPEHASH, venue, true, evidenceHash, venueNonce[venue])"
+    "find": "abi.encode(VENUE_TYPEHASH, venue, approved, evidenceHash, venueNonce[venue], deadline, attesterSet())",
+    "replace": "abi.encode(VENUE_TYPEHASH, venue, true, evidenceHash, venueNonce[venue], deadline, attesterSet())"
   },
   {
     "file": "src/AttestedAgentRegistry.sol",
     "name": "venue digest leaves out the evidence",
-    "find": "abi.encode(VENUE_TYPEHASH, venue, approved, evidenceHash, venueNonce[venue])",
-    "replace": "abi.encode(VENUE_TYPEHASH, venue, approved, bytes32(0), venueNonce[venue])"
+    "find": "abi.encode(VENUE_TYPEHASH, venue, approved, evidenceHash, venueNonce[venue], deadline, attesterSet())",
+    "replace": "abi.encode(VENUE_TYPEHASH, venue, approved, bytes32(0), venueNonce[venue], deadline, attesterSet())"
   },
   {
     "file": "src/AttestedAgentRegistry.sol",
     "name": "venue digest leaves out the nonce",
-    "find": "abi.encode(VENUE_TYPEHASH, venue, approved, evidenceHash, venueNonce[venue])",
-    "replace": "abi.encode(VENUE_TYPEHASH, venue, approved, evidenceHash, uint256(0))"
+    "find": "abi.encode(VENUE_TYPEHASH, venue, approved, evidenceHash, venueNonce[venue], deadline, attesterSet())",
+    "replace": "abi.encode(VENUE_TYPEHASH, venue, approved, evidenceHash, uint256(0), deadline, attesterSet())"
   },
   {
     "file": "src/AttestedAgentRegistry.sol",
@@ -164,32 +164,32 @@
   {
     "file": "src/AttestedAgentRegistry.sol",
     "name": "verifier digest leaves out the verifier",
-    "find": "abi.encode(VERIFIER_TYPEHASH, verifier, evidenceHash, verifierNonce, deadline)",
-    "replace": "abi.encode(VERIFIER_TYPEHASH, address(0), evidenceHash, verifierNonce, deadline)"
+    "find": "abi.encode(VERIFIER_TYPEHASH, verifier, evidenceHash, verifierNonce, deadline, attesterSet())",
+    "replace": "abi.encode(VERIFIER_TYPEHASH, address(0), evidenceHash, verifierNonce, deadline, attesterSet())"
   },
   {
     "file": "src/AttestedAgentRegistry.sol",
     "name": "verifier digest leaves out the evidence",
-    "find": "abi.encode(VERIFIER_TYPEHASH, verifier, evidenceHash, verifierNonce, deadline)",
-    "replace": "abi.encode(VERIFIER_TYPEHASH, verifier, bytes32(0), verifierNonce, deadline)"
+    "find": "abi.encode(VERIFIER_TYPEHASH, verifier, evidenceHash, verifierNonce, deadline, attesterSet())",
+    "replace": "abi.encode(VERIFIER_TYPEHASH, verifier, bytes32(0), verifierNonce, deadline, attesterSet())"
   },
   {
     "file": "src/AttestedAgentRegistry.sol",
     "name": "verifier digest leaves out the nonce",
-    "find": "abi.encode(VERIFIER_TYPEHASH, verifier, evidenceHash, verifierNonce, deadline)",
-    "replace": "abi.encode(VERIFIER_TYPEHASH, verifier, evidenceHash, uint256(0), deadline)"
+    "find": "abi.encode(VERIFIER_TYPEHASH, verifier, evidenceHash, verifierNonce, deadline, attesterSet())",
+    "replace": "abi.encode(VERIFIER_TYPEHASH, verifier, evidenceHash, uint256(0), deadline, attesterSet())"
   },
   {
     "file": "src/AttestedAgentRegistry.sol",
     "name": "halt digest leaves out the evidence",
-    "find": "abi.encode(HALT_TYPEHASH, evidenceHash, haltNonce, deadline)",
-    "replace": "abi.encode(HALT_TYPEHASH, bytes32(0), haltNonce, deadline)"
+    "find": "abi.encode(HALT_TYPEHASH, evidenceHash, haltNonce, deadline, attesterSet())",
+    "replace": "abi.encode(HALT_TYPEHASH, bytes32(0), haltNonce, deadline, attesterSet())"
   },
   {
     "file": "src/AttestedAgentRegistry.sol",
     "name": "halt digest leaves out the nonce",
-    "find": "abi.encode(HALT_TYPEHASH, evidenceHash, haltNonce, deadline)",
-    "replace": "abi.encode(HALT_TYPEHASH, evidenceHash, uint256(0), deadline)"
+    "find": "abi.encode(HALT_TYPEHASH, evidenceHash, haltNonce, deadline, attesterSet())",
+    "replace": "abi.encode(HALT_TYPEHASH, evidenceHash, uint256(0), deadline, attesterSet())"
   },
   {
     "file": "src/AttestedAgentRegistry.sol",
@@ -266,8 +266,8 @@
   {
     "file": "src/AttestedAgentRegistry.sol",
     "name": "revocation digest leaves out the agent",
-    "find": "abi.encode(REVOKE_TYPEHASH, agentId)",
-    "replace": "abi.encode(REVOKE_TYPEHASH, uint256(0))"
+    "find": "abi.encode(REVOKE_TYPEHASH, agentId, deadline, attesterSet())",
+    "replace": "abi.encode(REVOKE_TYPEHASH, uint256(0), deadline, attesterSet())"
   },
   {
     "file": "src/AttestedAgentRegistry.sol",
@@ -512,14 +512,14 @@
   {
     "file": "src/AttestedAgentRegistry.sol",
     "name": "verifier digest leaves out the deadline",
-    "find": "abi.encode(VERIFIER_TYPEHASH, verifier, evidenceHash, verifierNonce, deadline)",
-    "replace": "abi.encode(VERIFIER_TYPEHASH, verifier, evidenceHash, verifierNonce, uint64(0))"
+    "find": "abi.encode(VERIFIER_TYPEHASH, verifier, evidenceHash, verifierNonce, deadline, attesterSet())",
+    "replace": "abi.encode(VERIFIER_TYPEHASH, verifier, evidenceHash, verifierNonce, uint64(0), attesterSet())"
   },
   {
     "file": "src/AttestedAgentRegistry.sol",
     "name": "halt digest leaves out the deadline",
-    "find": "abi.encode(HALT_TYPEHASH, evidenceHash, haltNonce, deadline)",
-    "replace": "abi.encode(HALT_TYPEHASH, evidenceHash, haltNonce, uint64(0))"
+    "find": "abi.encode(HALT_TYPEHASH, evidenceHash, haltNonce, deadline, attesterSet())",
+    "replace": "abi.encode(HALT_TYPEHASH, evidenceHash, haltNonce, uint64(0), attesterSet())"
   },
   {
     "file": "src/AttestedAgentRegistry.sol",
@@ -544,5 +544,347 @@
     "name": "the event of a venue approved again gives a new date",
     "find": "        emit VenueSet(venue, approved, evidenceHash, since);",
     "replace": "        emit VenueSet(venue, approved, evidenceHash, approved ? uint64(block.timestamp) + noticeDelay : 0);"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "venue digest leaves out the deadline",
+    "find": "abi.encode(VENUE_TYPEHASH, venue, approved, evidenceHash, venueNonce[venue], deadline, attesterSet())",
+    "replace": "abi.encode(VENUE_TYPEHASH, venue, approved, evidenceHash, venueNonce[venue], uint64(0), attesterSet())"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "revocation digest leaves out the deadline",
+    "find": "abi.encode(REVOKE_TYPEHASH, agentId, deadline, attesterSet())",
+    "replace": "abi.encode(REVOKE_TYPEHASH, agentId, uint64(0), attesterSet())"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "handover digest leaves out the members",
+    "find": "                    keccak256(abi.encodePacked(attesters)),\n",
+    "replace": "                    bytes32(0),\n"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "handover digest leaves out the threshold",
+    "find": "                    threshold_,\n                    evidenceHash,\n                    attestersNonce,",
+    "replace": "                    uint256(0),\n                    evidenceHash,\n                    attestersNonce,"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "handover digest leaves out the evidence",
+    "find": "                    evidenceHash,\n                    attestersNonce,",
+    "replace": "                    bytes32(0),\n                    attestersNonce,"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "handover digest leaves out the nonce",
+    "find": "                    attestersNonce,\n                    deadline,\n",
+    "replace": "                    uint256(0),\n                    deadline,\n"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "handover digest leaves out the deadline",
+    "find": "                    attestersNonce,\n                    deadline,\n",
+    "replace": "                    attestersNonce,\n                    uint64(0),\n"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "handover counter not incremented",
+    "find": "        attestersNonce += 1;\n",
+    "replace": ""
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a new set of attesters decides at once",
+    "find": "        uint64 since = uint64(block.timestamp) + noticeDelay;\n        _sets =",
+    "replace": "        uint64 since = uint64(block.timestamp);\n        _sets ="
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a handover forgets which set was in force",
+    "find": "        _sets = AttesterSets(current, needed, next,",
+    "replace": "        _sets = AttesterSets(_sets.current, _sets.threshold, next,"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "an announced set of attesters never takes over",
+    "find": "        if (s.announcedAt != 0 && block.timestamp >= s.announcedAt) return (s.announced, s.announcedThreshold);\n",
+    "replace": ""
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "signatures checked against the settled set only",
+    "find": "        (uint64 set, uint32 needed) = _attestersNow();\n        _requireSigners(set, needed, digest, sigs);",
+    "replace": "        _requireSigners(_sets.current, _sets.threshold, digest, sigs);"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a new announcement reuses the number of the pending set",
+    "find": "        uint64 next = (_sets.announced > current ? _sets.announced : current) + 1;",
+    "replace": "        uint64 next = current + 1;"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a new set keeps the threshold of the previous one",
+    "find": "next, uint32(threshold_), since);",
+    "replace": "next, needed, since);"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "members of a set are not recorded",
+    "find": "            isAttesterIn[set][attesters[i]] = true;\n",
+    "replace": ""
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "no event on a handover",
+    "find": "        emit AttestersSet(next, attesters, threshold_, evidenceHash, since);\n",
+    "replace": ""
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "no event for the first set of attesters",
+    "find": "        emit AttestersSet(1, attesters, threshold_, bytes32(0), uint64(block.timestamp));\n",
+    "replace": ""
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "the first set of attesters is not put in force",
+    "find": "        (_sets.current, _sets.threshold) = (1, uint32(threshold_));\n",
+    "replace": ""
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a handover checked against the settled set only",
+    "find": "        _requireSigners(current, needed, digest, sigs);",
+    "replace": "        _requireSigners(_sets.current, _sets.threshold, digest, sigs);"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "the new set does not have to accept its appointment",
+    "find": "        _requireSigners(next, threshold_, digest, accepted);\n",
+    "replace": ""
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "the acceptance is checked against the set in force",
+    "find": "        _requireSigners(next, threshold_, digest, accepted);",
+    "replace": "        _requireSigners(current, needed, digest, accepted);"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "one member is enough to accept for the new set",
+    "find": "        _requireSigners(next, threshold_, digest, accepted);",
+    "replace": "        _requireSigners(next, 1, digest, accepted);"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a handover forgets the threshold in force",
+    "find": "        _sets = AttesterSets(current, needed, next,",
+    "replace": "        _sets = AttesterSets(current, _sets.threshold, next,"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "the number of a cancelled set is reused after two announcements",
+    "find": "        uint64 next = (_sets.announced > current ? _sets.announced : current) + 1;",
+    "replace": "        uint64 next = (_sets.announced > current + 1 ? _sets.announced - 1 : _sets.announced > current ? _sets.announced : current) + 1;"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "the members of a handover are hashed with their length and offset",
+    "find": "keccak256(abi.encodePacked(attesters)),",
+    "replace": "keccak256(abi.encode(attesters)),"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a set of more than three members is refused",
+    "find": "        if (threshold_ == 0 || threshold_ > attesters.length) revert BadConfig();",
+    "replace": "        if (threshold_ == 0 || threshold_ > attesters.length || attesters.length > 3) revert BadConfig();"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a handover is refused under a halt",
+    "find": "        attestersNonce += 1;\n",
+    "replace": "        attestersNonce += 1;\n        if (_halted) revert Halted();\n"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a handover cancels the pending verifier",
+    "find": "        attestersNonce += 1;\n",
+    "replace": "        attestersNonce += 1;\n        announcedVerifierAt = 0;\n"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "with no delay a handover still waits a second",
+    "find": "        uint64 since = uint64(block.timestamp) + noticeDelay;\n        _sets =",
+    "replace": "        uint64 since = uint64(block.timestamp) + (noticeDelay == 0 ? 1 : noticeDelay);\n        _sets ="
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "an expired revocation still closes a retired agent",
+    "find": "    function revoke(uint256 agentId, uint64 deadline, bytes[] calldata sigs) external {\n        if (deadline < block.timestamp) revert Expired();\n        Agent storage a = _agents[agentId];",
+    "replace": "    function revoke(uint256 agentId, uint64 deadline, bytes[] calldata sigs) external {\n        Agent storage a = _agents[agentId];\n        if (!a.closed && deadline < block.timestamp) revert Expired();"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "an enrollment is refused in its last second",
+    "find": "        if (agentId == 0 || sessionKey == address(0)) revert BadInput();\n        if (deadline < block.timestamp) revert Expired();",
+    "replace": "        if (agentId == 0 || sessionKey == address(0)) revert BadInput();\n        if (deadline <= block.timestamp) revert Expired();"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a venue decision is refused in its last second",
+    "find": "        if (deadline < block.timestamp) revert Expired();\n        if (approved && venue.code.length == 0) revert BadInput();",
+    "replace": "        if (deadline <= block.timestamp) revert Expired();\n        if (approved && venue.code.length == 0) revert BadInput();"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a verifier replacement is refused in its last second",
+    "find": "        if (deadline < block.timestamp) revert Expired();\n        if (verifier != address(0) && verifier.code.length == 0) revert BadInput();",
+    "replace": "        if (deadline <= block.timestamp) revert Expired();\n        if (verifier != address(0) && verifier.code.length == 0) revert BadInput();"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a halt is refused in its last second",
+    "find": "        if (deadline < block.timestamp) revert Expired();\n        _requireAttesters(hashHalt(evidenceHash, deadline), sigs);",
+    "replace": "        if (deadline <= block.timestamp) revert Expired();\n        _requireAttesters(hashHalt(evidenceHash, deadline), sigs);"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a handover is refused in its last second",
+    "find": "        if (deadline < block.timestamp) revert Expired();\n        bytes32 digest = hashAttesters(attesters, threshold_, evidenceHash, deadline);",
+    "replace": "        if (deadline <= block.timestamp) revert Expired();\n        bytes32 digest = hashAttesters(attesters, threshold_, evidenceHash, deadline);"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a revocation is refused in its last second",
+    "find": "    function revoke(uint256 agentId, uint64 deadline, bytes[] calldata sigs) external {\n        if (deadline < block.timestamp) revert Expired();",
+    "replace": "    function revoke(uint256 agentId, uint64 deadline, bytes[] calldata sigs) external {\n        if (deadline <= block.timestamp) revert Expired();"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "the enrollment type string does not match what is hashed",
+    "find": "address sponsor,uint256 nonce,uint64 deadline)\"",
+    "replace": "address sponsor,uint256 nonce,uint256 deadline)\""
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "the venue type string does not match what is hashed",
+    "find": "\"Venue(address venue,bool approved,bytes32 evidenceHash,uint256 nonce,uint64 deadline,uint256 attesterSet)\"",
+    "replace": "\"Venue(address venue,bool approved,bytes32 evidenceHash,uint256 nonce,uint256 deadline,uint256 attesterSet)\""
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "the revocation type string does not match what is hashed",
+    "find": "\"Revocation(uint256 agentId,uint64 deadline,uint256 attesterSet)\"",
+    "replace": "\"Revocation(uint256 agentId,uint256 deadline,uint256 attesterSet)\""
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "the verifier type string does not match what is hashed",
+    "find": "\"Verifier(address verifier,bytes32 evidenceHash,uint256 nonce,uint64 deadline,uint256 attesterSet)\"",
+    "replace": "\"Verifier(address verifier,bytes32 evidenceHash,uint256 nonce,uint256 deadline,uint256 attesterSet)\""
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "the halt type string does not match what is hashed",
+    "find": "\"Halt(bytes32 evidenceHash,uint256 nonce,uint64 deadline,uint256 attesterSet)\"",
+    "replace": "\"Halt(bytes32 evidenceHash,uint256 nonce,uint256 deadline,uint256 attesterSet)\""
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "the handover type string does not match what is hashed",
+    "find": "\"Attesters(address[] attesters,uint256 threshold,bytes32 evidenceHash,uint256 nonce,uint64 deadline,uint256 attesterSet)\"",
+    "replace": "\"Attesters(address[] attesters,uint256 threshold,bytes32 evidenceHash,uint256 nonce,uint256 deadline,uint256 attesterSet)\""
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "venue digest leaves out the attester set",
+    "find": "venueNonce[venue], deadline, attesterSet())",
+    "replace": "venueNonce[venue], deadline, uint256(0))"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "revocation digest leaves out the attester set",
+    "find": "abi.encode(REVOKE_TYPEHASH, agentId, deadline, attesterSet())",
+    "replace": "abi.encode(REVOKE_TYPEHASH, agentId, deadline, uint256(0))"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "verifier digest leaves out the attester set",
+    "find": "verifierNonce, deadline, attesterSet())",
+    "replace": "verifierNonce, deadline, uint256(0))"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "halt digest leaves out the attester set",
+    "find": "haltNonce, deadline, attesterSet())",
+    "replace": "haltNonce, deadline, uint256(0))"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "handover digest leaves out the attester set",
+    "find": "                    deadline,\n                    attesterSet()\n",
+    "replace": "                    deadline,\n                    uint256(0)\n"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "attested enrollment digest leaves out the agent",
+    "find": "ATTESTED_ENROLL_TYPEHASH, agentId, sessionKey, evidenceHash, sponsor, nonce, deadline, attesterSet()",
+    "replace": "ATTESTED_ENROLL_TYPEHASH, uint256(0), sessionKey, evidenceHash, sponsor, nonce, deadline, attesterSet()"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "attested enrollment digest leaves out the key",
+    "find": "ATTESTED_ENROLL_TYPEHASH, agentId, sessionKey, evidenceHash, sponsor, nonce, deadline, attesterSet()",
+    "replace": "ATTESTED_ENROLL_TYPEHASH, agentId, address(0), evidenceHash, sponsor, nonce, deadline, attesterSet()"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "attested enrollment digest leaves out the evidence",
+    "find": "ATTESTED_ENROLL_TYPEHASH, agentId, sessionKey, evidenceHash, sponsor, nonce, deadline, attesterSet()",
+    "replace": "ATTESTED_ENROLL_TYPEHASH, agentId, sessionKey, bytes32(0), sponsor, nonce, deadline, attesterSet()"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "attested enrollment digest leaves out the sponsor",
+    "find": "ATTESTED_ENROLL_TYPEHASH, agentId, sessionKey, evidenceHash, sponsor, nonce, deadline, attesterSet()",
+    "replace": "ATTESTED_ENROLL_TYPEHASH, agentId, sessionKey, evidenceHash, address(0), nonce, deadline, attesterSet()"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "attested enrollment digest leaves out the nonce",
+    "find": "ATTESTED_ENROLL_TYPEHASH, agentId, sessionKey, evidenceHash, sponsor, nonce, deadline, attesterSet()",
+    "replace": "ATTESTED_ENROLL_TYPEHASH, agentId, sessionKey, evidenceHash, sponsor, uint256(0), deadline, attesterSet()"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "attested enrollment digest leaves out the deadline",
+    "find": "ATTESTED_ENROLL_TYPEHASH, agentId, sessionKey, evidenceHash, sponsor, nonce, deadline, attesterSet()",
+    "replace": "ATTESTED_ENROLL_TYPEHASH, agentId, sessionKey, evidenceHash, sponsor, nonce, uint64(0), attesterSet()"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "attested enrollment digest leaves out the attester set",
+    "find": "ATTESTED_ENROLL_TYPEHASH, agentId, sessionKey, evidenceHash, sponsor, nonce, deadline, attesterSet()",
+    "replace": "ATTESTED_ENROLL_TYPEHASH, agentId, sessionKey, evidenceHash, sponsor, nonce, deadline, uint256(0)"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "the attested enrollment type string does not match what is hashed",
+    "find": "address sponsor,uint256 nonce,uint64 deadline,uint256 attesterSet)\"",
+    "replace": "address sponsor,uint256 nonce,uint256 deadline,uint256 attesterSet)\""
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "attesters sign the digest meant for a verifier",
+    "find": "hashAttestedEnrollment(agentId, sessionKey, evidenceHash, msg.sender, a.enrollments, deadline), sigs",
+    "replace": "hashEnrollment(agentId, sessionKey, evidenceHash, msg.sender, a.enrollments, deadline), sigs"
+  },
+  {
+    "file": "src/AttestedAgentRegistry.sol",
+    "name": "a verifier approves the digest meant for attesters",
+    "find": "verifier, hashEnrollment(agentId, sessionKey, evidenceHash, msg.sender, a.enrollments, deadline), \"\"",
+    "replace": "verifier, hashAttestedEnrollment(agentId, sessionKey, evidenceHash, msg.sender, a.enrollments, deadline), \"\""
   }
 ]
