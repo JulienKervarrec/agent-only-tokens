@@ -95,7 +95,7 @@ The hardware verifiers and SHA-384 are newer and less reviewed than the
 standard; they live in `src/experimental`, with their tests and fixtures in
 `test/experimental`. Nothing in the standard depends on them.
 
-<!--f:tests-->208<!--/f--> tests run locally; <!--f:tests.fork-->5<!--/f--> more run only against Base
+<!--f:tests-->210<!--/f--> tests run locally; <!--f:tests.fork-->6<!--/f--> more run only against Base
 Sepolia and are reported as skipped without an RPC address. They cover: classic ERC-721 behaviour between agents,
 refusal of humans as holder, recipient, minter or approved operator, refusal
 of unsolicited tokens and of unapproved wrapper contracts, sale, loan (repaid
@@ -112,7 +112,7 @@ a raw signature, changed terms, or while frozen.
 `examples/x402` runs the same payment outside Foundry, through the x402
 reference facilitator and the standard x402 client (see "x402 payments" below).
 
-<!--f:tests.experimental-->55<!--/f--> tests cover enrollment by hardware attestation and SHA-384 (see
+<!--f:tests.experimental-->57<!--/f--> tests cover enrollment by hardware attestation and SHA-384 (see
 "Enrollment by hardware attestation" below). They use a real Intel TDX quote
 (`test/experimental/tdx`), a real dstack quote with its event log
 (`test/experimental/dstack`) and four quotes from our own machines
@@ -971,6 +971,27 @@ the host.
 
 Everything that runs before the program is now either dstack's, in the
 approved base image, or ours. Section 3.21 of the study.
+
+## When the hardware's security level changes, 17 November 2026
+
+The registry trusts an enrolled key until it expires; whether a machine is up
+to date is decided by Intel's data, which Automata stores on chain. Read on
+Base Sepolia that day:
+
+- **That data expires about monthly.** Today's lasts until 30 November 2026,
+  20:29 UTC. On a copy of the chain, our real quote is accepted until then and
+  refused afterwards, as is every quote, until Automata publishes newer data.
+  Enrolled keys keep working meanwhile; none can be enrolled or rotated.
+- **"Up to date" means up to date for Intel's standard evaluation**, number 20
+  (August 2025). Intel has published two later recoveries; their data is not
+  on chain for our platform, so no verifier can demand them yet.
+
+`tools/collateral.py` asks the real verifier, every night, until which day it
+still accepts our quotes, and fails 3 days ahead. `docs/platform-updates.md`
+says who does what when the date approaches or Intel publishes a recovery:
+freeze, halt, revoke, wait for the provider, or accept "out of date" for a
+while after the notice delay. Each branch is tested. Section 3.23 of the
+study.
 
 ## An enclave agent pays by x402, 16 November 2026
 
