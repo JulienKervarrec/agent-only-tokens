@@ -268,9 +268,9 @@ with the reason for each (`tools/slither-accepted.json`, <!--f:slither.accepted-
 also matched `AttestedAgentRegistry.sol` and hid every finding in the
 registry; the filter is now `/test/`.
 
-**The deployed code can be read.** <!--f:deployed-->66<!--/f--> contracts were deployed on Base Sepolia
-for the tests. <!--f:deployed.clones-->18<!--/f--> are agent accounts, clones of an implementation;
-<!--f:deployed.verified-->48<!--/f--> of the others are verified on [Sourcify](https://sourcify.dev): <!--f:deployed.exact-->45<!--/f--> match
+**The deployed code can be read.** <!--f:deployed-->70<!--/f--> contracts were deployed on Base Sepolia
+for the tests. <!--f:deployed.clones-->19<!--/f--> are agent accounts, clones of an implementation;
+<!--f:deployed.verified-->51<!--/f--> of the others are verified on [Sourcify](https://sourcify.dev): <!--f:deployed.exact-->48<!--/f--> match
 their source exactly, <!--f:deployed.match-->3<!--/f--> match on code only (their sources differed by
 comments). `deployments/base-sepolia.json` names, for each one, the commit of
 this repository that compiles to it. Example: the
@@ -437,12 +437,13 @@ and id from its own code). The saving pays for about 260 calls per agent.
   checked"), but it was not rebuilt from source. TDX 1.5 reports and the cheaper zk
   route are not supported. The default registry still only checks attester
   signatures.
-- The manifest dstack hashes includes the provider's pre-launch script. It was
-  read: it adds to root's authorized keys the SSH keys listed in a file that
-  the host supplies and dstack does not measure. The approved base image
+- The manifest dstack hashes includes a pre-launch script. The provider's
+  default one adds to root's authorized keys the SSH keys listed in a file
+  that the host supplies and dstack does not measure; the approved base image
   starts no SSH server and no console login, so those keys open nothing (see
-  "The base image checked"); what an application's own compose starts
-  remains its own concern.
+  "The base image checked"). Since 17 November our agent runs a script of
+  our own that does nothing (see "Our own pre-launch script"). What an
+  application's own compose starts remains its own concern.
 - The attesters can replace the enrollment verifier. That is how a program is
   upgraded, and it has a price: the hardware proof binds a registry only as
   long as its attesters keep a verifier that demands it. Two of three could
@@ -921,8 +922,9 @@ no way in.
   archive (`dstack-0.5.12.tar.gz`, SHA-256 `e3037d99…eb176`), the three boot
   registers that cover the firmware, the kernel, the initrd and the kernel
   command line: MRTD, RTMR1 and RTMR2. All three equal those of the eleven
-  quotes of our runs, on two machines. One byte changed in any of those files
-  changes the register that covers it. The image hash our machines logged,
+  distinct quotes of our runs, on two machines (nine before the run below;
+  version 0.4.1 wrongly said eleven). One byte changed in any of
+  those files changes the register that covers it. The image hash our machines logged,
   `8db40cb2…15bd`, is that of the archive's file list.
 - **The whole image.** The command line carries the root hash of the root
   file system, which the initrd mounts only through dm-verity with that hash;
@@ -938,6 +940,33 @@ Yocto inside Docker; this workspace has neither the Docker service nor access
 to the sites the build downloads from), and RTMR0, which covers the virtual
 hardware that QEMU describes, was not recomputed. It is equal in all eleven
 quotes. Section 3.20 of the study.
+
+## Our own pre-launch script, 17 November 2026
+
+The provider's 406-line pre-launch script no longer runs before our agent.
+`examples/enclave-agent/manifest/prelaunch-ours.sh` replaces it: one `echo`,
+nothing else. No registry login, no password, no SSH key, nothing read from
+the host.
+
+- **Predicted, then measured.** The compose hash was computed here before
+  deployment (`compose-hash.py ../v3/docker-compose.yml prelaunch-ours.sh`,
+  `024261d8…39b5`); Phala Cloud's prepared manifest and the machine gave the
+  same value. The code identity was predicted too, from an earlier quote.
+- **Same image.** MRTD, RTMR1 and RTMR2 equal the published 0.5.12 image.
+- **Enrolled.** Quote verified on Base Sepolia
+  ([tx](https://sepolia.basescan.org/tx/0x22347b142a4333ac121c4b274911946b7f35f7c0d689a9a704bec610d06f56ea),
+  3,719,468 gas), agent enrolled without an attester signature
+  ([tx](https://sepolia.basescan.org/tx/0x8cddffe6108189ac7a8201b0c6cc796edf59e063bbf62a00f57b86bb7819dc9e),
+  201,819 gas), through verifier
+  [`0x120D…3A74`](https://sepolia.basescan.org/address/0x120D6d17c744900e94Ef59Fa6123Ac29e82D3A74) and registry
+  [`0xE784…aD52`](https://sepolia.basescan.org/address/0xE78420EDf016b1249F2F8664ab172240C43BaD52).
+  A quote made under the provider's script is refused (`UnknownCode`).
+- **Restarted.** Same manifest, our script again, a new key rotated in on the
+  same account
+  ([tx](https://sepolia.basescan.org/tx/0xb688489e82c51e24a0b2073a2b0557c2df7af0bd58741bbc5b60b6162a1fac5f)).
+
+Everything that runs before the program is now either dstack's, in the
+approved base image, or ours. Section 3.21 of the study.
 
 ## An enclave agent pays by x402, 16 November 2026
 
