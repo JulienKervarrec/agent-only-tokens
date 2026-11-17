@@ -26,8 +26,8 @@ import {AgentAccount, IAgentKeys} from "./AgentAccount.sol";
 /// A decision that widens what the registry accepts (a venue, a verifier) or changes who
 /// decides (the attesters) is announced and takes effect after `noticeDelay`. A decision that
 /// narrows it (removing a venue, halting enrollments, revoking an agent) is immediate.
-/// Every decision of the attesters carries a deadline chosen by its signers: signatures not
-/// sent by then are void.
+/// Every decision of the attesters carries a deadline chosen by its signers, and the number of
+/// their set: signatures not sent by the deadline, or before another set takes over, are void.
 contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
     struct Agent {
         address key;
@@ -43,14 +43,22 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
     bytes32 private constant ENROLL_TYPEHASH = keccak256(
         "Enrollment(uint256 agentId,address sessionKey,bytes32 evidenceHash,address sponsor,uint256 nonce,uint64 deadline)"
     );
-    bytes32 private constant REVOKE_TYPEHASH = keccak256("Revocation(uint256 agentId,uint64 deadline)");
-    bytes32 private constant VENUE_TYPEHASH =
-        keccak256("Venue(address venue,bool approved,bytes32 evidenceHash,uint256 nonce,uint64 deadline)");
+    // Everything the attesters sign ends with the number of their set: a signature given under
+    // one set is void under the next.
+    bytes32 private constant ATTESTED_ENROLL_TYPEHASH = keccak256(
+        "AttestedEnrollment(uint256 agentId,address sessionKey,bytes32 evidenceHash,address sponsor,uint256 nonce,uint64 deadline,uint256 attesterSet)"
+    );
+    bytes32 private constant REVOKE_TYPEHASH =
+        keccak256("Revocation(uint256 agentId,uint64 deadline,uint256 attesterSet)");
+    bytes32 private constant VENUE_TYPEHASH = keccak256(
+        "Venue(address venue,bool approved,bytes32 evidenceHash,uint256 nonce,uint64 deadline,uint256 attesterSet)"
+    );
     bytes32 private constant VERIFIER_TYPEHASH =
-        keccak256("Verifier(address verifier,bytes32 evidenceHash,uint256 nonce,uint64 deadline)");
-    bytes32 private constant HALT_TYPEHASH = keccak256("Halt(bytes32 evidenceHash,uint256 nonce,uint64 deadline)");
+        keccak256("Verifier(address verifier,bytes32 evidenceHash,uint256 nonce,uint64 deadline,uint256 attesterSet)");
+    bytes32 private constant HALT_TYPEHASH =
+        keccak256("Halt(bytes32 evidenceHash,uint256 nonce,uint64 deadline,uint256 attesterSet)");
     bytes32 private constant ATTESTERS_TYPEHASH = keccak256(
-        "Attesters(address[] attesters,uint256 threshold,bytes32 evidenceHash,uint256 nonce,uint64 deadline)"
+        "Attesters(address[] attesters,uint256 threshold,bytes32 evidenceHash,uint256 nonce,uint64 deadline,uint256 attesterSet)"
     );
 
     /// Attester sets are numbered from 1. One storage slot: a signature check reads it once.
@@ -164,7 +172,7 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
     }
 
     /// Number of the attester set in force.
-    function attesterSet() external view returns (uint256 set) {
+    function attesterSet() public view returns (uint256 set) {
         (set,) = _attestersNow();
     }
 
@@ -192,6 +200,7 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
         return _agents[agentId].enrollments;
     }
 
+    /// Digest that an enrollment verifier approves: the enrollment alone.
     function hashEnrollment(
         uint256 agentId,
         address sessionKey,
@@ -205,15 +214,34 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
         );
     }
 
+    /// Digest that the attesters sign for the same enrollment: it also names their set.
+    function hashAttestedEnrollment(
+        uint256 agentId,
+        address sessionKey,
+        bytes32 evidenceHash,
+        address sponsor,
+        uint256 nonce,
+        uint64 deadline
+    ) public view returns (bytes32) {
+        return _hashTypedDataV4(
+            keccak256(
+                abi.encode(
+                    ATTESTED_ENROLL_TYPEHASH, agentId, sessionKey, evidenceHash, sponsor, nonce, deadline, attesterSet()
+                )
+            )
+        );
+    }
+
     function hashRevocation(uint256 agentId, uint64 deadline) public view returns (bytes32) {
-        return _hashTypedDataV4(keccak256(abi.encode(REVOKE_TYPEHASH, agentId, deadline)));
+        return _hashTypedDataV4(keccak256(abi.encode(REVOKE_TYPEHASH, agentId, deadline, attesterSet())));
     }
 
     // ------------------------------------------------------------ state changes
 
     /// Registers or replaces an agent's session key. The first caller becomes its sponsor and
-    /// pays the bond. `sigs`: attester signatures, sorted by increasing address; ignored when an
-    /// enrollment verifier is set.
+    /// pays the bond. `sigs`: attester signatures of `hashAttestedEnrollment`, sorted by
+    /// increasing address; ignored when an enrollment verifier is set, which approves
+    /// `hashEnrollment` instead.
     function enroll(uint256 agentId, address sessionKey, bytes32 evidenceHash, uint64 deadline, bytes[] calldata sigs)
         external
         payable
@@ -239,12 +267,15 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
             if (a.sponsor != msg.sender) revert NotSponsor();
             if (msg.value != 0) revert BadBond();
         }
-        bytes32 digest = hashEnrollment(agentId, sessionKey, evidenceHash, msg.sender, a.enrollments, deadline);
         (address verifier, bool halted) = _verifierNow();
         if (halted) revert Halted();
         if (verifier == address(0)) {
-            _requireAttesters(digest, sigs);
-        } else if (!SignatureChecker.isValidERC1271SignatureNow(verifier, digest, "")) {
+            _requireAttesters(
+                hashAttestedEnrollment(agentId, sessionKey, evidenceHash, msg.sender, a.enrollments, deadline), sigs
+            );
+        } else if (!SignatureChecker.isValidERC1271SignatureNow(
+                verifier, hashEnrollment(agentId, sessionKey, evidenceHash, msg.sender, a.enrollments, deadline), ""
+            )) {
             revert NotVerified();
         }
         a.enrollments += 1;
@@ -280,7 +311,9 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
         returns (bytes32)
     {
         return _hashTypedDataV4(
-            keccak256(abi.encode(VENUE_TYPEHASH, venue, approved, evidenceHash, venueNonce[venue], deadline))
+            keccak256(
+                abi.encode(VENUE_TYPEHASH, venue, approved, evidenceHash, venueNonce[venue], deadline, attesterSet())
+            )
         );
     }
 
@@ -324,14 +357,15 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
     /// Digest for the next replacement of the verifier. It changes after each replacement and
     /// each halt, so that an old decision cannot be replayed.
     function hashVerifier(address verifier, bytes32 evidenceHash, uint64 deadline) public view returns (bytes32) {
-        return
-            _hashTypedDataV4(keccak256(abi.encode(VERIFIER_TYPEHASH, verifier, evidenceHash, verifierNonce, deadline)));
+        return _hashTypedDataV4(
+            keccak256(abi.encode(VERIFIER_TYPEHASH, verifier, evidenceHash, verifierNonce, deadline, attesterSet()))
+        );
     }
 
     /// Digest for the next halt. Halts have their own counter: a replacement sent first does not
     /// void a halt already signed.
     function hashHalt(bytes32 evidenceHash, uint64 deadline) public view returns (bytes32) {
-        return _hashTypedDataV4(keccak256(abi.encode(HALT_TYPEHASH, evidenceHash, haltNonce, deadline)));
+        return _hashTypedDataV4(keccak256(abi.encode(HALT_TYPEHASH, evidenceHash, haltNonce, deadline, attesterSet())));
     }
 
     /// The attesters in force hand over to a new set of attesters, with its own threshold: to
@@ -342,8 +376,8 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
     /// `sigs`: signatures of the set in force. `accepted`: signatures of the same digest by
     /// enough members of the new set to reach its threshold, so that a registry is not handed
     /// by mistake to keys that nobody holds. Both sorted by increasing address.
-    /// A signature given before a handover and never sent is not voided by it: it counts
-    /// again whenever its signer is a member of the set in force, until its deadline.
+    /// Once the new set is in force, every signature given under the previous one is void:
+    /// what attesters sign names their set.
     function setAttesters(
         address[] calldata attesters,
         uint256 threshold_,
@@ -379,7 +413,8 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
                     threshold_,
                     evidenceHash,
                     attestersNonce,
-                    deadline
+                    deadline,
+                    attesterSet()
                 )
             )
         );
