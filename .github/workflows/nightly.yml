@@ -31,3 +31,23 @@ jobs:
           FOUNDRY_EVM_VERSION: osaka
       - name: Code at every recorded address
         run: python3 tools/deployments.py --rpc "$BASE_SEPOLIA_RPC"
+
+  image:
+    name: dstack image against our quotes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # The production image that ran our agents (dstack OS 0.5.12), as dstack published it.
+      - name: Download the image
+        run: |
+          curl -sSfL -o /tmp/dstack.tar.gz https://github.com/Dstack-TEE/meta-dstack/releases/download/v0.5.12/dstack-0.5.12.tar.gz
+          echo "e3037d99d99ec963bbe43929856c1e46e7197a1178da5867024c4b68064eb176  /tmp/dstack.tar.gz" | sha256sum -c
+          tar -xzf /tmp/dstack.tar.gz -C /tmp
+      - name: MRTD, RTMR1 and RTMR2 of every quote we archived
+        run: python3 tools/dstack_image.py /tmp/dstack-0.5.12 test/experimental/phala/quote*.hex examples/enclave-agent/run-*/quote*.hex
+      - name: The root file system matches the hash in the measured command line
+        run: |
+          sudo apt-get install -y -qq cryptsetup-bin
+          hash=$(python3 -c "import json,re;print(re.search(r'dstack.rootfs_hash=(\w+)',json.load(open('/tmp/dstack-0.5.12/metadata.json'))['cmdline'])[1])")
+          size=$(python3 -c "import json,re;print(re.search(r'dstack.rootfs_size=(\d+)',json.load(open('/tmp/dstack-0.5.12/metadata.json'))['cmdline'])[1])")
+          veritysetup verify /tmp/dstack-0.5.12/rootfs.img.verity /tmp/dstack-0.5.12/rootfs.img.verity "$hash" --hash-offset="$size"
