@@ -374,7 +374,7 @@ target or carry another value; a claimed badge cannot be cancelled.
 
 Two more checks joined the automated ones the same day. Slither runs against a
 list of accepted findings with the reason for each
-(`tools/slither-accepted.json`, <!--f:slither.accepted-->57<!--/f--> names for <!--f:slither.findings-->59<!--/f--> findings): a new
+(`tools/slither-accepted.json`, <!--f:slither.accepted-->62<!--/f--> names for <!--f:slither.findings-->64<!--/f--> findings): a new
 finding fails the check.
 And the figures of sections 3.2, 3.3 and 3.9 are compared with the repository
 by `tools/figures.py`.
