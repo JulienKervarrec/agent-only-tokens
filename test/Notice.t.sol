@@ -38,7 +38,7 @@ contract NoticeTest is AgentOnlyBase {
     }
 
     function _setVenue(address v, bool approved) internal {
-        reg.setVenue(v, approved, WHY, _attest(A1, A2, reg.hashVenue(v, approved, WHY)));
+        reg.setVenue(v, approved, WHY, FAR, _attest(A1, A2, reg.hashVenue(v, approved, WHY, FAR)));
     }
 
     function _announce(AttestedAgentRegistry r, address verifier) internal {
@@ -136,7 +136,7 @@ contract NoticeTest is AgentOnlyBase {
         wait = uint64(bound(wait, 0, 2 * TTL));
         AttestedAgentRegistry r = _registry(delay, address(0));
         address v = address(swap);
-        r.setVenue(v, true, WHY, _attest(A1, A2, r.hashVenue(v, true, WHY)));
+        r.setVenue(v, true, WHY, FAR, _attest(A1, A2, r.hashVenue(v, true, WHY, FAR)));
         skip(wait);
         assertEq(r.isVenue(v), wait >= delay);
     }
@@ -166,7 +166,7 @@ contract NoticeTest is AgentOnlyBase {
         // From the date on, the new verifier decides alone.
         vm.warp(since);
         assertEq(r.enrollmentVerifier(), address(v));
-        bytes32 d = r.hashEnrollment(1, vm.addr(K2), keccak256("evidence"), SPONSOR1, 1, FAR);
+        bytes32 d = r.hashAttestedEnrollment(1, vm.addr(K2), keccak256("evidence"), SPONSOR1, 1, FAR);
         bytes[] memory sigs = _attest(A1, A2, d);
         vm.prank(SPONSOR1);
         vm.expectRevert(AttestedAgentRegistry.NotVerified.selector);
@@ -211,7 +211,7 @@ contract NoticeTest is AgentOnlyBase {
         StubVerifier v = new StubVerifier();
         _announce(r, address(v));
         assertEq(r.enrollmentVerifier(), address(v));
-        r.setVenue(address(swap), true, WHY, _attest(A1, A2, r.hashVenue(address(swap), true, WHY)));
+        r.setVenue(address(swap), true, WHY, FAR, _attest(A1, A2, r.hashVenue(address(swap), true, WHY, FAR)));
         assertTrue(r.isVenue(address(swap)));
     }
 
@@ -229,12 +229,12 @@ contract NoticeTest is AgentOnlyBase {
         assertTrue(reg.enrollmentHalted());
 
         // No new agent, and no new key for an existing one.
-        bytes32 d = reg.hashEnrollment(3, vm.addr(K1), keccak256("evidence"), SPONSOR3, 0, FAR);
+        bytes32 d = reg.hashAttestedEnrollment(3, vm.addr(K1), keccak256("evidence"), SPONSOR3, 0, FAR);
         bytes[] memory sigs = _attest(A1, A2, d);
         vm.prank(SPONSOR3);
         vm.expectRevert(AttestedAgentRegistry.Halted.selector);
         reg.enroll{value: BOND}(3, vm.addr(K1), keccak256("evidence"), FAR, sigs);
-        d = reg.hashEnrollment(1, vm.addr(K2), keccak256("evidence"), SPONSOR1, 1, FAR);
+        d = reg.hashAttestedEnrollment(1, vm.addr(K2), keccak256("evidence"), SPONSOR1, 1, FAR);
         sigs = _attest(A1, A2, d);
         vm.prank(SPONSOR1);
         vm.expectRevert(AttestedAgentRegistry.Halted.selector);
@@ -322,9 +322,9 @@ contract NoticeTest is AgentOnlyBase {
     /// or any code could be put there once the notice has passed.
     function test_AVenueOrAVerifierWithoutCodeIsRefused() public {
         address empty = address(0xBEEF);
-        bytes[] memory sigs = _attest(A1, A2, reg.hashVenue(empty, true, WHY));
+        bytes[] memory sigs = _attest(A1, A2, reg.hashVenue(empty, true, WHY, FAR));
         vm.expectRevert(AttestedAgentRegistry.BadInput.selector);
-        reg.setVenue(empty, true, WHY, sigs);
+        reg.setVenue(empty, true, WHY, FAR, sigs);
         sigs = _attest(A1, A2, reg.hashVerifier(empty, WHY, FAR));
         vm.expectRevert(AttestedAgentRegistry.BadInput.selector);
         reg.setEnrollmentVerifier(empty, WHY, FAR, sigs);

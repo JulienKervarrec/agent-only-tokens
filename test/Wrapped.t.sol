@@ -145,7 +145,7 @@ contract WrappedTest is Test {
         swap = new AgentSwap();
         usdc = new Coin("USDC");
         vm.deal(address(this), 1 ether);
-        reg.setVenue(address(swap), true, bytes32(0), _attest(reg.hashVenue(address(swap), true, bytes32(0))));
+        reg.setVenue(address(swap), true, bytes32(0), FAR, _attest(reg.hashVenue(address(swap), true, bytes32(0), FAR)));
         skip(7 days); // the notice delay
         acc1 = _enroll(1, vm.addr(K1));
         acc2 = _enroll(2, vm.addr(K2));
@@ -162,7 +162,7 @@ contract WrappedTest is Test {
     }
 
     function _enroll(uint256 agentId, address key) internal returns (AgentAccount) {
-        bytes32 d = reg.hashEnrollment(agentId, key, bytes32(0), address(this), 0, FAR);
+        bytes32 d = reg.hashAttestedEnrollment(agentId, key, bytes32(0), address(this), 0, FAR);
         reg.enroll{value: BOND}(agentId, key, bytes32(0), FAR, _attest(d));
         return AgentAccount(payable(reg.accountOf(agentId)));
     }

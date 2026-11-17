@@ -49,7 +49,7 @@ contract GuardsTest is AgentOnlyBase {
         view
         returns (bytes[] memory)
     {
-        return _attest(A1, A2, reg.hashEnrollment(agent, key, EVIDENCE, sponsor, reg.enrollmentNonce(agent), deadline));
+        return _attest(A1, A2, reg.hashAttestedEnrollment(agent, key, EVIDENCE, sponsor, reg.enrollmentNonce(agent), deadline));
     }
 
     /// The agent's call is expected to fail with `error`.
@@ -144,7 +144,7 @@ contract GuardsTest is AgentOnlyBase {
     }
 
     function test_OneAttesterDoesNotCountTwice() public {
-        bytes32 d = reg.hashEnrollment(9, KEY, EVIDENCE, SPONSOR1, 0, FAR);
+        bytes32 d = reg.hashAttestedEnrollment(9, KEY, EVIDENCE, SPONSOR1, 0, FAR);
         bytes[] memory sigs = new bytes[](2);
         (sigs[0], sigs[1]) = (_sign(A1, d), _sign(A1, d));
         vm.prank(SPONSOR1);
@@ -188,7 +188,7 @@ contract GuardsTest is AgentOnlyBase {
         reg.retire(1);
         vm.stopPrank();
 
-        reg.revoke(2, _attest(A1, A2, reg.hashRevocation(2)));
+        reg.revoke(2, FAR, _attest(A1, A2, reg.hashRevocation(2, FAR)));
         sigs = _signed(2, KEY, SPONSOR2, FAR);
         vm.startPrank(SPONSOR2);
         vm.expectRevert(AttestedAgentRegistry.Closed.selector);
@@ -208,31 +208,31 @@ contract GuardsTest is AgentOnlyBase {
     }
 
     function test_RevocationNamesOneExistingAgent() public {
-        bytes[] memory sigs = _attest(A1, A2, reg.hashRevocation(1));
+        bytes[] memory sigs = _attest(A1, A2, reg.hashRevocation(1, FAR));
         vm.expectRevert(AttestedAgentRegistry.BadAttester.selector); // signed for agent 1, used on agent 2
-        reg.revoke(2, sigs);
+        reg.revoke(2, FAR, sigs);
         assertTrue(reg.isAgent(address(acc2)));
 
-        sigs = _attest(A1, A2, reg.hashRevocation(77));
+        sigs = _attest(A1, A2, reg.hashRevocation(77, FAR));
         vm.expectRevert(AttestedAgentRegistry.Closed.selector); // an id nobody enrolled cannot be closed in advance
-        reg.revoke(77, sigs);
+        reg.revoke(77, FAR, sigs);
     }
 
     function test_AttesterSignaturesCoverEveryFieldOfAVenueDecision() public {
         address venue = address(new AgentSwap());
         address other = address(new AgentSwap());
         bytes32 why = keccak256("code");
-        bytes[] memory approval = _attest(A1, A2, reg.hashVenue(venue, true, why));
+        bytes[] memory approval = _attest(A1, A2, reg.hashVenue(venue, true, why, FAR));
         vm.expectRevert(AttestedAgentRegistry.BadAttester.selector); // another venue
-        reg.setVenue(other, true, why, approval);
+        reg.setVenue(other, true, why, FAR, approval);
         vm.expectRevert(AttestedAgentRegistry.BadAttester.selector); // another evidence
-        reg.setVenue(venue, true, keccak256("other"), approval);
+        reg.setVenue(venue, true, keccak256("other"), FAR, approval);
         vm.expectRevert(AttestedAgentRegistry.BadAttester.selector); // an approval used as a removal
-        reg.setVenue(venue, false, why, approval);
+        reg.setVenue(venue, false, why, FAR, approval);
 
-        bytes[] memory removal = _attest(A1, A2, reg.hashVenue(venue, false, why));
+        bytes[] memory removal = _attest(A1, A2, reg.hashVenue(venue, false, why, FAR));
         vm.expectRevert(AttestedAgentRegistry.BadAttester.selector); // a removal used as an approval
-        reg.setVenue(venue, true, why, removal);
+        reg.setVenue(venue, true, why, FAR, removal);
         assertEq(reg.venueSince(venue), 0);
     }
 

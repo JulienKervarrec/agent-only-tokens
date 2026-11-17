@@ -145,7 +145,7 @@ abstract contract AgentOnlyBase is Test {
     }
 
     function _enroll(AttestedAgentRegistry r, address sponsor, uint256 agent, address key, uint256 value) internal {
-        bytes32 d = r.hashEnrollment(agent, key, keccak256("evidence"), sponsor, r.enrollmentNonce(agent), FAR);
+        bytes32 d = r.hashAttestedEnrollment(agent, key, keccak256("evidence"), sponsor, r.enrollmentNonce(agent), FAR);
         bytes[] memory sigs = _attest(A1, A2, d);
         vm.prank(sponsor);
         r.enroll{value: value}(agent, key, keccak256("evidence"), FAR, sigs);
@@ -153,7 +153,7 @@ abstract contract AgentOnlyBase is Test {
 
     /// Attesters approve a venue; the notice delay then passes.
     function _venue(address v) internal {
-        reg.setVenue(v, true, keccak256("code"), _attest(A1, A2, reg.hashVenue(v, true, keccak256("code"))));
+        reg.setVenue(v, true, keccak256("code"), FAR, _attest(A1, A2, reg.hashVenue(v, true, keccak256("code"), FAR)));
         skip(NOTICE);
     }
 
@@ -358,7 +358,7 @@ contract AgentOnlyTest is AgentOnlyBase {
 
     function test_EnrollmentNeedsAttesters() public {
         address key = human;
-        bytes32 d = reg.hashEnrollment(9, key, keccak256("evidence"), address(this), 0, FAR);
+        bytes32 d = reg.hashAttestedEnrollment(9, key, keccak256("evidence"), address(this), 0, FAR);
         vm.deal(address(this), 1 ether);
 
         bytes[] memory one = new bytes[](1);
@@ -373,9 +373,9 @@ contract AgentOnlyTest is AgentOnlyBase {
 
         // Nor is a venue approved by them alone.
         bytes[] memory v = new bytes[](1);
-        v[0] = _sign(HUMAN_PK, reg.hashVenue(address(usdc), true, bytes32(0)));
+        v[0] = _sign(HUMAN_PK, reg.hashVenue(address(usdc), true, bytes32(0), FAR));
         vm.expectRevert(AttestedAgentRegistry.NotEnoughAttesters.selector);
-        reg.setVenue(address(usdc), true, bytes32(0), v);
+        reg.setVenue(address(usdc), true, bytes32(0), FAR, v);
     }
 
     function test_FrozenAndRevokedAgentsStop() public {
@@ -395,7 +395,7 @@ contract AgentOnlyTest is AgentOnlyBase {
         vm.prank(SPONSOR1);
         reg.setFrozen(1, false);
 
-        reg.revoke(1, _attest(A1, A3, reg.hashRevocation(1)));
+        reg.revoke(1, FAR, _attest(A1, A3, reg.hashRevocation(1, FAR)));
         assertFalse(reg.isAgent(address(acc1)));
         assertEq(nft.ownerOf(id), address(acc1));
     }
@@ -411,7 +411,7 @@ contract AgentOnlyTest is AgentOnlyBase {
         ids.register(SPONSOR1, 42);
 
         // Anyone other than the owner of identity 42 cannot enroll it.
-        bytes32 d = r.hashEnrollment(42, vm.addr(K2), keccak256("evidence"), SPONSOR2, 0, FAR);
+        bytes32 d = r.hashAttestedEnrollment(42, vm.addr(K2), keccak256("evidence"), SPONSOR2, 0, FAR);
         bytes[] memory sigs = _attest(A1, A2, d);
         vm.prank(SPONSOR2);
         vm.expectRevert(AttestedAgentRegistry.NotIdentityOwner.selector);
@@ -426,14 +426,16 @@ contract AgentOnlyTest is AgentOnlyBase {
 
     function test_VenueDecisionCannotBeReplayed() public {
         address rogue = address(new AgentSwap());
-        bytes[] memory approval = _attest(A1, A2, reg.hashVenue(rogue, true, keccak256("code")));
-        reg.setVenue(rogue, true, keccak256("code"), approval);
-        reg.setVenue(rogue, false, keccak256("code"), _attest(A1, A2, reg.hashVenue(rogue, false, keccak256("code"))));
+        bytes[] memory approval = _attest(A1, A2, reg.hashVenue(rogue, true, keccak256("code"), FAR));
+        reg.setVenue(rogue, true, keccak256("code"), FAR, approval);
+        reg.setVenue(
+            rogue, false, keccak256("code"), FAR, _attest(A1, A2, reg.hashVenue(rogue, false, keccak256("code"), FAR))
+        );
         assertFalse(reg.isVenue(rogue));
         // Anyone replays the old approval: refused.
         vm.prank(human);
         vm.expectRevert(AttestedAgentRegistry.BadAttester.selector);
-        reg.setVenue(rogue, true, keccak256("code"), approval);
+        reg.setVenue(rogue, true, keccak256("code"), FAR, approval);
         assertFalse(reg.isVenue(rogue));
     }
 
@@ -483,7 +485,7 @@ contract AgentOnlyTest is AgentOnlyBase {
     /// Found by the independent review: a sponsor must not escape a revocation by retiring
     /// first. The bond stays revocable for EXIT_DELAY after retiring.
     function test_RetiringDoesNotEscapeRevocation() public {
-        bytes[] memory sigs = _attest(A1, A2, reg.hashRevocation(1));
+        bytes[] memory sigs = _attest(A1, A2, reg.hashRevocation(1, FAR));
         uint256 before = SPONSOR1.balance;
         vm.prank(SPONSOR1);
         reg.retire(1);
@@ -493,13 +495,13 @@ contract AgentOnlyTest is AgentOnlyBase {
         vm.expectRevert(AttestedAgentRegistry.TooEarly.selector);
         reg.withdrawBond(1);
         // The attesters' revocation still lands, and the bond is forfeited.
-        reg.revoke(1, sigs);
+        reg.revoke(1, FAR, sigs);
         vm.warp(block.timestamp + reg.EXIT_DELAY());
         vm.prank(SPONSOR1);
         reg.withdrawBond(1);
         assertEq(SPONSOR1.balance, before);
         vm.expectRevert(AttestedAgentRegistry.Closed.selector);
-        reg.revoke(1, sigs);
+        reg.revoke(1, FAR, sigs);
     }
 
     function test_RetiredBondComesBackAfterTheDelay() public {
@@ -642,7 +644,8 @@ contract AgentOnlyTest is AgentOnlyBase {
             address(burner),
             false,
             keccak256("code"),
-            _attest(A1, A2, reg.hashVenue(address(burner), false, keccak256("code")))
+            FAR,
+            _attest(A1, A2, reg.hashVenue(address(burner), false, keccak256("code"), FAR))
         );
         _expectNotAgent(address(burner));
         burner.burn(nft, id);
@@ -652,7 +655,7 @@ contract AgentOnlyTest is AgentOnlyBase {
     function test_OldEnrollmentCannotBeReplayed() public {
         // The sponsor rotates away from a key, say because it leaked.
         address oldKey = address(0x01D);
-        bytes32 d = reg.hashEnrollment(1, oldKey, keccak256("evidence"), SPONSOR1, reg.enrollmentNonce(1), FAR);
+        bytes32 d = reg.hashAttestedEnrollment(1, oldKey, keccak256("evidence"), SPONSOR1, reg.enrollmentNonce(1), FAR);
         bytes[] memory oldSigs = _attest(A1, A2, d);
         vm.prank(SPONSOR1);
         reg.enroll(1, oldKey, keccak256("evidence"), FAR, oldSigs);
