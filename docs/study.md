@@ -559,9 +559,9 @@ The token asks the registry only two questions: `isAgent(address)` and
 
 ### 3.3 What the tests establish
 
-<!--f:tests-->208<!--/f--> tests on a local simulated EVM, <!--f:tests.fuzz-->5<!--/f--> of them fuzzed and one a
+<!--f:tests-->210<!--/f--> tests on a local simulated EVM, <!--f:tests.fuzz-->5<!--/f--> of them fuzzed and one a
 stateful invariant test, plus <!--f:proofs-->8<!--/f--> properties proved symbolically
-(sections 2.5 and 3.17). <!--f:tests.fork-->5<!--/f--> more tests run only on a fork of Base Sepolia
+(sections 2.5 and 3.17). <!--f:tests.fork-->6<!--/f--> more tests run only on a fork of Base Sepolia
 (sections 3.12 and 3.19) and are reported as skipped otherwise.
 
 | Scenario | Result |
@@ -1927,6 +1927,62 @@ only for format 1, the only one that carries the compose hash in clear.
   compute the two values was refused by the workspace. The document of format
   3 follows the one dstack's own test expects, byte for byte in its shape.
 
+### 3.23 When the hardware's security level changes
+
+Done on 17 November 2026, step 1.7 of the plan. The procedure is in
+`docs/platform-updates.md`; this section gives what it rests on.
+
+**What was read on Base Sepolia**, for the platform of our Phala machines
+(FMSPC `20a06f000000`, read in the PCK certificate of their quotes):
+
+| Data on chain | Issued | Expires |
+| --- | --- | --- |
+| Intel's list of TCB recoveries for TDX (Automata's `TcbEvalDao`) | 31 October 2026 | 30 November 2026, 20:29 UTC |
+| Intel's TCB information for that platform, evaluation 20 | 15 November 2026 | 15 December 2026 |
+
+- **The data expires, and then nothing passes.** On a copy of Base Sepolia,
+  with the block time moved forward, Automata's verifier accepts the quote of
+  section 3.21 until 30 November 2026 at 20:29:48 UTC, then reverts
+  (`TcbEvalExpiredOrNotFound`) for it and for every other. The public node
+  answers the same question without a fork (`eth_call` with a simulated
+  time). Enrolled keys keep working; no key can be enrolled or rotated until
+  newer data is on chain. Automata publishes it: the contracts that hold
+  Intel's TCB information take updates through Automata's dashboard only
+  ([Automata on-chain PCCS](https://docs.ata.network/tee-overview/tee-verifiers/intel-sgx-tdx-dcap/automata-onchain-pccs)).
+- **"Up to date" means up to date for evaluation 20.** Our verifiers call
+  `verifyAndAttestOnChain(bytes)`, which uses Intel's "standard" data. Today
+  that is evaluation 20, for the recovery of 12 August 2025. Intel has
+  published two later ones, 21 (10 February 2026) and 22 (11 August 2026). The
+  same quote, checked against a given evaluation: accepted for 20, cannot be
+  checked for 19, 21 and 22, whose data for this platform is not on chain.
+- **A platform that falls behind keeps its key.** The registry asks the
+  verifier only at enrollment and rotation.
+
+**Decision.** No change to the contracts. Demanding a later evaluation is not
+possible on Base Sepolia today, and pinning the current one would freeze the
+verifier on data that only ages. What changes is around them: a tool that
+watches the dates, a procedure that says who does what, and tests for each of
+its branches.
+
+**Tool.** `tools/collateral.py` asks the real verifier, for each archived
+quote, until which day it still accepts it, and which evaluations it can check.
+Run on 17 November: five quotes, accepted at level 0 for 13 more days;
+evaluation 20 only. The nightly workflow runs it and fails 3 days before a
+quote would be refused.
+
+**Tests.**
+
+| Check | Result |
+| --- | --- |
+| An enrolled agent whose platform falls out of date (local) | Its key works until expiry; no new key; the sponsor's freeze is immediate; once the platform is updated, a new key on the same account |
+| Attesters accept "out of date" for a while (local) | The new verifier takes effect only after the notice delay, still refuses other levels; a halt stops every enrollment at once |
+| A real quote that is out of date for Intel, on a copy of Base Sepolia | Refused by a verifier that accepts up-to-date platforms only (as in section 3.12) |
+| The real quote of section 3.21, on a copy of Base Sepolia | Accepted today, refused 45 days later |
+
+**Not done.** No quote was refused for a recovery published after our machines
+started: the later data is not on chain to try. Asking Automata to publish it
+is a contact outside the project.
+
 ## 4. Use cases
 
 The standard is content-agnostic: the token can be anything an ERC-721 can be.
@@ -2040,6 +2096,11 @@ Options studied and set aside:
   starts no SSH server and no console login (section 3.20). It was not
   rebuilt from source, and RTMR0, the virtual hardware, was not recomputed.
   Since section 3.21 the only script that runs before the program is ours.
+- **The hardware's security level is Intel's data on chain, as Automata keeps
+  it.** That data expires about monthly; once expired, no key can be enrolled
+  or rotated until Automata publishes newer data. "Up to date" is measured
+  against Intel's standard evaluation (20, August 2025), not the latest
+  recovery (22, August 2026), whose data is not on chain (section 3.23).
 - **The attesters can replace the enrollment verifier.** A program can be
   upgraded without changing the account, but the hardware proof binds a
   registry only as long as its attesters keep a verifier that demands it.
@@ -2102,8 +2163,9 @@ Options studied and set aside:
    November 2026 (section 3.20): the base image checked against the one
    dstack published, and found closed to SSH; then a pre-launch script of
    our own (section 3.21), and the verifier accepting the other formats of
-   `MRCONFIGID`, which can bind the key provider (section 3.22). Next on that
-   path: the image rebuilt from dstack's sources on a machine that can, and
+   `MRCONFIGID`, which can bind the key provider (section 3.22), and the
+   procedure for a change of the hardware's security level, with a nightly
+   watch on Intel's data (section 3.23). Next on that path: the image rebuilt from dstack's sources on a machine that can, and
    the same build on two machines at once.
 2. Done on 16 November 2026 (section 3.14): x402 payments from an agent
    account on Base Sepolia, through a hosted facilitator, then a budget per
@@ -2168,6 +2230,7 @@ unless stated otherwise.
 | The pre-launch script our machines ran is the public one, version 0.0.21 | Confirmed on 16 November 2026: same SHA-256 (`c452d712…0765`) as the file at commit `3811c90`, and the manifest rebuilt with it gives the four compose hashes measured | [prelaunch.sh](https://github.com/Dstack-TEE/dstack-examples/blob/3811c903df9643b68d5510b0a63828384ab2c1c3/phala-cloud-prelaunch-script/prelaunch.sh) |
 | Phala Cloud runs a pre-launch script given by its user, and the machine measures it in the manifest | Confirmed on 17 November 2026: the compose hash computed beforehand was the one measured, and the boot log shows the script's line (section 3.21) | `examples/enclave-agent/run-2026-11-17-prelaunch` |
 | dstack defines three formats of `MRCONFIGID` (compose hash; with application id and key provider; a hashed document), all binding the compose hash, and its OS refuses to boot on a mismatch or an unknown format | Read in the source at v0.5.12 (`43f69f4`, formats 1 and 2) and on the main branch (`0e75b44`, format 3) on 17 November 2026 (section 3.22). No real quote in formats 2 or 3 seen | [mr_config.rs](https://github.com/Dstack-TEE/dstack/blob/0e75b442ce29001f30ee1e0cbfd17094988846c6/dstack/dstack-types/src/mr_config.rs) |
+| Automata's verifier on Base Sepolia refuses every quote once Intel's data on chain expires, and checks against Intel's "standard" evaluation unless asked for another | Confirmed on 17 November 2026 on a copy of Base Sepolia: our quote is accepted until 30 November 20:29:48 UTC, then reverts (`TcbEvalExpiredOrNotFound`); accepted for evaluation 20, not checkable for 19, 21 and 22 (section 3.23) | [Automata DCAP Attestation](https://github.com/automata-network/automata-dcap-attestation) |
 | dstack does not measure `user_config` | Read in its documentation at commit `350a0a7` (`docs/security/cvm-boundaries.md`), 16 November 2026. Not tested | [dstack](https://github.com/Dstack-TEE/dstack/blob/350a0a73ffdb6041bda69118f13d81591870b565/docs/security/cvm-boundaries.md) |
 | The hosted x402.org facilitator accepts a payer that is a contract and settles its payment | Confirmed on 16 November 2026 by four payments on Base Sepolia from an agent account (section 3.14) | [BaseScan](https://sepolia.basescan.org/tx/0x89e0a73920d855494cbad29a8ec0035a4e07c84da12e409b6c1e2f74aade5ea0) |
 | The test USDC on Base Sepolia is `FiatTokenV2_2` | Confirmed on 16 November 2026 at block 59,533,350: the implementation `0xd74cc5d436923b8ba2c179b4bca2841d8a52c5b5` and its signature library are byte-identical to the code these tests use, apart from the metadata hash and the library address | `examples/x402/check-usdc.mjs` |
