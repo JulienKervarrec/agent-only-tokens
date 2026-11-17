@@ -994,5 +994,23 @@
     "name": "a dual-key signature needs only key A",
     "find": "return _signed(keyA, d, sig[:65]) && _signed(keyB, d, sig[65:]) ? bytes4(0x1626ba7e) : bytes4(0xffffffff);",
     "replace": "return _signed(keyA, d, sig[:65]) ? bytes4(0x1626ba7e) : bytes4(0xffffffff);"
+  },
+  {
+    "file": "src/experimental/DstackConfigIdZkVerifier.sol",
+    "name": "the proof covers part of the zk output",
+    "find": "zkVerifier.verify(seal, program, sha256(zkOutput));",
+    "replace": "zkVerifier.verify(seal, program, sha256(zkOutput[2:]));"
+  },
+  {
+    "file": "src/experimental/DstackConfigIdZkVerifier.sol",
+    "name": "a zk proof exactly at its maximum age is refused",
+    "find": "block.timestamp - checkedAt > maxAge",
+    "replace": "block.timestamp - checkedAt >= maxAge"
+  },
+  {
+    "file": "src/experimental/DstackConfigIdZkVerifier.sol",
+    "name": "the zk route skips the shared checks",
+    "find": "        digest = _checkOutput(output);\n        _approveConfigId",
+    "replace": "        digest = bytes32(0);\n        _approveConfigId"
   }
 ]

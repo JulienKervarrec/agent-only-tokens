@@ -53,11 +53,11 @@ interface IAgentRegistry {
 | `src/ERC721AgentOnly.sol` | The standard: the three rules | <!--f:lines.ERC721AgentOnly-->70<!--/f--> |
 | `src/AgentAccount.sol` | An agent's account, with no human owner, driven by a rotating session key. Single calls, batches, relayed calls, ERC-1271. Each account is an ERC-1167 clone of one implementation | <!--f:lines.AgentAccount-->139<!--/f--> |
 | `src/AttestedAgentRegistry.sol` | Reference registry: k-of-n attesters, each a key or a contract such as a multi-signature wallet, who can hand over to another set, refundable bond, expiring keys, optional ERC-8004 identity link, optional enrollment verifier that the attesters can replace, bond returned after an exit delay. Decisions that widen what it accepts (a venue, a verifier) or change who decides (the attesters) wait for a notice delay; removals and the enrollment halt are immediate; every decision carries a deadline | <!--f:lines.AttestedAgentRegistry-->525<!--/f--> |
-| `src/experimental/TdxQuoteVerifier.sol` | Checks shared by the hardware verifiers: the quote is checked by an on-chain DCAP verifier (Automata's interface), accepted platform level, no debug mode, report data holding the digest only | <!--f:lines.TdxQuoteVerifier-->116<!--/f--> |
+| `src/experimental/TdxQuoteVerifier.sol` | Checks shared by the hardware verifiers: the quote is checked by an on-chain DCAP verifier (Automata's interface), accepted platform level, no debug mode, report data holding the digest only | <!--f:lines.TdxQuoteVerifier-->122<!--/f--> |
 | `src/experimental/TdxEnrollmentVerifier.sol` | Enrollment verifier for TDX images whose measurements are the same for every instance | <!--f:lines.TdxEnrollmentVerifier-->41<!--/f--> |
 | `src/experimental/DstackEnrollmentVerifier.sol` | Enrollment verifier for agents on dstack: replays the RTMR3 event log and identifies the code by its base image and compose hash | <!--f:lines.DstackEnrollmentVerifier-->138<!--/f--> |
 | `src/experimental/Sha384.sol` | SHA-384, needed to replay TDX registers; the EVM has no precompile for it | <!--f:lines.Sha384-->92<!--/f--> |
-| `src/experimental/DstackConfigIdVerifier.sol` | Simpler enrollment verifier for agents on dstack: reads the compose hash in the quote itself (`MRCONFIGID`), with no event log and no SHA-384 | <!--f:lines.DstackConfigIdVerifier-->64<!--/f--> |
+| `src/experimental/DstackConfigIdVerifier.sol` | Simpler enrollment verifier for agents on dstack: reads the compose hash in the quote itself (`MRCONFIGID`), with no event log and no SHA-384 | <!--f:lines.DstackConfigIdVerifier-->70<!--/f--> |
 | `src/AgentSwap.sol` | Fixed-price sale between agents; events announce each listing and sale | <!--f:lines.AgentSwap-->64<!--/f--> |
 | `src/AgentLoan.sol` | Collateralised loan between agents; repayments wait in the venue for the lender; events announce each offer and each step | <!--f:lines.AgentLoan-->116<!--/f--> |
 | `src/AgentStaking.sol` | Staking of agent-only NFTs for ERC-20 rewards (Synthetix-style accounting, one NFT = one unit) | <!--f:lines.AgentStaking-->130<!--/f--> |
@@ -95,7 +95,7 @@ The hardware verifiers and SHA-384 are newer and less reviewed than the
 standard; they live in `src/experimental`, with their tests and fixtures in
 `test/experimental`. Nothing in the standard depends on them.
 
-<!--f:tests-->217<!--/f--> tests run locally; <!--f:tests.fork-->6<!--/f--> more run only against Base
+<!--f:tests-->230<!--/f--> tests run locally; <!--f:tests.fork-->18<!--/f--> more run only against Base
 Sepolia and are reported as skipped without an RPC address. They cover: classic ERC-721 behaviour between agents,
 refusal of humans as holder, recipient, minter or approved operator, refusal
 of unsolicited tokens and of unapproved wrapper contracts, sale, loan (repaid
@@ -112,7 +112,7 @@ a raw signature, changed terms, or while frozen.
 `examples/x402` runs the same payment outside Foundry, through the x402
 reference facilitator and the standard x402 client (see "x402 payments" below).
 
-<!--f:tests.experimental-->64<!--/f--> tests cover enrollment by hardware attestation and SHA-384 (see
+<!--f:tests.experimental-->77<!--/f--> tests cover enrollment by hardware attestation and SHA-384 (see
 "Enrollment by hardware attestation" below). They use a real Intel TDX quote
 (`test/experimental/tdx`), a real dstack quote with its event log
 (`test/experimental/dstack`) and four quotes from our own machines
@@ -240,9 +240,9 @@ Until this pass, mutation testing ran on a list of checks picked by hand, and
 that list lived outside the repository. `tools/mutate.py` now builds the list
 from the code: it disables every `if (...) revert` guard of `src/` in turn
 (each alternative of an `a || b` guard separately), removes every
-unconditional revert, and applies the <!--f:mutants.listed-->166<!--/f--> changes written in
+unconditional revert, and applies the <!--f:mutants.listed-->169<!--/f--> changes written in
 `tools/mutations.json` (a state update dropped, a field left out of a signed
-digest, a comparison weakened). That makes <!--f:mutants-->309<!--/f--> mutants.
+digest, a comparison weakened). That makes <!--f:mutants-->321<!--/f--> mutants.
 
 **Result of the first run: 63 mutants went unnoticed.** The sentence "each
 added line has a test that fails without it" was true of the hand-picked list
@@ -263,8 +263,8 @@ only.
 Every mutant is now caught or explained, and the list is replayed every week.
 
 Slither also joined the automated checks, against a list of accepted findings
-with the reason for each (`tools/slither-accepted.json`, <!--f:slither.accepted-->62<!--/f--> names for
-<!--f:slither.findings-->64<!--/f--> findings): a new finding fails the check. One trap found on the way: the path filter `test`
+with the reason for each (`tools/slither-accepted.json`, <!--f:slither.accepted-->63<!--/f--> names for
+<!--f:slither.findings-->65<!--/f--> findings): a new finding fails the check. One trap found on the way: the path filter `test`
 also matched `AttestedAgentRegistry.sol` and hid every finding in the
 registry; the filter is now `/test/`.
 

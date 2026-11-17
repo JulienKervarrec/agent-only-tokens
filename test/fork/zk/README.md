@@ -1,0 +1,15 @@
+# A real zero-knowledge proof of a TDX quote check
+
+`sp1-v3-proof.hex` and `sp1-v3-public-values.hex` come from the test fixture
+`go-sdk/packages/godcap/sp1/client_api_test.go` of
+[automata-dcap-attestation](https://github.com/automata-network/automata-dcap-attestation)
+at commit `5962363`: an SP1 v3.0.0 Groth16 proof that Automata's DCAP program
+verified an Intel TDX quote. The public values (799 bytes) are that program's
+output; their SHA-256, cut to 253 bits, is the proof's second public input
+(checked). The proof file is the 4-byte verifier selector followed by the
+256-byte proof. Program key:
+`0x0043e4e0c286cf4a2c03472ca2384f35a008558bc5de4e0f39d1d1bc989badca`.
+
+SP1 versions before 4.0.0 had soundness bugs (advisory GHSA-c873-wfhp-wx5m);
+Succinct froze their verifier routes. This proof shows the mechanics and the
+cost on Base Sepolia, not a route to use.

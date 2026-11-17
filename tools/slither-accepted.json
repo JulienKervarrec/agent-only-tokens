@@ -52,6 +52,7 @@
   "timestamp: AttestedAgentRegistry.setFrozen": "False positive: the function compares the sponsor, not a time.",
   "timestamp: AttestedAgentRegistry.setVenue": "Deadlines, key lifetimes and delays are counted in hours or days; a validator shifting a timestamp by seconds gains nothing.",
   "timestamp: AttestedAgentRegistry.withdrawBond": "Deadlines, key lifetimes and delays are counted in hours or days; a validator shifting a timestamp by seconds gains nothing.",
+  "timestamp: DstackConfigIdZkVerifier.attestWithProof": "The proof's check time is compared with the block time to refuse stale proofs; the allowed age is set at deployment (one hour in the tests); a validator shifting a timestamp by seconds gains nothing.",
   "timestamp: DualKey.act": "Deadlines, key lifetimes and delays are counted in hours or days; a validator shifting a timestamp by seconds gains nothing.",
   "too-many-digits: DstackEnrollmentVerifier.slitherConstructorConstantVariables": "A SHA-384 digest written as a constant.",
   "uninitialized-local: AttestedAgentRegistry._requireSigners.last": "Starts at zero on purpose: the first signer only has to be non-zero.",

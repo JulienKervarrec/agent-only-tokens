@@ -723,6 +723,34 @@
       "role": "lets a Safe approve a message on chain; used by a fork test",
       "block": 5172597,
       "codeHash": "0x525c754a46b79e05543a59bb61e8de3c9eee0d955a59352409cbe67ea1077528"
+    },
+    {
+      "address": "0x397A5f7f3dBd538f23DE225B51f532c34448dA9B",
+      "name": "SP1 verifier gateway",
+      "role": "routes SP1 proofs to their verifier; refuses frozen versions (study 3.25, fork test)",
+      "block": 17359259,
+      "codeHash": "0x11612dc6695484a4dfcac5ae1a7bcb093f891eb93d8aa9ddeca7f24a1f3b7d57"
+    },
+    {
+      "address": "0xE780809121774D06aD9B0EEeC620fF4B3913Ced1",
+      "name": "SP1 v3.0.0 Groth16 verifier (frozen)",
+      "role": "verifies the SP1 v3 proof of Automata's fixture in the fork test; its route is frozen (study 3.25)",
+      "block": 17359712,
+      "codeHash": "0x465c505e17982834d59c1a909c27f2363bb832b7b04e7431e3daec4776f53f5c"
+    },
+    {
+      "address": "0x0b144E07A0826182B6b59788c34b32Bfa86Fb711",
+      "name": "RISC Zero verifier router",
+      "role": "knows the Groth16 route of Automata's quote proofs (study 3.25, fork test)",
+      "block": 11806310,
+      "codeHash": "0x80b54f5341247346f34a6c82e8651c9bdbc0437f6db35b9abf61431b1ac4dba6"
+    },
+    {
+      "address": "0xaf2a0D5473062b36E2dE986DA09d945EB26d492B",
+      "name": "Automata PCCS router",
+      "role": "Intel data on chain, read by Automata's quote verifiers; the zk fork test reads the hashes a proof must carry (study 3.26)",
+      "block": 29912876,
+      "codeHash": "0xae9272895bd590692d290737e5485f1164d140873d902f3e3665bbdd06debe82"
     }
   ],
   "sessionKeys": [
