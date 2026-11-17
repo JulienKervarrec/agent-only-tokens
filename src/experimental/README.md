@@ -12,6 +12,7 @@ verifier, any contract that answers ERC-1271.
 | `DstackEnrollmentVerifier.sol` | Enrollment of agents on dstack, by event-log replay |
 | `DstackConfigIdVerifier.sol` | Enrollment of agents on dstack from the quote alone, by `MRCONFIGID` (formats 1 to 3) |
 | `Sha384.sol` | SHA-384, needed by the dstack verifier |
+| `DualKey.sol` | A session key held by two machines: acts only when both sign |
 
 Tests and fixtures: `../../test/experimental`. What was checked and what was
-not: sections 3.11, 3.14 and 3.22 of `../../docs/study.md`.
+not: sections 3.11, 3.14, 3.22 and 3.24 of `../../docs/study.md`.
