@@ -1,0 +1,13 @@
+The pre-launch step in the machine's serial log, 17 November 2026: our script
+printed its one line, then the containers started. The same after the machine
+was stopped and started again.
+
+First boot:
+[   20.565033] app-compose.sh[638]: Running pre-launch script
+[   20.576201] app-compose.sh[638]: Agent-Only Tokens: no pre-launch step
+[   20.582396] app-compose.sh[638]: Starting containers
+
+After the restart:
+[   16.231750] app-compose.sh[685]: Running pre-launch script
+[   16.244248] app-compose.sh[685]: Agent-Only Tokens: no pre-launch step
+[   16.252040] app-compose.sh[685]: Starting containers

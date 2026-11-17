@@ -252,8 +252,10 @@ Two of its inputs come from whoever deploys or hosts the machine:
 What protects the agent's key is therefore the base image: our runs used the
 production image, which the provider presents as having no SSH access, and
 which is part of the code identity the verifier approves. A development image
-has other boot measurements and would be refused. We did not check ourselves
-that the production image runs no SSH server.
+has other boot measurements and would be refused. Checked on 17 November
+2026: the published production image starts no SSH server and allows no
+console login (study, section 3.20). Since the same day our machine runs a
+pre-launch script of our own, which installs no key at all (below).
 
 ## Third program: retries, a clear answer, a budget
 
@@ -338,3 +340,42 @@ decision were simulated on the chain's state one block earlier.
 `run-2026-11-16-upgrade/` holds the two quotes. The verifiers are those of the
 second and third runs, reused as they are: a verifier does not depend on a
 registry.
+
+## Our own pre-launch script
+
+`manifest/prelaunch-ours.sh` replaces Phala Cloud's default script. It prints
+one line and does nothing else: no registry login, no image pull, no root
+password, no SSH key, no file from the host, no environment variable. Phala
+Cloud's deployment form accepts a custom script; dstack then measures it with
+the rest of the manifest.
+
+Run on 17 November 2026, with the third program unchanged, on Phala Cloud
+(`tdx.small`, dstack OS 0.5.12, Phala KMS).
+
+| Step | Result |
+| --- | --- |
+| Compose hash computed here before deployment (`manifest/compose-hash.py ../v3/docker-compose.yml prelaunch-ours.sh`) | `024261d8…39b5`; Phala Cloud's prepared manifest, then the machine, gave the same value |
+| What the machine says it measured (`/manifest`) | The compose file and our script, by their SHA-256; the other fields as in the earlier runs |
+| Boot log | `Agent-Only Tokens: no pre-launch step`, then the containers start (`run-2026-11-17-prelaunch/boot-log.txt`) |
+| Base image, recomputed by `tools/dstack_image.py` | MRTD, RTMR1 and RTMR2 equal to the published 0.5.12 image |
+| Code identity | Predicted from the quote of 16 November by changing only MRCONFIGID; Intel's verifier on Base Sepolia returned the same value |
+| Verifier approving that identity, then a registry requiring it | [`0x120D…3A74`](https://sepolia.basescan.org/address/0x120D6d17c744900e94Ef59Fa6123Ac29e82D3A74), [`0xE784…aD52`](https://sepolia.basescan.org/address/0xE78420EDf016b1249F2F8664ab172240C43BaD52) |
+| Quote verified on chain ([tx](https://sepolia.basescan.org/tx/0x22347b142a4333ac121c4b274911946b7f35f7c0d689a9a704bec610d06f56ea)) | 3,719,468 gas |
+| Agent enrolled, no attester signature ([tx](https://sepolia.basescan.org/tx/0x8cddffe6108189ac7a8201b0c6cc796edf59e063bbf62a00f57b86bb7819dc9e)) | 201,819 gas. Account [`0xD6eC…38e7`](https://sepolia.basescan.org/address/0xD6eC25de098d6f23A8Bc180C1A95B8a1A5c238e7) |
+| The third run's quote (Phala's default script) sent to the new verifier | Refused: `UnknownCode`, with the third run's code identity |
+| The machine is stopped, then started again | Same manifest, our script's line again in the boot log, a new key |
+| New quote verified, then key rotation ([attest](https://sepolia.basescan.org/tx/0x6085d69e6a59d57382fb05f6363e5dc555c4db602d11709b9ba02bd29b651a3c), [rotation](https://sepolia.basescan.org/tx/0xb688489e82c51e24a0b2073a2b0557c2df7af0bd58741bbc5b60b6162a1fac5f)) | 3,719,480 and 46,143 gas. Same account; the new key is the agent's key |
+
+Session keys `0x808ef3634f4df8e607f931ef00b0069af5acf43a`, then
+`0x7296ba58669ab91b4707b02f764b0d52bff9853d`. The machine ran for about eleven
+minutes in all, then was deleted. `run-2026-11-17-prelaunch/` holds the two
+quotes, the event names and payloads, and the boot log.
+
+What changes: the SSH keys of `/dstack/user_config`, which the host supplies
+unmeasured, are no longer copied anywhere, and the program's start no longer
+depends on 406 lines written by the provider. Everything that runs before the
+program is now either dstack's, in the approved base image, or ours, in this
+folder.
+
+Limit: Phala Cloud's form still writes the other fields of the manifest, as
+before. They are measured, and `compose-hash.py` rebuilds them.

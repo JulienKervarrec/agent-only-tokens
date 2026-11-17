@@ -379,10 +379,10 @@ finding fails the check.
 And the figures of sections 3.2, 3.3 and 3.9 are compared with the repository
 by `tools/figures.py`.
 
-The code of the deployed contracts can now be read. Of the <!--f:deployed-->66<!--/f--> contracts
-deployed on Base Sepolia for the tests, <!--f:deployed.clones-->18<!--/f--> are agent accounts, clones
-of an implementation. <!--f:deployed.verified-->48<!--/f--> of the others are verified on Sourcify:
-<!--f:deployed.exact-->45<!--/f--> match their source exactly, <!--f:deployed.match-->3<!--/f--> on code only (their sources
+The code of the deployed contracts can now be read. Of the <!--f:deployed-->70<!--/f--> contracts
+deployed on Base Sepolia for the tests, <!--f:deployed.clones-->19<!--/f--> are agent accounts, clones
+of an implementation. <!--f:deployed.verified-->51<!--/f--> of the others are verified on Sourcify:
+<!--f:deployed.exact-->48<!--/f--> match their source exactly, <!--f:deployed.match-->3<!--/f--> on code only (their sources
 differed by comments). `deployments/base-sepolia.json` names, for each one, the
 commit of the repository that compiles to it; nine of them run earlier
 versions of the code, which were found by recompiling the history, and two
@@ -1182,7 +1182,8 @@ images, image pull, root password, SSH keys for root.
   image being closed to SSH. Our runs used the production image, which the
   provider presents that way and which is part of the approved identity; a
   development image has other measurements and is refused. Checked the next
-  day: that image starts no SSH server (section 3.20).
+  day: that image starts no SSH server (section 3.20). Since section 3.21
+  our machine runs our own script, which installs no key.
 
 **The third program** (222 lines) fixes the three defects noted in section
 3.14.
@@ -1775,10 +1776,14 @@ of the release) does, written a second time in Python without running it:
 
 | Quote | MRTD | RTMR1 | RTMR2 |
 | --- | --- | --- | --- |
-| The eleven quotes of our three runs on Phala Cloud, on two machines (`test/experimental/phala`, `examples/enclave-agent/run-*`) | Equal | Equal, for 2,048 MiB of memory | Equal |
+| The eleven distinct quotes of our runs on Phala Cloud, on two machines (`test/experimental/phala`, `examples/enclave-agent/run-*`; some files are copies) | Equal | Equal, for 2,048 MiB of memory | Equal |
 | A copy of the image with one byte of the firmware changed | Different | Equal | Equal |
 | The same with the kernel, the initrd, or the command line changed | Equal | Different for the kernel | Different for the initrd and the command line |
 | Quotes from other images (`test/experimental/dstack`, `test/experimental/tdx`) | Different | Different | Different |
+
+Correction: version 0.4.1 of this study wrongly counted eleven quotes. The archive
+held thirteen files, of which four are copies: nine distinct quotes, eleven with
+the two of section 3.21.
 
 The firmware pages were added in two passes, all the pages first and then
 their content: that is how the host's QEMU loads them, and the tool computes
@@ -1823,6 +1828,49 @@ the root file system against its hash.
   not compared with a reference.
 - **The review of the image is a reading, not an audit**: the programs that
   run were listed and searched, not read line by line.
+
+### 3.21 A pre-launch script of our own
+
+Done on 17 November 2026. Until then, the 406 lines of the provider's
+pre-launch script ran before every agent's program (section 3.15). They were
+measured, but written by the provider, and they copied into root's account
+the SSH keys of a file the host supplies without measuring.
+
+**The script.** `examples/enclave-agent/manifest/prelaunch-ours.sh`, six
+lines, 440 bytes: comments and one `echo`. No registry login, no image pull,
+no root password, no SSH key, no file from the host, no environment variable.
+dstack's own launcher reads the script from the manifest and runs it in its
+shell before the compose file (`app-compose.sh`, the same file in the release
+and in the image of section 3.20); our program's image is pinned by digest,
+and Docker pulls it when the compose file starts.
+
+**The run.** Phala Cloud's deployment form accepts a custom script. The third
+program, unchanged, on a `tdx.small` machine with dstack OS 0.5.12 and Phala
+KMS, for about eleven minutes in all. Files: `examples/enclave-agent/run-2026-11-17-prelaunch`.
+
+| Step | Result |
+| --- | --- |
+| Compose hash computed from the repository before deployment | `024261d8…39b5`. Phala Cloud's prepared manifest, then the machine, gave the same value |
+| What the machine reports it measured | The compose file and our script, by their SHA-256; the other fields as in section 3.15 |
+| Boot log | Our script's one line, then the containers start, 17 milliseconds after the step began |
+| Base image (`tools/dstack_image.py`) | MRTD, RTMR1 and RTMR2 equal to the published 0.5.12 image |
+| Code identity | Predicted from the quote of section 3.15 by changing only `MRCONFIGID`; Automata's verifier on Base Sepolia returned the same value |
+| `DstackConfigIdVerifier.attest` ([tx](https://sepolia.basescan.org/tx/0x22347b142a4333ac121c4b274911946b7f35f7c0d689a9a704bec610d06f56ea)) | 3,719,468 gas |
+| `enroll`, no attester signature ([tx](https://sepolia.basescan.org/tx/0x8cddffe6108189ac7a8201b0c6cc796edf59e063bbf62a00f57b86bb7819dc9e)) | 201,819 gas; the account is an agent |
+| The quote of section 3.15, made under the provider's script, sent to the new verifier | Refused, `UnknownCode` |
+| The machine stopped and started again | Same manifest and our script's line again; a new key, verified ([tx](https://sepolia.basescan.org/tx/0x6085d69e6a59d57382fb05f6363e5dc555c4db602d11709b9ba02bd29b651a3c), 3,719,480 gas) and rotated in ([tx](https://sepolia.basescan.org/tx/0xb688489e82c51e24a0b2073a2b0557c2df7af0bd58741bbc5b60b6162a1fac5f), 46,143 gas) on the same account |
+
+**What changes.** The keys of the host's unmeasured file are no longer copied
+anywhere, and nothing written by the provider runs before the program:
+everything that does is either dstack's, in the approved base image, or ours,
+in this repository. The provider's form still writes the manifest's other
+fields (key provider, gateway, public logs, accepted environment variables);
+they are measured, and `compose-hash.py` rebuilds them.
+
+**Not done.** The image was still not rebuilt from source (section 3.20). The
+machine was then deleted: nothing in the following steps depends on it, since
+the verifier reads neither the application id nor the instance id, and the
+account holds nothing.
 
 ## 4. Use cases
 
@@ -1936,6 +1984,7 @@ Options studied and set aside:
   base image is exactly the one dstack published for that version, and it
   starts no SSH server and no console login (section 3.20). It was not
   rebuilt from source, and RTMR0, the virtual hardware, was not recomputed.
+  Since section 3.21 the only script that runs before the program is ours.
 - **The attesters can replace the enrollment verifier.** A program can be
   upgraded without changing the account, but the hardware proof binds a
   registry only as long as its attesters keep a verifier that demands it.
@@ -1994,9 +2043,9 @@ Options studied and set aside:
    a verifier reading the compose hash from `MRCONFIGID`. The manifest was
    then rebuilt and the pre-launch script read (section 3.15). Done on 17
    November 2026 (section 3.20): the base image checked against the one
-   dstack published, and found closed to SSH. Next on that path: the image
-   rebuilt from dstack's sources on a machine that can, a pre-launch script
-   of our own, and the same build on two machines at once.
+   dstack published, and found closed to SSH; then a pre-launch script of
+   our own (section 3.21). Next on that path: the image rebuilt from dstack's
+   sources on a machine that can, and the same build on two machines at once.
 2. Done on 16 November 2026 (section 3.14): x402 payments from an agent
    account on Base Sepolia, through a hosted facilitator, then a budget per
    key (section 3.15). Next: a purchase whose result the agent uses.
@@ -2058,6 +2107,7 @@ unless stated otherwise.
 | A Phala Cloud machine's quote is accepted by Automata's verifier on Base Sepolia, and dstack writes `compose-hash` before `boot-mr-done` | Confirmed on 16 November 2026 by transaction (section 3.13) | [BaseScan](https://sepolia.basescan.org/tx/0x3bde5e7d3ccf206d60290a8b9de98ae72ea5d79f2fc6368141c3e652613b9fcf) |
 | dstack writes the compose hash into `MRCONFIGID` (format `01`) and its OS refuses to boot when the field does not match the manifest; an all-zero field is tolerated | Read in the source at commit `350a0a7` on 16 November 2026. The field's content was confirmed on the quotes of two production machines; the refusal to boot was not provoked | [config_id_verifier.rs](https://github.com/Dstack-TEE/dstack/blob/350a0a73ffdb6041bda69118f13d81591870b565/dstack/dstack-util/src/system_setup/config_id_verifier.rs) |
 | The pre-launch script our machines ran is the public one, version 0.0.21 | Confirmed on 16 November 2026: same SHA-256 (`c452d712…0765`) as the file at commit `3811c90`, and the manifest rebuilt with it gives the four compose hashes measured | [prelaunch.sh](https://github.com/Dstack-TEE/dstack-examples/blob/3811c903df9643b68d5510b0a63828384ab2c1c3/phala-cloud-prelaunch-script/prelaunch.sh) |
+| Phala Cloud runs a pre-launch script given by its user, and the machine measures it in the manifest | Confirmed on 17 November 2026: the compose hash computed beforehand was the one measured, and the boot log shows the script's line (section 3.21) | `examples/enclave-agent/run-2026-11-17-prelaunch` |
 | dstack does not measure `user_config` | Read in its documentation at commit `350a0a7` (`docs/security/cvm-boundaries.md`), 16 November 2026. Not tested | [dstack](https://github.com/Dstack-TEE/dstack/blob/350a0a73ffdb6041bda69118f13d81591870b565/docs/security/cvm-boundaries.md) |
 | The hosted x402.org facilitator accepts a payer that is a contract and settles its payment | Confirmed on 16 November 2026 by four payments on Base Sepolia from an agent account (section 3.14) | [BaseScan](https://sepolia.basescan.org/tx/0x89e0a73920d855494cbad29a8ec0035a4e07c84da12e409b6c1e2f74aade5ea0) |
 | The test USDC on Base Sepolia is `FiatTokenV2_2` | Confirmed on 16 November 2026 at block 59,533,350: the implementation `0xd74cc5d436923b8ba2c179b4bca2841d8a52c5b5` and its signature library are byte-identical to the code these tests use, apart from the metadata hash and the library address | `examples/x402/check-usdc.mjs` |
@@ -2066,7 +2116,7 @@ unless stated otherwise.
 | dstack extends RTMR3 as SHA-384(RTMR3 \|\| event digest) from zero; V1 digest = SHA-384(type LE \|\| ":" \|\| name \|\| ":" \|\| payload) | Read in `cc-eventlog/src/runtime_events.rs` (commit `b936f86`), then confirmed on 15 November 2026 by replaying the real event log of `verifier/fixtures/quote-report.json`, offline and in the tests | [dstack](https://github.com/Dstack-TEE/dstack) |
 | The USDC deployed on Base is `FiatTokenV2_2` | Confirmed on 14 November 2026 at block 57,208,253: the implementation `0x2Ce6311ddAE708829bc0784C967b7d77D19FD779` and its signature library are byte-identical to the code compiled from commit `fc85788`, apart from the metadata hash and the library address. Read through the public RPC `https://mainnet.base.org` | `examples/x402/check-usdc.mjs` |
 | The standard x402 client pays from an agent account once given the 28-line signer adapter | Confirmed by execution on 14 November 2026: packages `@x402/fetch` and `@x402/express` 2.31.0, local chain | `examples/x402/demo.mjs` |
-| Every contract cited in this document is at its address on Base Sepolia, with the code recorded | Confirmed on 17 November 2026 for the <!--f:deployed-->66<!--/f--> contracts of `deployments/base-sepolia.json` and the 3 external ones (code hash read on chain); checked again every night | `tools/deployments.py` |
+| Every contract cited in this document is at its address on Base Sepolia, with the code recorded | Confirmed on 17 November 2026 for the <!--f:deployed-->70<!--/f--> contracts of `deployments/base-sepolia.json` and the 3 external ones (code hash read on chain); checked again every night | `tools/deployments.py` |
 
 ## 10. Sources
 

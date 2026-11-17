@@ -3,9 +3,11 @@
 """Recomputes the compose hash dstack measures for a program of this folder.
 
     python3 compose-hash.py ../v3/docker-compose.yml
+    python3 compose-hash.py ../v3/docker-compose.yml prelaunch-ours.sh
 
 The compose hash is the SHA-256 of the manifest (app-compose.json) that Phala Cloud builds
-from the compose file, its default pre-launch script and its default settings. The settings
+from the compose file, a pre-launch script (its default one unless another is given) and
+its default settings. The settings
 below are those of our runs of 16 November 2026 (Phala KMS, public logs, no environment
 variable accepted). Another setting, or another version of the pre-launch script, gives
 another hash.
@@ -28,7 +30,7 @@ manifest = {
     "manifest_version": 2,
     "name": "",
     "no_instance_id": False,
-    "pre_launch_script": read(here / "prelaunch.sh"),
+    "pre_launch_script": read(sys.argv[2] if len(sys.argv) > 2 else here / "prelaunch.sh"),
     "public_logs": True,
     "public_sysinfo": True,
     "public_tcbinfo": True,
