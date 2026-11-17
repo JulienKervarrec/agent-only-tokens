@@ -349,11 +349,11 @@ tool, `tools/mutate.py`, which builds the list from the code:
 - every `if (...) revert` guard under `src/` is disabled in turn, and for a
   guard written `a || b` each alternative is dropped in turn;
 - every unconditional revert is removed in turn;
-- the <!--f:mutants.listed-->163<!--/f--> changes written in `tools/mutations.json` are applied in turn: a
+- the <!--f:mutants.listed-->166<!--/f--> changes written in `tools/mutations.json` are applied in turn: a
   state update dropped, a field left out of a signed digest, a comparison
   weakened, an event removed.
 
-That makes <!--f:mutants-->300<!--/f--> mutants. A mutant the test suite does not catch fails the
+That makes <!--f:mutants-->309<!--/f--> mutants. A mutant the test suite does not catch fails the
 tool, unless it is listed with a reason in `tools/mutations-accepted.json`.
 
 **First run: 63 of the 212 mutants went unnoticed.** Sections 2.4 to 2.6 say
@@ -559,7 +559,7 @@ The token asks the registry only two questions: `isAgent(address)` and
 
 ### 3.3 What the tests establish
 
-<!--f:tests-->210<!--/f--> tests on a local simulated EVM, <!--f:tests.fuzz-->5<!--/f--> of them fuzzed and one a
+<!--f:tests-->217<!--/f--> tests on a local simulated EVM, <!--f:tests.fuzz-->5<!--/f--> of them fuzzed and one a
 stateful invariant test, plus <!--f:proofs-->8<!--/f--> properties proved symbolically
 (sections 2.5 and 3.17). <!--f:tests.fork-->6<!--/f--> more tests run only on a fork of Base Sepolia
 (sections 3.12 and 3.19) and are reported as skipped otherwise.
@@ -580,7 +580,7 @@ stateful invariant test, plus <!--f:proofs-->8<!--/f--> properties proved symbol
 | 128 runs of 100 random actions by two agents, a human and an unapproved contract | After every action, no token is held by or approved for anything but an agent account or an approved venue |
 | Several calls in one batch, direct or relayed | All or nothing; a human cannot batch for the agent |
 | The five attacks found by the first review and the weaknesses found by the second (sections 2.3 and 2.4) | Each one is now rejected |
-| <!--f:mutants-->300<!--/f--> mutants built from the code: every guard disabled, every listed change applied (mutation testing, section 2.7) | Each one is caught by the suite, or is one of the <!--f:mutants.accepted-->1<!--/f--> that cannot change behaviour |
+| <!--f:mutants-->309<!--/f--> mutants built from the code: every guard disabled, every listed change applied (mutation testing, section 2.7) | Each one is caught by the suite, or is one of the <!--f:mutants.accepted-->1<!--/f--> that cannot change behaviour |
 | A venue is approved, or the enrollment verifier replaced (section 3.17) | Nothing changes before the notice delay has passed; removing the venue or announcing again cancels. An address without code is refused |
 | The attesters halt enrollments (section 3.17) | No new agent and no new key at once; agents keep their current key; enrollments resume one notice delay after a verifier is announced |
 | The attesters replace the enrollment verifier to accept a new program (section 3.16) | The agent keeps its id, account, tokens and current key; its next key must come from the new program; one attester alone, another verifier or a replayed decision is refused |
@@ -1983,6 +1983,52 @@ quote would be refused.
 started: the later data is not on chain to try. Asking Automata to publish it
 is a contact outside the project.
 
+### 3.24 Two manufacturers: feasibility
+
+Done on 17 November 2026, step 1.8 of the plan, without any cloud account: real
+attestations already published by others, checked by us twice, in Python and on
+chain. The question: can an enrollment demand proofs from two hardware makers,
+so that an attack on one kind of chip (TEE.fail, for Intel) is not enough?
+
+**What can be verified on Base today.** Code presence was read on Base Sepolia;
+the gas was measured by us under the Osaka rules, against the 16,777,216 gas
+cap per transaction (EIP-7825). The files and the way to rerun them are in
+[`research/two-makers`](../research/two-makers/README.md).
+
+| Hardware | How | Measured by us | Needs |
+| --- | --- | --- | --- |
+| Intel TDX | Automata DCAP, ours since section 3.12 | About 3.7 million gas per quote (section 3.21) | Nothing more |
+| AWS Nitro Enclaves | [base/nitro-validator](https://github.com/base/nitro-validator), Solidity with off-chain hints, reviewed by Cantina in August 2026 | A real document of 3 January 2026: 13.3 million gas once its certificate chain is cached; the first time, 6 calls and 39.4 million gas in all, none above 13.3 million | Contracts to deploy (a demonstration copy is on Base Sepolia) |
+| AMD SEV-SNP | Direct: the Nitro project's P-384 verifier for the report, our own RSA-PSS code for AMD's certificates | A real Milan report: its signature 5.0 million gas; each of the two certificate checks 5.0 to 5.4 million gas, once per chip | Certificate parsing, revocation list and a review: not written |
+| AMD SEV-SNP | [Automata](https://github.com/automata-network/amd-sev-snp-attestation-sdk), zero-knowledge proof | Not run: no deployment on Base Sepolia | A proving service, and a deployment on Base |
+
+Each check refuses a document changed by one bit. The AWS root in the Nitro
+document has the fingerprint AWS publishes; the AMD root is the same in two
+independent projects (virtee and Automata).
+
+**Verdict.** Intel with AWS Nitro is feasible on Base now, with reviewed code.
+Intel with AMD is feasible too, and cheaper per enrollment, but the AMD part is
+ours and unreviewed: it would need its certificate parsing, its revocation list
+and an audit before any real use. No proving service is needed for either.
+
+**How two makers sign for one agent.** A key copied into both machines would be
+as weak as the weaker one. Instead each machine creates its own key, and the
+agent's session key is a small contract,
+[`DualKey`](../src/experimental/DualKey.sol), that acts only when both sign
+(7 tests: one machine alone can do nothing, an order runs once, an old one is
+refused). The enrollment verifier would accept an enrollment only when both
+attestations carry its digest (a Nitro document has a `user_data` field for
+that); one verifier asking two, installed through the replacement rule of
+section 3.16. Two things remain: our account checks signatures as from a plain
+key, so an x402 payment signed by `DualKey` is refused (a test shows it;
+ERC-1271 support for a contract key is the change); and a Nitro certificate
+lives three hours, so its document must reach the chain within that time.
+
+**Not done.** No machine of ours ran on Nitro or AMD: that needs an account
+with a cloud that rents them (AWS for Nitro; Azure or Google Cloud for AMD,
+since Phala Cloud offers neither). The samples are others' machines; what we
+checked is that their signatures hold and what that costs on chain.
+
 ## 4. Use cases
 
 The standard is content-agnostic: the token can be anything an ERC-721 can be.
@@ -2165,7 +2211,10 @@ Options studied and set aside:
    our own (section 3.21), and the verifier accepting the other formats of
    `MRCONFIGID`, which can bind the key provider (section 3.22), and the
    procedure for a change of the hardware's security level, with a nightly
-   watch on Intel's data (section 3.23). Next on that path: the image rebuilt from dstack's sources on a machine that can, and
+   watch on Intel's data (section 3.23). The study of two makers found both Intel
+   with AWS Nitro and Intel with AMD verifiable on Base without a proving
+   service, the AMD route still to be written and reviewed (section 3.24). Next on that
+   path: the image rebuilt from dstack's sources on a machine that can, and
    the same build on two machines at once.
 2. Done on 16 November 2026 (section 3.14): x402 payments from an agent
    account on Base Sepolia, through a hosted facilitator, then a budget per
@@ -2231,6 +2280,7 @@ unless stated otherwise.
 | Phala Cloud runs a pre-launch script given by its user, and the machine measures it in the manifest | Confirmed on 17 November 2026: the compose hash computed beforehand was the one measured, and the boot log shows the script's line (section 3.21) | `examples/enclave-agent/run-2026-11-17-prelaunch` |
 | dstack defines three formats of `MRCONFIGID` (compose hash; with application id and key provider; a hashed document), all binding the compose hash, and its OS refuses to boot on a mismatch or an unknown format | Read in the source at v0.5.12 (`43f69f4`, formats 1 and 2) and on the main branch (`0e75b44`, format 3) on 17 November 2026 (section 3.22). No real quote in formats 2 or 3 seen | [mr_config.rs](https://github.com/Dstack-TEE/dstack/blob/0e75b442ce29001f30ee1e0cbfd17094988846c6/dstack/dstack-types/src/mr_config.rs) |
 | Automata's verifier on Base Sepolia refuses every quote once Intel's data on chain expires, and checks against Intel's "standard" evaluation unless asked for another | Confirmed on 17 November 2026 on a copy of Base Sepolia: our quote is accepted until 30 November 20:29:48 UTC, then reverts (`TcbEvalExpiredOrNotFound`); accepted for evaluation 20, not checkable for 19, 21 and 22 (section 3.23) | [Automata DCAP Attestation](https://github.com/automata-network/automata-dcap-attestation) |
+| A real AWS Nitro document and a real AMD SEV-SNP report verify on chain under the per-transaction gas cap, without a proving service: Nitro 13.3 million gas once its chain is cached, AMD 5.0 million for the report and 5.0 to 5.4 million per certificate | Run by us on 17 November 2026 on public samples (base/nitro-validator `0ea0d12`, virtee/sev), checked again in Python; AMD's SEV-SNP verifier absent from Base Sepolia (section 3.24) | [research/two-makers](../research/two-makers/README.md) |
 | dstack does not measure `user_config` | Read in its documentation at commit `350a0a7` (`docs/security/cvm-boundaries.md`), 16 November 2026. Not tested | [dstack](https://github.com/Dstack-TEE/dstack/blob/350a0a73ffdb6041bda69118f13d81591870b565/docs/security/cvm-boundaries.md) |
 | The hosted x402.org facilitator accepts a payer that is a contract and settles its payment | Confirmed on 16 November 2026 by four payments on Base Sepolia from an agent account (section 3.14) | [BaseScan](https://sepolia.basescan.org/tx/0x89e0a73920d855494cbad29a8ec0035a4e07c84da12e409b6c1e2f74aade5ea0) |
 | The test USDC on Base Sepolia is `FiatTokenV2_2` | Confirmed on 16 November 2026 at block 59,533,350: the implementation `0xd74cc5d436923b8ba2c179b4bca2841d8a52c5b5` and its signature library are byte-identical to the code these tests use, apart from the metadata hash and the library address | `examples/x402/check-usdc.mjs` |
