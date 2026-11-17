@@ -121,14 +121,82 @@ contract DstackConfigIdTest is AgentOnlyBase {
         verifier.attest(other);
     }
 
-    function test_UnsetOrOtherConfigIdFormatsAreRefusedEvenIfApproved() public {
-        // Format 2 binds more than the compose hash; format 0 is "unset", which dstack tolerates.
-        for (uint8 format = 0; format < 4; ++format) {
-            if (format == 1) continue;
-            bytes memory q = _with(quote, MR_CONFIG_ID, bytes1(format));
+    function test_UnsetOrUndefinedConfigIdFormatsAreRefusedEvenIfApproved() public {
+        // Format 0 is "unset", which dstack tolerates without checking anything; dstack defines
+        // formats 1 to 3 only, and its OS refuses to boot on any other.
+        uint8[4] memory formats = [0, 4, 0x80, 0xff];
+        for (uint256 i; i < formats.length; ++i) {
+            bytes memory q = _with(quote, MR_CONFIG_ID, bytes1(formats[i]));
             DstackConfigIdVerifier lax = _verifier(_codeOf(q));
             vm.expectRevert(DstackConfigIdVerifier.BadConfigId.selector);
             lax.attest(q);
+        }
+        bytes memory unset = bytes.concat(quote);
+        for (uint256 i; i < 48; ++i) {
+            unset[MR_CONFIG_ID + i] = 0;
+        }
+        DstackConfigIdVerifier anyCode = _verifier(_codeOf(unset));
+        vm.expectRevert(DstackConfigIdVerifier.BadConfigId.selector);
+        anyCode.attest(unset);
+    }
+
+    // ------------------------------------------------------------ formats 2 and 3
+
+    // The machine of 17 November 2026 (examples/enclave-agent/run-2026-11-17-prelaunch): its
+    // compose hash, and from its RTMR3 events its application id, instance id and the public key
+    // of its KMS. dstack wrote format 1; formats 2 and 3 are what it would have written if the
+    // manifest had pinned the key provider (dstack-types/src/mr_config.rs).
+    bytes32 constant RUN_COMPOSE = 0x024261d8dbc43aef02147dc1790aae23d75e2bde92ddf899b294d3913f9e39b5;
+    bytes20 constant RUN_APP_ID = bytes20(hex"39f1081414996bf4d10a9c879f8cd3b348f93f2a");
+    bytes constant RUN_KMS_ID =
+        hex"3059301306072a8648ce3d020106082a8648ce3d03010703420004e8e325a477b0bf22800dc927a46c68638938d283fe73d1f9028eeac7028193f3470122193875f598b7addc503e534712ab437b4120776bbac32ddf8897f844ee";
+    string constant RUN_V3_DOCUMENT = '{"app_id":"39f1081414996bf4d10a9c879f8cd3b348f93f2a",'
+        '"compose_hash":"024261d8dbc43aef02147dc1790aae23d75e2bde92ddf899b294d3913f9e39b5",'
+        '"instance_id":"10027d4ddad47be7f3342784eb3bceb10a847b61",' '"key_provider":"kms",'
+        '"key_provider_id":"3059301306072a8648ce3d020106082a8648ce3d03010703420004e8e325a477b0bf22800dc927a46c68638938d283fe73d1f9028eeac7028193f3470122193875f598b7addc503e534712ab437b4120776bbac32ddf8897f844ee",'
+        '"version":3}';
+
+    function _withConfigId(bytes memory q, uint8 format, bytes32 value) internal pure returns (bytes memory out) {
+        out = bytes.concat(q);
+        out[MR_CONFIG_ID] = bytes1(format);
+        for (uint256 i; i < 32; ++i) {
+            out[MR_CONFIG_ID + 1 + i] = value[i];
+        }
+    }
+
+    function test_FormatsTwoAndThreeAreAcceptedOnlyAsApproved() public {
+        bytes memory run = vm.parseBytes(vm.readFile("test/experimental/phala/quote-own-prelaunch.hex"));
+        assertEq(run[MR_CONFIG_ID], bytes1(0x01));
+        assertEq(_word(run, MR_CONFIG_ID + 1), RUN_COMPOSE);
+
+        bytes32 v2 = keccak256(abi.encodePacked(RUN_COMPOSE, RUN_APP_ID, uint8(2), RUN_KMS_ID)); // 2: KMS
+        bytes32 v3 = sha256(abi.encodePacked("dstack-mr-config-v3:", bytes1(0), RUN_V3_DOCUMENT));
+        bytes[3] memory forms = [run, _withConfigId(run, 2, v2), _withConfigId(run, 3, v3)];
+
+        for (uint256 i; i < 3; ++i) {
+            // Each form is accepted by a verifier that approves it, and by no other.
+            DstackConfigIdVerifier approving = _verifier(_codeOf(forms[i]));
+            assertEq(approving.attest(forms[i]), _word(forms[i], REPORT_DATA));
+            for (uint256 j; j < 3; ++j) {
+                if (j == i) continue;
+                vm.expectRevert(abi.encodeWithSelector(TdxQuoteVerifier.UnknownCode.selector, _codeOf(forms[j])));
+                approving.attest(forms[j]);
+            }
+        }
+
+        // The compose hash is read in format 1 only: the others carry a hash of it.
+        (, bytes memory output) = dcap.verifyAndAttestOnChain(forms[0]);
+        assertEq(verifier.composeHashOf(output), RUN_COMPOSE);
+        for (uint256 i = 1; i < 3; ++i) {
+            (, output) = dcap.verifyAndAttestOnChain(forms[i]);
+            vm.expectRevert(DstackConfigIdVerifier.BadConfigId.selector);
+            verifier.composeHashOf(output);
+        }
+    }
+
+    function _word(bytes memory b, uint256 at) internal pure returns (bytes32 w) {
+        assembly ("memory-safe") {
+            w := mload(add(add(b, 0x20), at))
         }
     }
 
