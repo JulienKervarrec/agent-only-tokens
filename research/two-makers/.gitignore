@@ -1,0 +1,6 @@
+src/nv/
+lib/
+out/
+cache/
+test/HintedNitroTestHelpers.sol
+test/ECDSA384HintCollector.sol

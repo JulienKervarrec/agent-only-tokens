@@ -3,6 +3,7 @@
   "arbitrary-send-eth: AgentAccount._call": "An account exists to call any target with any value; the caller must be the agent's current key (onlyKey, or a signed order).",
   "arbitrary-send-eth: TdxQuoteVerifier._approve": "Refund of the DCAP fee the caller itself paid in the same call; the verifier holds no other ETH.",
   "assembly: AgentAccount._call": "Bubbles up the revert data of a failed call unchanged.",
+  "assembly: DualKey.act": "Bubbles up the revert data of a failed call unchanged.",
   "assembly: Sha384._block": "SHA-384 compression in assembly: the plain Solidity version cost 2.8 million gas per event log. Checked against a reference implementation and NIST vectors.",
   "assembly: Sha384.rotr": "Part of the SHA-384 compression written in assembly (see Sha384._block).",
   "assembly: TdxQuoteVerifier._hashBody": "Hashes a slice of the verifier's output without copying it.",
@@ -21,7 +22,9 @@
   "low-level-calls: AgentAccount._call": "Generic call of an account; success is checked and the failure bubbled up.",
   "low-level-calls: AgentReputationBadge.withdrawDeposit": "ETH refund to the caller; state is updated first and success is checked.",
   "low-level-calls: AttestedAgentRegistry.withdrawBond": "ETH refund to the sponsor; state is updated first and success is checked.",
+  "low-level-calls: DualKey.act": "Generic call once both keys signed the order; success is checked and the failure bubbled up.",
   "low-level-calls: TdxQuoteVerifier._approve": "ETH refund to the caller; success is checked.",
+  "missing-zero-check: DualKey.act.target": "The target is part of the order both keys signed; a call to address zero does nothing and is the signers' choice.",
   "reentrancy-benign: DstackConfigIdVerifier.attest": "The only external call goes to the DCAP verifier fixed at deployment; the approval is written after it has answered.",
   "reentrancy-benign: DstackEnrollmentVerifier.attest": "The only external call goes to the DCAP verifier fixed at deployment; the approval is written after it has answered.",
   "reentrancy-benign: TdxEnrollmentVerifier.attest": "The only external call goes to the DCAP verifier fixed at deployment; the approval is written after it has answered.",
@@ -49,6 +52,7 @@
   "timestamp: AttestedAgentRegistry.setFrozen": "False positive: the function compares the sponsor, not a time.",
   "timestamp: AttestedAgentRegistry.setVenue": "Deadlines, key lifetimes and delays are counted in hours or days; a validator shifting a timestamp by seconds gains nothing.",
   "timestamp: AttestedAgentRegistry.withdrawBond": "Deadlines, key lifetimes and delays are counted in hours or days; a validator shifting a timestamp by seconds gains nothing.",
+  "timestamp: DualKey.act": "Deadlines, key lifetimes and delays are counted in hours or days; a validator shifting a timestamp by seconds gains nothing.",
   "too-many-digits: DstackEnrollmentVerifier.slitherConstructorConstantVariables": "A SHA-384 digest written as a constant.",
   "uninitialized-local: AttestedAgentRegistry._requireSigners.last": "Starts at zero on purpose: the first signer only has to be non-zero.",
   "uninitialized-local: AttestedAgentRegistry._requireSigners.proof": "Starts empty on purpose: it is filled and read only for an attester that is a contract.",
@@ -58,6 +62,7 @@
   "unused-return: AgentAccount._isKey": "The third value of tryRecover only details an error already read from the second.",
   "unused-return: AgentWrappedUniV3.requireLiquidity": "Only the liquidity of the position is needed.",
   "unused-return: AttestedAgentRegistry._requireSigners": "The third value of tryRecover only details an error already read from the second.",
+  "unused-return: DualKey._signed": "The third value of tryRecover only details an error already read from the second.",
   "unused-state: TdxQuoteVerifier.RTMR3": {
     "count": 2,
     "reason": "Offset shared by the verifiers that inherit from it; two of them do not read RTMR3."

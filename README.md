@@ -95,7 +95,7 @@ The hardware verifiers and SHA-384 are newer and less reviewed than the
 standard; they live in `src/experimental`, with their tests and fixtures in
 `test/experimental`. Nothing in the standard depends on them.
 
-<!--f:tests-->210<!--/f--> tests run locally; <!--f:tests.fork-->6<!--/f--> more run only against Base
+<!--f:tests-->217<!--/f--> tests run locally; <!--f:tests.fork-->6<!--/f--> more run only against Base
 Sepolia and are reported as skipped without an RPC address. They cover: classic ERC-721 behaviour between agents,
 refusal of humans as holder, recipient, minter or approved operator, refusal
 of unsolicited tokens and of unapproved wrapper contracts, sale, loan (repaid
@@ -112,7 +112,7 @@ a raw signature, changed terms, or while frozen.
 `examples/x402` runs the same payment outside Foundry, through the x402
 reference facilitator and the standard x402 client (see "x402 payments" below).
 
-<!--f:tests.experimental-->57<!--/f--> tests cover enrollment by hardware attestation and SHA-384 (see
+<!--f:tests.experimental-->64<!--/f--> tests cover enrollment by hardware attestation and SHA-384 (see
 "Enrollment by hardware attestation" below). They use a real Intel TDX quote
 (`test/experimental/tdx`), a real dstack quote with its event log
 (`test/experimental/dstack`) and four quotes from our own machines
@@ -240,9 +240,9 @@ Until this pass, mutation testing ran on a list of checks picked by hand, and
 that list lived outside the repository. `tools/mutate.py` now builds the list
 from the code: it disables every `if (...) revert` guard of `src/` in turn
 (each alternative of an `a || b` guard separately), removes every
-unconditional revert, and applies the <!--f:mutants.listed-->163<!--/f--> changes written in
+unconditional revert, and applies the <!--f:mutants.listed-->166<!--/f--> changes written in
 `tools/mutations.json` (a state update dropped, a field left out of a signed
-digest, a comparison weakened). That makes <!--f:mutants-->300<!--/f--> mutants.
+digest, a comparison weakened). That makes <!--f:mutants-->309<!--/f--> mutants.
 
 **Result of the first run: 63 mutants went unnoticed.** The sentence "each
 added line has a test that fails without it" was true of the hand-picked list
@@ -263,8 +263,8 @@ only.
 Every mutant is now caught or explained, and the list is replayed every week.
 
 Slither also joined the automated checks, against a list of accepted findings
-with the reason for each (`tools/slither-accepted.json`, <!--f:slither.accepted-->57<!--/f--> names for
-<!--f:slither.findings-->59<!--/f--> findings): a new finding fails the check. One trap found on the way: the path filter `test`
+with the reason for each (`tools/slither-accepted.json`, <!--f:slither.accepted-->62<!--/f--> names for
+<!--f:slither.findings-->64<!--/f--> findings): a new finding fails the check. One trap found on the way: the path filter `test`
 also matched `AttestedAgentRegistry.sol` and hid every finding in the
 registry; the filter is now `/test/`.
 
