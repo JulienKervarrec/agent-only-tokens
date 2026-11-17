@@ -57,7 +57,7 @@ interface IAgentRegistry {
 | `src/experimental/TdxEnrollmentVerifier.sol` | Enrollment verifier for TDX images whose measurements are the same for every instance | <!--f:lines.TdxEnrollmentVerifier-->41<!--/f--> |
 | `src/experimental/DstackEnrollmentVerifier.sol` | Enrollment verifier for agents on dstack: replays the RTMR3 event log and identifies the code by its base image and compose hash | <!--f:lines.DstackEnrollmentVerifier-->138<!--/f--> |
 | `src/experimental/Sha384.sol` | SHA-384, needed to replay TDX registers; the EVM has no precompile for it | <!--f:lines.Sha384-->92<!--/f--> |
-| `src/experimental/DstackConfigIdVerifier.sol` | Simpler enrollment verifier for agents on dstack: reads the compose hash in the quote itself (`MRCONFIGID`), with no event log and no SHA-384 | <!--f:lines.DstackConfigIdVerifier-->58<!--/f--> |
+| `src/experimental/DstackConfigIdVerifier.sol` | Simpler enrollment verifier for agents on dstack: reads the compose hash in the quote itself (`MRCONFIGID`), with no event log and no SHA-384 | <!--f:lines.DstackConfigIdVerifier-->64<!--/f--> |
 | `src/AgentSwap.sol` | Fixed-price sale between agents; events announce each listing and sale | <!--f:lines.AgentSwap-->64<!--/f--> |
 | `src/AgentLoan.sol` | Collateralised loan between agents; repayments wait in the venue for the lender; events announce each offer and each step | <!--f:lines.AgentLoan-->116<!--/f--> |
 | `src/AgentStaking.sol` | Staking of agent-only NFTs for ERC-20 rewards (Synthetix-style accounting, one NFT = one unit) | <!--f:lines.AgentStaking-->130<!--/f--> |
@@ -95,7 +95,7 @@ The hardware verifiers and SHA-384 are newer and less reviewed than the
 standard; they live in `src/experimental`, with their tests and fixtures in
 `test/experimental`. Nothing in the standard depends on them.
 
-<!--f:tests-->207<!--/f--> tests run locally; <!--f:tests.fork-->5<!--/f--> more run only against Base
+<!--f:tests-->208<!--/f--> tests run locally; <!--f:tests.fork-->5<!--/f--> more run only against Base
 Sepolia and are reported as skipped without an RPC address. They cover: classic ERC-721 behaviour between agents,
 refusal of humans as holder, recipient, minter or approved operator, refusal
 of unsolicited tokens and of unapproved wrapper contracts, sale, loan (repaid
@@ -112,7 +112,7 @@ a raw signature, changed terms, or while frozen.
 `examples/x402` runs the same payment outside Foundry, through the x402
 reference facilitator and the standard x402 client (see "x402 payments" below).
 
-<!--f:tests.experimental-->54<!--/f--> tests cover enrollment by hardware attestation and SHA-384 (see
+<!--f:tests.experimental-->55<!--/f--> tests cover enrollment by hardware attestation and SHA-384 (see
 "Enrollment by hardware attestation" below). They use a real Intel TDX quote
 (`test/experimental/tdx`), a real dstack quote with its event log
 (`test/experimental/dstack`) and four quotes from our own machines
@@ -240,9 +240,9 @@ Until this pass, mutation testing ran on a list of checks picked by hand, and
 that list lived outside the repository. `tools/mutate.py` now builds the list
 from the code: it disables every `if (...) revert` guard of `src/` in turn
 (each alternative of an `a || b` guard separately), removes every
-unconditional revert, and applies the <!--f:mutants.listed-->160<!--/f--> changes written in
+unconditional revert, and applies the <!--f:mutants.listed-->163<!--/f--> changes written in
 `tools/mutations.json` (a state update dropped, a field left out of a signed
-digest, a comparison weakened). That makes <!--f:mutants-->295<!--/f--> mutants.
+digest, a comparison weakened). That makes <!--f:mutants-->300<!--/f--> mutants.
 
 **Result of the first run: 63 mutants went unnoticed.** The sentence "each
 added line has a test that fails without it" was true of the hand-picked list
@@ -463,9 +463,10 @@ and id from its own code). The saving pays for about 260 calls per agent.
   the event-log verifier: the dstack OS must refuse to boot when `MRCONFIGID`
   does not match the manifest it loads. That check was read in dstack's source,
   not provoked on a machine.
-- dstack: the verifier identifies the code (base image and compose hash) and
-  does not look at the `key-provider` event, nor at the environment variables
-  given to the application. Approved code must therefore keep its session key
+- dstack: the verifiers identify the code (base image and compose hash). They
+  do not look at the environment variables given to the application, and at
+  the key provider only when the approved `MRCONFIGID` is in format 2 or 3,
+  which Phala Cloud does not write (study, section 3.22). Approved code must therefore keep its session key
   in memory only: never on disk, never derived from the key provider, never
   taken from the environment.
 - Loan: a currency that takes a fee on transfers is not supported: the venue
@@ -550,8 +551,11 @@ signs (`MRCONFIGID`), and its OS [refuses to boot](https://github.com/Dstack-TEE
 when that field does not match the manifest it loads. The contract hashes that
 field together with the boot measurements: one identity for the base image and
 the application. On Base Sepolia it cost 3,719,444 gas against 4,777,969 for
-the event-log route, DCAP verification included; without it, 68,064 gas
-against 1,111,564.
+the event-log route, DCAP verification included; without it, 68,086 gas
+against 1,111,564. Since 17 November it also accepts the two other formats
+dstack defines for that field, which add the application id and the key
+provider: the whole field is part of the approved identity, so a format cannot
+let through a program the attesters did not approve (study, section 3.22).
 
 ## Test on Base Sepolia, 15 November 2026
 
