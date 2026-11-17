@@ -263,8 +263,8 @@ only.
 Every mutant is now caught or explained, and the list is replayed every week.
 
 Slither also joined the automated checks, against a list of accepted findings
-with the reason for each (`tools/slither-accepted.json`, <!--f:slither.accepted-->57<!--/f--> names for
-<!--f:slither.findings-->59<!--/f--> findings): a new finding fails the check. One trap found on the way: the path filter `test`
+with the reason for each (`tools/slither-accepted.json`, <!--f:slither.accepted-->62<!--/f--> names for
+<!--f:slither.findings-->64<!--/f--> findings): a new finding fails the check. One trap found on the way: the path filter `test`
 also matched `AttestedAgentRegistry.sol` and hid every finding in the
 registry; the filter is now `/test/`.
 
