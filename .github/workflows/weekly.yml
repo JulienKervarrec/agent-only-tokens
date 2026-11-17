@@ -2,6 +2,8 @@ name: weekly
 
 # Every week: mutation testing. Each security check is broken in turn; the test suite must
 # notice every time (tools/mutate.py). About half an hour.
+# And the proofs against broken code: each symbolic proof of the registry must fail on the
+# registries broken on purpose (tools/proofs.py).
 on:
   schedule:
     - cron: "41 4 * * 1"
@@ -26,3 +28,23 @@ jobs:
           version: v1.5.1
       - run: git clone --depth 1 --branch v1.9.7 https://github.com/foundry-rs/forge-std lib/forge-std
       - run: python3 tools/mutate.py --jobs 4
+
+  proofs:
+    name: Proofs against broken registries
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.5.1
+      - run: git clone --depth 1 --branch v1.9.7 https://github.com/foundry-rs/forge-std lib/forge-std
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install halmos==0.3.3
+      - run: python3 tools/proofs.py
