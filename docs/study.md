@@ -349,11 +349,11 @@ tool, `tools/mutate.py`, which builds the list from the code:
 - every `if (...) revert` guard under `src/` is disabled in turn, and for a
   guard written `a || b` each alternative is dropped in turn;
 - every unconditional revert is removed in turn;
-- the <!--f:mutants.listed-->166<!--/f--> changes written in `tools/mutations.json` are applied in turn: a
+- the <!--f:mutants.listed-->169<!--/f--> changes written in `tools/mutations.json` are applied in turn: a
   state update dropped, a field left out of a signed digest, a comparison
   weakened, an event removed.
 
-That makes <!--f:mutants-->309<!--/f--> mutants. A mutant the test suite does not catch fails the
+That makes <!--f:mutants-->321<!--/f--> mutants. A mutant the test suite does not catch fails the
 tool, unless it is listed with a reason in `tools/mutations-accepted.json`.
 
 **First run: 63 of the 212 mutants went unnoticed.** Sections 2.4 to 2.6 say
@@ -545,11 +545,11 @@ The token asks the registry only two questions: `isAgent(address)` and
 | `IAgentRegistry` | The two questions asked to the registry | <!--f:lines.IAgentRegistry-->10<!--/f--> |
 | `AgentAccount` | An agent's account, with no human owner. Only its session key makes it act: single calls, all-or-nothing batches, relayed calls, ERC-1271. Each account is an ERC-1167 clone of one implementation | <!--f:lines.AgentAccount-->139<!--/f--> |
 | `AttestedAgentRegistry` | Proof of agent, version 1: attesters, bond, expiring keys, freeze, revocation, venue approval, ERC-8004 link, optional enrollment verifier that the attesters can replace, bond returned after an exit delay, notice delay on approvals and replacements, enrollment halt (section 3.17) | <!--f:lines.AttestedAgentRegistry-->525<!--/f--> |
-| `TdxQuoteVerifier` | Checks shared by the hardware verifiers: genuine quote, accepted platform, no debug mode, report data (`src/experimental`) | <!--f:lines.TdxQuoteVerifier-->116<!--/f--> |
+| `TdxQuoteVerifier` | Checks shared by the hardware verifiers: genuine quote, accepted platform, no debug mode, report data (`src/experimental`) | <!--f:lines.TdxQuoteVerifier-->122<!--/f--> |
 | `TdxEnrollmentVerifier` | Enrollment by Intel TDX attestation, for images measured the same for every instance | <!--f:lines.TdxEnrollmentVerifier-->41<!--/f--> |
 | `DstackEnrollmentVerifier` | Enrollment of agents on dstack: replays the RTMR3 event log, code = base image + compose hash (`src/experimental`) | <!--f:lines.DstackEnrollmentVerifier-->138<!--/f--> |
 | `Sha384` | SHA-384 for replaying TDX registers (no EVM precompile) | <!--f:lines.Sha384-->92<!--/f--> |
-| `DstackConfigIdVerifier` | Enrollment of agents on dstack from the quote alone: the compose hash is read in `MRCONFIGID` (`src/experimental`, section 3.14) | <!--f:lines.DstackConfigIdVerifier-->64<!--/f--> |
+| `DstackConfigIdVerifier` | Enrollment of agents on dstack from the quote alone: the compose hash is read in `MRCONFIGID` (`src/experimental`, section 3.14) | <!--f:lines.DstackConfigIdVerifier-->70<!--/f--> |
 | `AgentSwap` | Fixed-price sale between agents; events announce each listing and sale | <!--f:lines.AgentSwap-->64<!--/f--> |
 | `AgentLoan` | Collateralised loan between agents; repayments wait in the venue for the lender; events announce each offer and each step | <!--f:lines.AgentLoan-->116<!--/f--> |
 | `AgentStaking` | Staking for ERC-20 rewards, Synthetix-style accounting, one NFT = one unit | <!--f:lines.AgentStaking-->130<!--/f--> |
@@ -559,9 +559,9 @@ The token asks the registry only two questions: `isAgent(address)` and
 
 ### 3.3 What the tests establish
 
-<!--f:tests-->217<!--/f--> tests on a local simulated EVM, <!--f:tests.fuzz-->5<!--/f--> of them fuzzed and one a
+<!--f:tests-->230<!--/f--> tests on a local simulated EVM, <!--f:tests.fuzz-->5<!--/f--> of them fuzzed and one a
 stateful invariant test, plus <!--f:proofs-->8<!--/f--> properties proved symbolically
-(sections 2.5 and 3.17). <!--f:tests.fork-->6<!--/f--> more tests run only on a fork of Base Sepolia
+(sections 2.5 and 3.17). <!--f:tests.fork-->18<!--/f--> more tests run only on a fork of Base Sepolia
 (sections 3.12 and 3.19) and are reported as skipped otherwise.
 
 | Scenario | Result |
@@ -580,7 +580,7 @@ stateful invariant test, plus <!--f:proofs-->8<!--/f--> properties proved symbol
 | 128 runs of 100 random actions by two agents, a human and an unapproved contract | After every action, no token is held by or approved for anything but an agent account or an approved venue |
 | Several calls in one batch, direct or relayed | All or nothing; a human cannot batch for the agent |
 | The five attacks found by the first review and the weaknesses found by the second (sections 2.3 and 2.4) | Each one is now rejected |
-| <!--f:mutants-->309<!--/f--> mutants built from the code: every guard disabled, every listed change applied (mutation testing, section 2.7) | Each one is caught by the suite, or is one of the <!--f:mutants.accepted-->1<!--/f--> that cannot change behaviour |
+| <!--f:mutants-->321<!--/f--> mutants built from the code: every guard disabled, every listed change applied (mutation testing, section 2.7) | Each one is caught by the suite, or is one of the <!--f:mutants.accepted-->1<!--/f--> that cannot change behaviour |
 | A venue is approved, or the enrollment verifier replaced (section 3.17) | Nothing changes before the notice delay has passed; removing the venue or announcing again cancels. An address without code is refused |
 | The attesters halt enrollments (section 3.17) | No new agent and no new key at once; agents keep their current key; enrollments resume one notice delay after a verifier is announced |
 | The attesters replace the enrollment verifier to accept a new program (section 3.16) | The agent keeps its id, account, tokens and current key; its next key must come from the new program; one attester alone, another verifier or a replayed decision is refused |
@@ -2029,6 +2029,83 @@ with a cloud that rents them (AWS for Nitro; Azure or Google Cloud for AMD,
 since Phala Cloud offers neither). The samples are others' machines; what we
 checked is that their signatures hold and what that costs on chain.
 
+### 3.25 Enrollment by zero-knowledge proof: feasibility
+
+Done on 17 November 2026, step 2.1 of the plan, without spending anything. The
+idea: instead of checking the Intel quote on chain (3.7 million gas, section
+3.21), check a zero-knowledge proof that a known program checked it.
+
+**What Base Sepolia offers today** (fork test
+[`ZkRoutesBaseSepolia.t.sol`](../test/fork/ZkRoutesBaseSepolia.t.sol)):
+
+- RISC Zero's verifier router knows the Groth16 route (`0x73c457ba`) that
+  Automata's own quote proofs use; Succinct's SP1 gateway is there too.
+- Automata's entrypoint has no zk program configured, as on 15 November: a zk
+  enrollment needs its own small contract, which pins the program and reads its
+  output.
+- A real proof, taken from Automata's test fixtures, that their program checked
+  an Intel TDX quote is accepted for 241,275 gas per transaction (estimate on
+  Base Sepolia), about fifteen times less than the direct check; changed by one
+  bit, it is refused. It is an SP1 v3 proof: that version had soundness bugs
+  (advisory GHSA-c873-wfhp-wx5m) and its route is frozen, which the test also
+  shows. It proves the mechanics and the cost, not a route to use.
+
+**Producing a proof for our own quote.** Two ways:
+
+| Way | Cost | Status |
+| --- | --- | --- |
+| A proving service (Succinct's network, or RISC Zero's) | An account and payment | Not tried: a decision for the owner |
+| Proving in our cloud workspace (2 cores, 7 GB) | Free, hours | Blocked, as found in section 3.26. Automata's own records: a RISC Zero proof of a quote check took 63 minutes and 3.7 GB; an SP1 one 12 minutes and 7.5 GB, beyond our memory. The final Groth16 step adds its own cost |
+
+**Caution.** Automata's next version of the program and entrypoint is "in
+progress", with new program identifiers. Our contract would pin one identifier
+and be replaced through the rule of section 3.16 when it changes. The proof also
+carries the time and Intel data it was checked against: the contract must
+refuse an old one.
+
+**Verdict.** Feasible on Base: the verifiers are deployed and a proof costs
+about 240,000 gas. Next: a verifier of our own on a fork, then a proof of our own
+quote made with RISC Zero.
+
+### 3.26 A verifier for the zero-knowledge route
+
+Done on 17 November 2026, step 2.2 of the plan.
+[`DstackConfigIdZkVerifier`](../src/experimental/DstackConfigIdZkVerifier.sol)
+adds a second route to the dstack verifier of section 3.22: same approved code,
+same checks, different evidence. Anyone submits the output of Automata's DCAP
+program and a RISC Zero proof that this program, pinned by its image id (the
+one of Automata's release 1.1), produced it. The contract then:
+
+1. has RISC Zero's verifier check the proof against the SHA-256 of the whole
+   output;
+2. refuses an output whose time of check is in the future or older than a
+   maximum age fixed at deployment (one hour in the tests). Automata compares
+   the Intel data as it stood at that time, so without this a proof made with
+   since-revoked data would still pass;
+3. has Automata's quote verifier compare the six hashes of Intel data in the
+   output with those on chain (`verifyZkOutput`), which returns the same output
+   as the direct route;
+4. applies every check of the direct route: platform level, debug mode, report
+   data, MRCONFIGID format, approved code.
+
+**Tested.** 13 tests with stand-ins (proof refused, another program, another
+output, malformed outputs, maximum age to the second, future date, unknown
+quote version, Intel data refused, every shared check), and 9 on a fork of
+Base Sepolia against the real contracts, on our own quote of section 3.21. Only
+the RISC Zero check is simulated there, for the exact seal, program and output;
+an empty seal is refused by the real verifier. The route costs 213,525 gas
+without the proof check; a Groth16 check adds about 220,000 (section 3.25):
+about 0.45 million in all, against 3.7 million for the direct route. The direct
+route is unchanged (refactoring only: the shared checks now sit in
+`_checkOutput`), and the 12 mutants of the new contract are caught.
+
+**Not done: a real proof of our quote.** Our cloud workspace cannot produce
+one: it has no Docker engine, and its network refuses Docker Hub and the
+RISC Zero files hosted outside crates.io, both needed for the final Groth16
+step. Remaining ways: a proving service (an account and payment), or a rented
+machine with an open network, such as a Phala Cloud machine like that of
+section 3.21 (an hourly cost).
+
 ## 4. Use cases
 
 The standard is content-agnostic: the token can be anything an ERC-721 can be.
@@ -2229,11 +2306,10 @@ Options studied and set aside:
    2.9). Done the same day (section 3.19): attesters that are contracts, such
    as a multi-signature wallet, tried with a real Safe and reviewed
    independently (section 2.10).
-4. Enrollment through a zk proof of the quote verification, about 500,000 gas
-   instead of 4.3 million. Checked on chain on 15 November 2026: RISC Zero's
-   verifier router is deployed on Base Sepolia, but Automata's entrypoint
-   there has no zk program configured, so its `verifyAndAttestWithZKProof`
-   cannot be used as it is.
+4. Enrollment through a zk proof of the quote verification, about 0.45
+   million gas instead of 3.7 million: feasibility (section 3.25) and verifier,
+   tested with a simulated proof (section 3.26). Next: a real proof of our
+   quote, which needs a proving service or a rented machine.
 5. Publication of the idea on [Ethereum Magicians](https://ethereum-magicians.org/),
    then a pull request to [ethereum/ERCs](https://github.com/ethereum/ERCs)
    once a second implementation passes the same tests.
@@ -2280,6 +2356,7 @@ unless stated otherwise.
 | Phala Cloud runs a pre-launch script given by its user, and the machine measures it in the manifest | Confirmed on 17 November 2026: the compose hash computed beforehand was the one measured, and the boot log shows the script's line (section 3.21) | `examples/enclave-agent/run-2026-11-17-prelaunch` |
 | dstack defines three formats of `MRCONFIGID` (compose hash; with application id and key provider; a hashed document), all binding the compose hash, and its OS refuses to boot on a mismatch or an unknown format | Read in the source at v0.5.12 (`43f69f4`, formats 1 and 2) and on the main branch (`0e75b44`, format 3) on 17 November 2026 (section 3.22). No real quote in formats 2 or 3 seen | [mr_config.rs](https://github.com/Dstack-TEE/dstack/blob/0e75b442ce29001f30ee1e0cbfd17094988846c6/dstack/dstack-types/src/mr_config.rs) |
 | Automata's verifier on Base Sepolia refuses every quote once Intel's data on chain expires, and checks against Intel's "standard" evaluation unless asked for another | Confirmed on 17 November 2026 on a copy of Base Sepolia: our quote is accepted until 30 November 20:29:48 UTC, then reverts (`TcbEvalExpiredOrNotFound`); accepted for evaluation 20, not checkable for 19, 21 and 22 (section 3.23) | [Automata DCAP Attestation](https://github.com/automata-network/automata-dcap-attestation) |
+| A real zero-knowledge proof of an Intel TDX quote check verifies on Base Sepolia for 241,275 gas; its SP1 v3 route is frozen | Run by us on 17 November 2026 on a fork, proof from Automata's fixture at `5962363` (section 3.25) | [Advisory GHSA-c873-wfhp-wx5m](https://github.com/advisories/GHSA-c873-wfhp-wx5m) |
 | A real AWS Nitro document and a real AMD SEV-SNP report verify on chain under the per-transaction gas cap, without a proving service: Nitro 13.3 million gas once its chain is cached, AMD 5.0 million for the report and 5.0 to 5.4 million per certificate | Run by us on 17 November 2026 on public samples (base/nitro-validator `0ea0d12`, virtee/sev), checked again in Python; AMD's SEV-SNP verifier absent from Base Sepolia (section 3.24) | [research/two-makers](../research/two-makers/README.md) |
 | dstack does not measure `user_config` | Read in its documentation at commit `350a0a7` (`docs/security/cvm-boundaries.md`), 16 November 2026. Not tested | [dstack](https://github.com/Dstack-TEE/dstack/blob/350a0a73ffdb6041bda69118f13d81591870b565/docs/security/cvm-boundaries.md) |
 | The hosted x402.org facilitator accepts a payer that is a contract and settles its payment | Confirmed on 16 November 2026 by four payments on Base Sepolia from an agent account (section 3.14) | [BaseScan](https://sepolia.basescan.org/tx/0x89e0a73920d855494cbad29a8ec0035a4e07c84da12e409b6c1e2f74aade5ea0) |
