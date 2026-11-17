@@ -93,4 +93,26 @@ contract AutomataBaseSepoliaTest is Test {
         lax.attest(altered);
         assertFalse(lax.attested(bytes32(0)));
     }
+
+    /// Intel's data on chain is issued for about a month at a time. Once it expires, Automata's
+    /// verifier refuses every quote, even from an up-to-date machine, until newer data is
+    /// published: no enrollment, no key rotation. tools/collateral.py watches the date
+    /// (docs/platform-updates.md).
+    function test_IntelDataOnChainHasAnEnd() public {
+        vm.skip(!forked);
+        bytes memory phala = vm.parseBytes(vm.readFile("test/experimental/phala/quote-own-prelaunch.hex"));
+        bytes32 code;
+        assembly ("memory-safe") {
+            code := keccak256(add(add(phala, 0x20), 168), 352)
+        }
+        bytes32[] memory approved = new bytes32[](1);
+        approved[0] = code;
+        DstackConfigIdVerifier v = new DstackConfigIdVerifier(DCAP, 1, approved);
+        uint256 snapshot = vm.snapshotState();
+        v.attest(phala); // accepted today
+        vm.revertToState(snapshot);
+        vm.warp(block.timestamp + 45 days); // beyond the life of any data published until today
+        vm.expectRevert();
+        v.attest(phala);
+    }
 }
