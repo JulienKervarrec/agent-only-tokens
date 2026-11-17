@@ -91,7 +91,7 @@ contract SepoliaRules is AgentScript {
         uint256 k3 = uint256(keccak256(abi.encode("throwaway agent 3", k1)));
         bytes32 evidence = keccak256("sepolia demo agent 3");
         uint64 deadline = uint64(block.timestamp + 1 hours);
-        bytes[] memory sigs = _sigs(a1, a2, REG.hashEnrollment(3, vm.addr(k3), evidence, human, 0, deadline));
+        bytes[] memory sigs = _sigs(a1, a2, REG.hashAttestedEnrollment(3, vm.addr(k3), evidence, human, 0, deadline));
         vm.startBroadcast(deployer);
         REG.enroll{value: REG.bond()}(3, vm.addr(k3), evidence, deadline, sigs);
         REG.retire(3);
