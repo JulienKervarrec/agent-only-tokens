@@ -15,7 +15,8 @@ import {AgentAccount, IAgentKeys} from "./AgentAccount.sol";
 /// code, then sign. The contract only verifies their signatures. The hash of the evidence
 /// is published, so that anyone can re-check it and ask for a revocation.
 /// Bond, key lifetime and notice delay are fixed at deployment. The attesters can hand over
-/// to another set of attesters, with its own threshold.
+/// to another set of attesters, with its own threshold. An attester is a key, or a contract
+/// that signs by ERC-1271, for example a multi-signature wallet.
 /// If an ERC-8004 identity registry is provided, the agent id is the ERC-8004 one and the
 /// sponsor must own it.
 /// If an enrollment verifier is provided, it replaces the attesters' signatures for
@@ -489,16 +490,23 @@ contract AttestedAgentRegistry is EIP712, IAgentRegistry, IAgentKeys {
         _requireSigners(set, needed, digest, sigs);
     }
 
-    /// At least `needed` signatures of `digest`, each by a member of `set`.
+    /// At least `needed` signatures of `digest`, each by a different member of `set`.
+    /// A member that is a key signs as usual: 65 bytes. A member that is a contract, for example
+    /// a multi-signature wallet, is named with what it accepts by ERC-1271:
+    /// `abi.encode(member, signature)`. Only members are ever called.
     function _requireSigners(uint64 set, uint256 needed, bytes32 digest, bytes[] calldata sigs) private view {
         if (sigs.length < needed) revert NotEnoughAttesters();
         address last;
         for (uint256 i; i < sigs.length; ++i) {
-            (address signer, ECDSA.RecoverError err,) = ECDSA.tryRecover(digest, sigs[i]);
+            bytes calldata sig = sigs[i];
+            bool byKey = sig.length == 65;
+            address signer;
+            bytes memory proof;
+            if (byKey) (signer,,) = ECDSA.tryRecover(digest, sig); // address(0) on failure: never a member
+            else (signer, proof) = abi.decode(sig, (address, bytes));
             // Strictly increasing order: prevents counting the same attester twice.
-            if (err != ECDSA.RecoverError.NoError || !isAttesterIn[set][signer] || signer <= last) {
-                revert BadAttester();
-            }
+            if (!isAttesterIn[set][signer] || signer <= last) revert BadAttester();
+            if (!byKey && !SignatureChecker.isValidERC1271SignatureNow(signer, digest, proof)) revert BadAttester();
             last = signer;
         }
     }
