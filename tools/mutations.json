@@ -976,5 +976,23 @@
     "name": "the compose hash is read from any format",
     "find": "if (output[BODY + MR_CONFIG_ID] != 0x01) revert BadConfigId();\n        return",
     "replace": "return"
+  },
+  {
+    "file": "src/experimental/DualKey.sol",
+    "name": "a dual-key order can run twice",
+    "find": "bytes32 d = actDigest(target, data, nonce++, deadline);",
+    "replace": "bytes32 d = actDigest(target, data, nonce, deadline);"
+  },
+  {
+    "file": "src/experimental/DualKey.sol",
+    "name": "a dual-key order needs only key A",
+    "find": "if (!_signed(keyA, d, sigA) || !_signed(keyB, d, sigB)) revert NotBoth();",
+    "replace": "if (!_signed(keyA, d, sigA)) revert NotBoth();"
+  },
+  {
+    "file": "src/experimental/DualKey.sol",
+    "name": "a dual-key signature needs only key A",
+    "find": "return _signed(keyA, d, sig[:65]) && _signed(keyB, d, sig[65:]) ? bytes4(0x1626ba7e) : bytes4(0xffffffff);",
+    "replace": "return _signed(keyA, d, sig[:65]) ? bytes4(0x1626ba7e) : bytes4(0xffffffff);"
   }
 ]
