@@ -95,7 +95,7 @@ The hardware verifiers and SHA-384 are newer and less reviewed than the
 standard; they live in `src/experimental`, with their tests and fixtures in
 `test/experimental`. Nothing in the standard depends on them.
 
-<!--f:tests-->230<!--/f--> tests run locally; <!--f:tests.fork-->18<!--/f--> more run only against Base
+<!--f:tests-->230<!--/f--> tests run locally; <!--f:tests.fork-->23<!--/f--> more run only against Base
 Sepolia and are reported as skipped without an RPC address. They cover: classic ERC-721 behaviour between agents,
 refusal of humans as holder, recipient, minter or approved operator, refusal
 of unsolicited tokens and of unapproved wrapper contracts, sale, loan (repaid
