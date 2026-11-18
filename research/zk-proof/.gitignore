@@ -1,0 +1,9 @@
+target/
+vendor/
+guest/
+col/
+out/
+quote.hex
+Cargo.lock
+phala/docker-compose.yml
+.automata/
