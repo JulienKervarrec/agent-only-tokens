@@ -13,3 +13,12 @@ output; their SHA-256, cut to 253 bits, is the proof's second public input
 SP1 versions before 4.0.0 had soundness bugs (advisory GHSA-c873-wfhp-wx5m);
 Succinct froze their verifier routes. This proof shows the mechanics and the
 cost on Base Sepolia, not a route to use.
+
+## Our own proof (RISC Zero, step 2.2)
+
+`risc0-seal.hex` (the 4-byte selector `73c457ba`, then the 256-byte Groth16
+proof) and `risc0-journal.hex` (797 bytes) are a real proof that Automata's
+DCAP v1.1 program (image id `0xcc80…9695`) checked our own dstack quote at
+`1794946769` (17 November 2026, 20:19:29 UTC). Made with
+[`research/zk-proof`](../../../research/zk-proof/README.md); accepted by the
+live RISC Zero router of Base Sepolia. Used by `ZkRealProofBaseSepolia.t.sol`.

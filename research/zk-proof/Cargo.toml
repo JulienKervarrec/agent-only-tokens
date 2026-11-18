@@ -1,0 +1,20 @@
+[package]
+name = "aot-zkp"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Builds the input of Automata's DCAP v1.1 RISC Zero program for one TDX quote,
+# then executes it (exec) or proves it with Groth16 (prove).
+[dependencies]
+anyhow = "1"
+hex = "0.4"
+pem = "3.0.4"
+alloy-sol-types = "1.1"
+dcap-rs = { path = "vendor/dcap-rs", features = ["full"] }
+risc0-zkvm = { version = "=3.0.3", features = ["prove"] }
+
+[profile.release]
+debug = false
+
+[workspace]

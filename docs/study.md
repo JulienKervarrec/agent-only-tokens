@@ -561,7 +561,7 @@ The token asks the registry only two questions: `isAgent(address)` and
 
 <!--f:tests-->230<!--/f--> tests on a local simulated EVM, <!--f:tests.fuzz-->5<!--/f--> of them fuzzed and one a
 stateful invariant test, plus <!--f:proofs-->8<!--/f--> properties proved symbolically
-(sections 2.5 and 3.17). <!--f:tests.fork-->18<!--/f--> more tests run only on a fork of Base Sepolia
+(sections 2.5 and 3.17). <!--f:tests.fork-->23<!--/f--> more tests run only on a fork of Base Sepolia
 (sections 3.12 and 3.19) and are reported as skipped otherwise.
 
 | Scenario | Result |
@@ -2099,12 +2099,58 @@ about 0.45 million in all, against 3.7 million for the direct route. The direct
 route is unchanged (refactoring only: the shared checks now sit in
 `_checkOutput`), and the 12 mutants of the new contract are caught.
 
-**Not done: a real proof of our quote.** Our cloud workspace cannot produce
-one: it has no Docker engine, and its network refuses Docker Hub and the
-RISC Zero files hosted outside crates.io, both needed for the final Groth16
-step. Remaining ways: a proving service (an account and payment), or a rented
-machine with an open network, such as a Phala Cloud machine like that of
-section 3.21 (an hourly cost).
+**Measured since with a real proof** (section 3.27): the whole route costs
+750,404 gas, not 0.45 million; the Groth16 check through RISC Zero's router
+weighs more than the SP1 estimate of section 3.25.
+
+### 3.27 A real proof of our quote
+
+Done on 17 November 2026, the last part of step 2.2 of the plan, for $0.86. A real RISC Zero
+Groth16 proof that Automata's DCAP program (image id `0xcc80…9695`, release
+1.1) checked our own dstack quote of section 3.21 against the Intel data on
+Base Sepolia, accepted by the live RISC Zero verifier and by
+`DstackConfigIdZkVerifier`, with nothing simulated.
+
+How ([`research/zk-proof`](../research/zk-proof/README.md)):
+
+1. A program of ours, about 100 lines of Rust, builds the input of Automata's
+   program: our quote and the Intel data read on chain from Automata's router
+   (the DAO addresses come from the router itself: the list in Automata's
+   repository is out of date). It then runs the program (no proof) or proves
+   it with Groth16. It refuses to prove if the image id or the verifier
+   selector differs from what Base Sepolia expects (`73c457ba`, RISC Zero
+   v3.0.0, the only route not paused).
+2. **Free dry run in our workspace.** The program runs in 13.4 million cycles
+   and under a second. Its output is byte for byte what Automata's verifier
+   returns when it checks the same quote directly on chain, and its six Intel
+   data hashes are those the router returns for that time.
+3. **Proof on a rented Phala machine** (8 cores, 16 GB, $0.464 an hour): it
+   fetches the public inputs itself, each checked by hash (our quote from this
+   repository, Automata's code at the release commit, the Intel data from
+   Base Sepolia), builds with the RISC Zero versions Automata pins, proves,
+   and serves the result. No key, no wallet, nothing on the user's computer.
+   Build 21 minutes, proof 82.5 minutes, peak memory about 15 GB; machine
+   deleted right after. The newest RISC Zero crates give another verifier
+   selector (`e71e6620`), not deployed on Base Sepolia: the pinned versions
+   matter.
+4. Back in the workspace, the output was recomputed with the same time of
+   check and matched the machine's byte for byte; the proof was then checked
+   by a read-only call to the live router before anything else.
+
+**Tested** on a fork of Base Sepolia
+([`ZkRealProofBaseSepolia.t.sol`](../test/fork/ZkRealProofBaseSepolia.t.sol),
+5 tests): the live router accepts the proof; `attestWithProof` enrolls our
+code for **750,404 gas**, against 3.7 million for the direct route (about 5
+times less); a proof or an output with one bit changed is refused; the proof
+is refused once older than the maximum age. A wrong proof makes the verifier
+burn all the gas it is given: a cost for whoever submits it, not a risk for
+the contract.
+
+**Limits.** One proof, of one quote, on a testnet. The proof dates from its
+making: with a one-hour maximum age, an agent must be proved shortly before
+enrolling, so each enrollment means a fresh proof (about 1.7 hours of a rented
+machine here, or a proving service). A GPU or a proving network would cut
+that time; not tried.
 
 ## 4. Use cases
 
@@ -2306,10 +2352,10 @@ Options studied and set aside:
    2.9). Done the same day (section 3.19): attesters that are contracts, such
    as a multi-signature wallet, tried with a real Safe and reviewed
    independently (section 2.10).
-4. Enrollment through a zk proof of the quote verification, about 0.45
-   million gas instead of 3.7 million: feasibility (section 3.25) and verifier,
-   tested with a simulated proof (section 3.26). Next: a real proof of our
-   quote, which needs a proving service or a rented machine.
+4. Enrollment through a zk proof of the quote verification: feasibility
+   (section 3.25), verifier (section 3.26) and a real proof of our own quote,
+   accepted on a fork of Base Sepolia for 750,404 gas instead of 3.7 million
+   (section 3.27). Next: making a fresh proof cheaply for each enrollment.
 5. Publication of the idea on [Ethereum Magicians](https://ethereum-magicians.org/),
    then a pull request to [ethereum/ERCs](https://github.com/ethereum/ERCs)
    once a second implementation passes the same tests.
@@ -2366,6 +2412,8 @@ unless stated otherwise.
 | dstack extends RTMR3 as SHA-384(RTMR3 \|\| event digest) from zero; V1 digest = SHA-384(type LE \|\| ":" \|\| name \|\| ":" \|\| payload) | Read in `cc-eventlog/src/runtime_events.rs` (commit `b936f86`), then confirmed on 15 November 2026 by replaying the real event log of `verifier/fixtures/quote-report.json`, offline and in the tests | [dstack](https://github.com/Dstack-TEE/dstack) |
 | The USDC deployed on Base is `FiatTokenV2_2` | Confirmed on 14 November 2026 at block 57,208,253: the implementation `0x2Ce6311ddAE708829bc0784C967b7d77D19FD779` and its signature library are byte-identical to the code compiled from commit `fc85788`, apart from the metadata hash and the library address. Read through the public RPC `https://mainnet.base.org` | `examples/x402/check-usdc.mjs` |
 | The standard x402 client pays from an agent account once given the 28-line signer adapter | Confirmed by execution on 14 November 2026: packages `@x402/fetch` and `@x402/express` 2.31.0, local chain | `examples/x402/demo.mjs` |
+| Our RISC Zero proof is valid for Automata's program and our output | Confirmed on 17 November 2026: read-only call to the RISC Zero router of Base Sepolia (`verify` does not revert; with one bit of the output digest changed it reverts with `0x439cc0cd`), then 5 fork tests | `test/fork/zk/risc0-seal.hex`, `risc0-journal.hex` |
+| The program's output equals Automata's direct on-chain check of our quote | Confirmed on 17 November 2026: same bytes as `verifyAndAttestOnChain`, and the six Intel data hashes equal those of the PCCS router at the time of check | `research/zk-proof` |
 | Every contract cited in this document is at its address on Base Sepolia, with the code recorded | Confirmed on 17 November 2026 for the <!--f:deployed-->70<!--/f--> contracts of `deployments/base-sepolia.json` and the 3 external ones (code hash read on chain); checked again every night | `tools/deployments.py` |
 
 ## 10. Sources
