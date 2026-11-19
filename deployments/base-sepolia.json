@@ -713,6 +713,34 @@
       "run": "fourth program on a real machine, 19 November 2026 (study 3.31)",
       "block": 60738563,
       "codeHash": "0x45f7e239a73fff63731d22ff2849d9a063b06aeae2843b594e4c860cad776fba"
+    },
+    {
+      "address": "0x2ed6c67ccFA6F58DE8fea70b0D9c7b01b9c57941",
+      "name": "AttestedAgentRegistry",
+      "role": "registry for the fifth program (model decisions); its verifier (0xa071…0609) was set once the code was measured",
+      "run": "fifth program on a real machine, 19 November 2026 (step 3.3, study 3.42)",
+      "block": 60798545,
+      "codeHash": "0x47971baaf8cd72b0d6bac7bf9d0308c124a1244ae1963382b98fa232faf4b200",
+      "source": "2ed25d3",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0xa071a904CC60f36a67aD73167838d49A092A0609",
+      "name": "DstackConfigIdVerifier",
+      "role": "approves the fifth program (compose hash fb6c9d29…263f); verifier of registry 0x2ed6…7941",
+      "run": "fifth program on a real machine, 19 November 2026 (step 3.3, study 3.42)",
+      "block": 60805127,
+      "codeHash": "0xf7c76527b456b4d9bef920b20255294a30b32c5636b380a8c5807e2787dc707f",
+      "source": "2ed25d3",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0x8c116e8670b650d3A1e281c5f058f419F5c370Dc",
+      "name": "AgentAccount (clone)",
+      "role": "account of the fifth program's agent; draws from allowance 2 of 0x72E9…6ACf",
+      "run": "fifth program on a real machine, 19 November 2026 (step 3.3, study 3.42)",
+      "block": 60805857,
+      "codeHash": "0x75fdf5d654b28fafff9775c00fd541949a8e65d60ecf9ba47a87ecc6ceb9423e"
     }
   ],
   "external": [
@@ -849,6 +877,10 @@
     {
       "address": "0x4a8d16825e0ece57bc1f057ee393a30d8caed896",
       "role": "fourth program, key after the restart, 19 November 2026 (generated inside the enclave; never held ETH)"
+    },
+    {
+      "address": "0x29bf73ed1cd6e5da7b6b3e4817088ed64a5e7393",
+      "role": "fifth program, 19 November 2026 (generated inside the enclave; never held ETH)"
     }
   ],
   "otherChains": [
