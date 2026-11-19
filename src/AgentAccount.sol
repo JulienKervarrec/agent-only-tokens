@@ -121,6 +121,20 @@ contract AgentAccount is EIP712 {
         return this.onERC721Received.selector;
     }
 
+    /// ERC-1155 tokens reach a contract only if it answers these. Accepting is safe: under the
+    /// agent-only rules a token arrives only when the account pulls it, or from a venue.
+    function onERC1155Received(address, address, uint256, uint256, bytes calldata) external pure returns (bytes4) {
+        return this.onERC1155Received.selector;
+    }
+
+    function onERC1155BatchReceived(address, address, uint256[] calldata, uint256[] calldata, bytes calldata)
+        external
+        pure
+        returns (bytes4)
+    {
+        return this.onERC1155BatchReceived.selector;
+    }
+
     function _isKey(bytes32 digest, bytes calldata sig) private view returns (bool) {
         (address signer, ECDSA.RecoverError err,) = ECDSA.tryRecover(digest, sig);
         address key = _key();

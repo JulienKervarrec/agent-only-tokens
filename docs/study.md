@@ -349,11 +349,11 @@ tool, `tools/mutate.py`, which builds the list from the code:
 - every `if (...) revert` guard under `src/` is disabled in turn, and for a
   guard written `a || b` each alternative is dropped in turn;
 - every unconditional revert is removed in turn;
-- the <!--f:mutants.listed-->169<!--/f--> changes written in `tools/mutations.json` are applied in turn: a
+- the <!--f:mutants.listed-->178<!--/f--> changes written in `tools/mutations.json` are applied in turn: a
   state update dropped, a field left out of a signed digest, a comparison
   weakened, an event removed.
 
-That makes <!--f:mutants-->321<!--/f--> mutants. A mutant the test suite does not catch fails the
+That makes <!--f:mutants-->347<!--/f--> mutants. A mutant the test suite does not catch fails the
 tool, unless it is listed with a reason in `tools/mutations-accepted.json`.
 
 **First run: 63 of the 212 mutants went unnoticed.** Sections 2.4 to 2.6 say
@@ -374,15 +374,15 @@ target or carry another value; a claimed badge cannot be cancelled.
 
 Two more checks joined the automated ones the same day. Slither runs against a
 list of accepted findings with the reason for each
-(`tools/slither-accepted.json`, <!--f:slither.accepted-->63<!--/f--> names for <!--f:slither.findings-->65<!--/f--> findings): a new
+(`tools/slither-accepted.json`, <!--f:slither.accepted-->67<!--/f--> names for <!--f:slither.findings-->69<!--/f--> findings): a new
 finding fails the check.
 And the figures of sections 3.2, 3.3 and 3.9 are compared with the repository
 by `tools/figures.py`.
 
-The code of the deployed contracts can now be read. Of the <!--f:deployed-->70<!--/f--> contracts
+The code of the deployed contracts can now be read. Of the <!--f:deployed-->73<!--/f--> contracts
 deployed on Base Sepolia for the tests, <!--f:deployed.clones-->19<!--/f--> are agent accounts, clones
-of an implementation. <!--f:deployed.verified-->51<!--/f--> of the others are verified on Sourcify:
-<!--f:deployed.exact-->48<!--/f--> match their source exactly, <!--f:deployed.match-->3<!--/f--> on code only (their sources
+of an implementation. <!--f:deployed.verified-->54<!--/f--> of the others are verified on Sourcify:
+<!--f:deployed.exact-->49<!--/f--> match their source exactly, <!--f:deployed.match-->3<!--/f--> on code only (their sources
 differed by comments). `deployments/base-sepolia.json` names, for each one, the
 commit of the repository that compiles to it; nine of them run earlier
 versions of the code, which were found by recompiling the history, and two
@@ -518,7 +518,7 @@ on the corrected registry (section 3.19).
 
 ## 3. The standard
 
-**A classic ERC-721 plus three rules, 70 lines in the reference implementation.
+**A classic ERC-721 plus three rules, <!--f:lines.ERC721AgentOnly-->72<!--/f--> lines in the reference implementation.
 Everything else is ordinary code.**
 
 ### 3.1 The three rules
@@ -540,10 +540,10 @@ The token asks the registry only two questions: `isAgent(address)` and
 
 | Contract | Role | Lines |
 | --- | --- | --- |
-| `ERC721AgentOnly` | The standard: the three rules | <!--f:lines.ERC721AgentOnly-->70<!--/f--> |
+| `ERC721AgentOnly` | The standard: the three rules | <!--f:lines.ERC721AgentOnly-->72<!--/f--> |
 | `IERC721AgentOnly` | The interface a compliant token exposes, advertised through ERC-165 | <!--f:lines.IERC721AgentOnly-->10<!--/f--> |
 | `IAgentRegistry` | The two questions asked to the registry | <!--f:lines.IAgentRegistry-->10<!--/f--> |
-| `AgentAccount` | An agent's account, with no human owner. Only its session key makes it act: single calls, all-or-nothing batches, relayed calls, ERC-1271. Each account is an ERC-1167 clone of one implementation | <!--f:lines.AgentAccount-->139<!--/f--> |
+| `AgentAccount` | An agent's account, with no human owner. Only its session key makes it act: single calls, all-or-nothing batches, relayed calls, ERC-1271. Each account is an ERC-1167 clone of one implementation | <!--f:lines.AgentAccount-->153<!--/f--> |
 | `AttestedAgentRegistry` | Proof of agent, version 1: attesters, bond, expiring keys, freeze, revocation, venue approval, ERC-8004 link, optional enrollment verifier that the attesters can replace, bond returned after an exit delay, notice delay on approvals and replacements, enrollment halt (section 3.17) | <!--f:lines.AttestedAgentRegistry-->525<!--/f--> |
 | `TdxQuoteVerifier` | Checks shared by the hardware verifiers: genuine quote, accepted platform, no debug mode, report data (`src/experimental`) | <!--f:lines.TdxQuoteVerifier-->122<!--/f--> |
 | `TdxEnrollmentVerifier` | Enrollment by Intel TDX attestation, for images measured the same for every instance | <!--f:lines.TdxEnrollmentVerifier-->41<!--/f--> |
@@ -551,17 +551,19 @@ The token asks the registry only two questions: `isAgent(address)` and
 | `Sha384` | SHA-384 for replaying TDX registers (no EVM precompile) | <!--f:lines.Sha384-->92<!--/f--> |
 | `DstackConfigIdVerifier` | Enrollment of agents on dstack from the quote alone: the compose hash is read in `MRCONFIGID` (`src/experimental`, section 3.14) | <!--f:lines.DstackConfigIdVerifier-->70<!--/f--> |
 | `AgentSwap` | Fixed-price sale between agents; events announce each listing and sale | <!--f:lines.AgentSwap-->64<!--/f--> |
-| `AgentLoan` | Collateralised loan between agents; repayments wait in the venue for the lender; events announce each offer and each step | <!--f:lines.AgentLoan-->116<!--/f--> |
+| `AgentLoan` | Collateralised loan between agents; repayments wait in the venue for the lender; events announce each offer and each step | <!--f:lines.AgentLoan-->120<!--/f--> |
 | `AgentStaking` | Staking for ERC-20 rewards, Synthetix-style accounting, one NFT = one unit | <!--f:lines.AgentStaking-->130<!--/f--> |
+| `ERC1155AgentOnly` | The same rules for ERC-1155, single and batch movements (section 3.35) | <!--f:lines.ERC1155AgentOnly-->62<!--/f--> |
+| `AgentAllowance` | Spending limit: funds an agent's account can draw at most a fixed amount per period, only to itself; nobody can raise the limit (section 3.30) | <!--f:lines.AgentAllowance-->126<!--/f--> |
 | `AgentWrapped721` | Wrapper making any existing ERC-721 agent-only | <!--f:lines.AgentWrapped721-->80<!--/f--> |
 | `AgentWrappedUniV3` | Non-unwrappable wrapper for Uniswap V3 positions | <!--f:lines.AgentWrappedUniV3-->98<!--/f--> |
 | `AgentReputationBadge` | Soulbound reputation badges (ERC-5192): an issuer offers, the named agent claims, the issuer can revoke | <!--f:lines.AgentReputationBadge-->218<!--/f--> |
 
 ### 3.3 What the tests establish
 
-<!--f:tests-->230<!--/f--> tests on a local simulated EVM, <!--f:tests.fuzz-->5<!--/f--> of them fuzzed and one a
-stateful invariant test, plus <!--f:proofs-->8<!--/f--> properties proved symbolically
-(sections 2.5 and 3.17). <!--f:tests.fork-->23<!--/f--> more tests run only on a fork of Base Sepolia
+<!--f:tests-->369<!--/f--> tests on a local simulated EVM, <!--f:tests.fuzz-->9<!--/f--> of them fuzzed and one a
+stateful invariant test, plus <!--f:proofs-->13<!--/f--> properties proved symbolically
+(sections 2.5 and 3.17). <!--f:tests.fork-->31<!--/f--> more tests run only on a fork of Base Sepolia
 (sections 3.12 and 3.19) and are reported as skipped otherwise.
 
 | Scenario | Result |
@@ -580,7 +582,7 @@ stateful invariant test, plus <!--f:proofs-->8<!--/f--> properties proved symbol
 | 128 runs of 100 random actions by two agents, a human and an unapproved contract | After every action, no token is held by or approved for anything but an agent account or an approved venue |
 | Several calls in one batch, direct or relayed | All or nothing; a human cannot batch for the agent |
 | The five attacks found by the first review and the weaknesses found by the second (sections 2.3 and 2.4) | Each one is now rejected |
-| <!--f:mutants-->321<!--/f--> mutants built from the code: every guard disabled, every listed change applied (mutation testing, section 2.7) | Each one is caught by the suite, or is one of the <!--f:mutants.accepted-->1<!--/f--> that cannot change behaviour |
+| <!--f:mutants-->347<!--/f--> mutants built from the code: every guard disabled, every listed change applied (mutation testing, section 2.7) | Each one is caught by the suite, or is one of the <!--f:mutants.accepted-->1<!--/f--> that cannot change behaviour |
 | A venue is approved, or the enrollment verifier replaced (section 3.17) | Nothing changes before the notice delay has passed; removing the venue or announcing again cancels. An address without code is refused |
 | The attesters halt enrollments (section 3.17) | No new agent and no new key at once; agents keep their current key; enrollments resume one notice delay after a verifier is announced |
 | The attesters replace the enrollment verifier to accept a new program (section 3.16) | The agent keeps its id, account, tokens and current key; its next key must come from the new program; one attester alone, another verifier or a replayed decision is refused |
@@ -690,19 +692,28 @@ Normative rules:
 3. The recipient of a token MUST be an agent or an approved venue.
 4. If the caller is not an approved venue, the recipient MUST be the caller
    itself.
-5. `approve` and `setApprovalForAll` MUST revert if the operator is neither an
-   agent nor an approved venue. Clearing an approval MUST always be possible.
-6. The registry is fixed at deployment. The token MUST NOT expose any
-   privileged transfer.
+5. Any function that grants an approval MUST revert if the account it approves,
+   the caller or the holder is neither an agent nor an approved venue.
+   Clearing an approval MUST always be possible, whatever the registry answers.
+6. The registry is fixed at deployment. No function of the token may mint,
+   move, burn or approve without meeting the other rules.
 7. A transfer or burn MUST revert if the current holder is neither an agent nor
    an approved venue. When an account stops being recognised as an agent, its
    tokens therefore stay with it and do not move until it is recognised again.
+8. A transfer or burn, through any function, MUST revert unless the caller is
+   the holder, its approved address or its operator, as in ERC-721.
+
+Rules 5, 6 and 8 were tightened on 18 November 2026 after an independent
+review and a second implementation (section 3.33). The full text, with the
+definitions of caller and holder, is the proposal in [`docs/erc`](erc/README.md).
 
 Out of scope on purpose: how the registry establishes that an account is an
 agent or that a venue is safe, the agent account itself, and ERC-20 and
-ERC-1155 profiles, which would follow the same rules but were not tested.
+ERC-1155 profiles, which follow the same rules (ERC-1155: section 3.35; ERC-20: described, not written).
 
-This draft matches the tested prototype. Nobody else has reviewed it yet.
+This draft matches the tested prototype. Nobody else has reviewed it yet. The full
+proposal, in the format of the ethereum/ERCs repository, is in
+[`docs/erc`](erc/README.md) (section 3.32).
 
 ### 3.9 Gas
 
@@ -716,18 +727,18 @@ L1 data fee comes on top; it was measured on Base Sepolia (section 3.12).
 | --- | --- |
 | Plain ERC-721 `transferFrom`, for reference | <!--f:gas.01-->55,162<!--/f--> |
 | Agent-only `transferFrom`, called directly | <!--f:gas.02-->70,362<!--/f--> |
-| Agent-only `transferFrom`, through the agent account | <!--f:gas.03-->80,193<!--/f--> |
-| Agent-only mint, through the agent account | <!--f:gas.04-->131,409<!--/f--> |
-| List for sale (with its event, since the fourth pass) | <!--f:gas.05-->114,575<!--/f--> |
+| Agent-only `transferFrom`, through the agent account | <!--f:gas.03-->80,194<!--/f--> |
+| Agent-only mint, through the agent account | <!--f:gas.04-->131,410<!--/f--> |
+| List for sale (with its event, since the fourth pass) | <!--f:gas.05-->114,576<!--/f--> |
 | Buy (NFT against an ERC-20; with its event) | <!--f:gas.06-->116,392<!--/f--> |
 | First enrollment (deploys the account as a clone, 2 attester signatures) | <!--f:gas.07-->214,549<!--/f--> |
 | Key rotation (2 attester signatures) | <!--f:gas.08-->58,858<!--/f--> |
 | Badge offer, by an issuer | <!--f:gas.09-->252,996<!--/f--> |
-| Badge claim, through the agent account | <!--f:gas.10-->95,526<!--/f--> |
-| Stake, through the agent account | <!--f:gas.11-->165,384<!--/f--> |
-| Claim staking rewards | <!--f:gas.12-->116,668<!--/f--> |
-| Unstake with rewards | <!--f:gas.13-->133,594<!--/f--> |
-| Approval, through the agent account (since the third review) | <!--f:gas.14-->72,826<!--/f--> |
+| Badge claim, through the agent account | <!--f:gas.10-->95,527<!--/f--> |
+| Stake, through the agent account | <!--f:gas.11-->165,385<!--/f--> |
+| Claim staking rewards | <!--f:gas.12-->116,669<!--/f--> |
+| Unstake with rewards | <!--f:gas.13-->133,595<!--/f--> |
+| Approval, through the agent account (since the third review) | <!--f:gas.14-->73,143<!--/f--> |
 | Key rotation once an announced verifier has taken over (section 3.17) | <!--f:gas.15-->60,978<!--/f--> |
 | Attesters hand over to a set of three, 2 signatures (section 3.18) | <!--f:gas.16-->158,273<!--/f--> |
 | Venue approval signed by two keys (section 3.19) | <!--f:gas.17-->93,008<!--/f--> |
@@ -2152,6 +2163,444 @@ enrolling, so each enrollment means a fresh proof (about 1.7 hours of a rented
 machine here, or a proving service). A GPU or a proving network would cut
 that time; not tried.
 
+### 3.28 Switching a registry to the zk verifier
+
+Done on 18 and 19 November 2026, step 2.3 of the plan, for $0.84 of Phala
+credit. The registry of section 3.21 (`0xE784…aD52`), which checked its agent
+with `DstackConfigIdVerifier` (the direct route, 3.7 million gas per check),
+now checks it with `DstackConfigIdZkVerifier` (`0x0067…9bF9`), through its
+replacement rule, and the agent keeps its account.
+
+| Step | Result |
+| --- | --- |
+| zk verifier deployed ([tx](https://sepolia.basescan.org/tx/0xe3b4f7c31ba82e83a5fb0d46765fc5a8a5b8dfaeae207deb43811c6569522603)) | Same approved code as the direct verifier (`c58b…e924`), RISC Zero router of Base Sepolia, Automata's program, maximum proof age 3 hours; Sourcify exact match |
+| Two attesters announce it ([tx](https://sepolia.basescan.org/tx/0x90bc8fbf1753ec2cfe7c9741b352e6abf8ce76d18264525a1c474dd144b3fd9b)) | 97,830 gas; takes over after the 24-hour notice, at 06:21 Paris time on 19 November; the direct verifier stays in force meanwhile |
+| The agent started again on Phala Cloud | Same manifest, measured by the machine (`024261d8…39b5`), dstack 0.5.12, our pre-launch script; a new key, `0xeb12…31f8`, and a quote over the digest of its next enrollment (nonce 2). Both verifiers would accept it (simulated calls). Machine deleted after about 12 minutes |
+| The quote proved on a rented machine | The prover fetched it from the agent itself, so it never went through us. Build 20 minutes, proof 79 minutes |
+| `attestWithProof` ([tx](https://sepolia.basescan.org/tx/0x665e2d4a810981f78e7a5049115eee84208461eb957590b43c19e5239e5635f7)) | 701,902 gas; the digest is that of the enrollment the agent asked for |
+| `enroll` after the notice ([tx](https://sepolia.basescan.org/tx/0xf3178291e99ddf339458b21263a1de4ff0af72bb705457d22ddbe32bf6731c72)) | 48,287 gas, no attester signature; same account `0xD6eC…38e7`, new key, nonce 3 |
+
+**Why the maximum age is 3 hours, not 1.** The proof certifies the time at
+which its input was built; proving then takes about 1.4 hours on 8 cores. One
+hour would expire every proof before it is ready.
+
+**Tested** on a fork of Base Sepolia
+([`ZkSwitchBaseSepolia.t.sol`](../test/fork/ZkSwitchBaseSepolia.t.sol), 6
+tests): the announcement and the zk verifier's settings; the direct verifier
+stays during the notice; after it, the zk verifier is in force and the account
+unchanged; the agent's recorded proof renews its key after the notice, on
+the same account; an enrollment approved only by the direct verifier is then refused,
+and the same one approved by the zk verifier goes through; the deployed zk
+verifier takes the proof of section 3.27, whose digest is the first enrollment
+of section 3.21 and cannot serve for a later one.
+
+**Measured: is the zk route worth it?** (step 2.4)
+
+| | Direct route | zk route |
+| --- | --- | --- |
+| Gas to check a quote | 3,719,480 (section 3.21) | 701,902 |
+| Gas to enroll | 46,143 (key rotation, section 3.21) | 48,287 |
+| Proof | none | 79 minutes on 8 rented cores, after a 20-minute build; $0.86 for the first, $0.84 with the agent machine for this one |
+| Delay before the agent can act | one transaction | about 1.7 hours |
+
+At the prices read on 18 November 2026 (Base 0.006 gwei, Ethereum 0.103 gwei,
+ETH at $1,810), the direct check costs about $0.04 on Base and $0.69 on
+Ethereum; the zk route saves about 3 million gas per enrollment, $5.4 per gwei
+of gas price. The proof costs more than it saves below about 0.16 gwei: on Base
+today, about 25 times more. The zk route is worth it where gas is dear, or once
+proving is cheaper (a GPU or a proving network, not tried); on Base, the direct
+route stays the default.
+
+### 3.29 A conformance suite for the draft
+
+Done on 18 November 2026, step 4.1 of the plan. The rules of the draft (section
+3.8) are now a test suite that any implementation can run without our
+registry: [`ERC721AgentOnlyConformance.sol`](../test/conformance/ERC721AgentOnlyConformance.sol)
+brings its own registry, where anyone can say who is an agent or a venue, and
+asks the implementation for two hooks only: deploy the token, and let an
+account mint one to itself. A burn is optional.
+
+**What it checks**, in <!--f:tests.Reference-->17<!--/f--> tests: the
+ERC-165 identifiers and the registry; ordinary ERC-721 behaviour between
+agents; a human can neither mint nor be approved; even a venue cannot send to
+a human, and no unrecognised account ever receives (fuzzed); an agent cannot
+push, and neither can an approved operator to a third agent; a venue can
+deliver, hold and release; clearing an approval always works; an unrecognised
+holder can neither grant an approval, nor move or burn its token, which moves
+again once it is recognised; an operator that stops being recognised cannot
+pull nor burn.
+
+**It is tested itself.** Our implementation passes it, and so does our wrapper
+of an existing NFT, where wrapping is the mint and unwrapping the burn. Nine
+deliberately wrong implementations, each missing one check, all fail it:
+[`tools/conformance.py`](../tools/conformance.py) runs them (folder
+`test-faulty`, kept out of `forge test`) and checks, in the automatic checks,
+that each one is caught by the test that covers its missing check.
+
+**What it found in the draft.** Two points:
+
+1. Our implementation refuses an approval granted by an unrecognised holder
+   (section 2.4), but the normative rules did not say so. Without it, a frozen
+   holder can prepare a movement for the moment it is unfrozen. Added to rule 5.
+2. A wrong implementation that never checks the caller passed every test but
+   one. Rule 2 is mostly implied by rules 3 to 5: a caller that is not
+   recognised cannot be the recipient, and cannot be approved. It does work on
+   its own in one case: an operator approved while recognised, that then stops
+   being so, and burns. The suite now tests exactly that.
+
+**Limits.** Rule 6 (no privileged transfer) cannot be checked from outside:
+the suite only tries the ordinary functions. Our reputation badges are not
+run through it: they cannot be transferred at all (ERC-5192), a deliberate
+departure from rule 1.
+
+### 3.30 A spending limit that sits where the money is
+
+Done on 18 November 2026, step 3.1 of the plan. Until now the budget of our
+agents lived in the memory of their machine (section 3.14): a new key, after a
+restart, starts again from zero, and nothing on chain stops a misled agent.
+
+**Where a limit cannot go.** An x402 payment is an EIP-3009 authorisation that
+the agent's account approves through ERC-1271. Circle's USDC asks the account
+through a read-only call
+([`X402Static.t.sol`](../test/X402Static.t.sol), on Circle's own code): an
+account that tries to count what it signs is refused. A limit kept by the
+account itself would therefore miss x402 payments, our main use.
+
+**Options compared.** (A1) a check inside the account: misses x402, and needs a
+new account implementation, hence a new registry. (B) ERC-7715 and ERC-7710,
+both still drafts on 18 November 2026: ERC-7715 is a request from an
+application to a person's wallet, so it does not fit an agent with no owner;
+ERC-7710 is on-chain delegation, and a delegation from the sponsor's account
+with a caveat limiting transfers per period would be equivalent to what we
+built, at the price of a delegation framework on the sponsor's side (corrected
+after the review of section 3.41: an earlier version said the agent's own key
+would grant the permissions, which need not be so). (C) no change.
+(A2), chosen: put the limit where the money is.
+
+**What was built.** [`AgentAllowance`](../src/AgentAllowance.sol),
+<!--f:lines.AgentAllowance-->126<!--/f--> lines with comments, outside the
+standard and removable. A sponsor deposits tokens for one account, with a
+limit per period fixed at opening. Only that account can draw, only to itself,
+never more than the limit in a period. Nobody can raise the limit; the sponsor
+can close and take back the rest at any time. The account then holds only what
+it drew: that is all a misled agent can spend, in x402 or otherwise, and the
+limit belongs to the account, so a new key does not reset it.
+
+**Tested** ([`Allowance.t.sol`](../test/Allowance.t.sol),
+<!--f:tests.Allowance-->10<!--/f--> tests, on Circle's USDC code): draws within
+the limit each period; only the account draws; an x402 payment beyond what was
+drawn is refused by USDC; a new key does not reset the limit; the sponsor
+closes at any time; only the sponsor adds funds; bad terms refused; a token
+with a fee on transfer is credited what arrives; two draws in a period never
+pass the limit (fuzzed). On a fork of Base Sepolia
+([`AllowanceBaseSepolia.t.sol`](../test/fork/AllowanceBaseSepolia.t.sol)):
+the real account of section 3.21, driven by the key the registry recognises,
+draws from an allowance in the live USDC and cannot spend more. All 15
+mutants of the contract (`tools/mutate.py --only Allowance`) are caught.
+
+**Limits.** It caps the amount, not the payees: a misled agent can still pay
+the wrong shop, within the limit. Fixed windows let up to twice the limit out
+across the boundary of two periods. Not yet run from a real machine: our
+current agent program signs only a mint and one fixed payment, and a new
+program needs its own code approval; that comes with step 3.2.
+
+### 3.31 An agent that nothing from outside can make sign
+
+Done on 18 November 2026, step 3.2 of the plan, on a local chain. Our three
+programs so far signed what their HTTP side was asked, within fixed shapes:
+whoever could reach the machine could make the agent buy. The fourth
+([`v4/agent.js`](../examples/enclave-agent/v4/agent.js)) shows only its key,
+its state, its manifest and the enrollment quote of its own key; every
+signature comes from its own loop. It buys one paid x402 page at most once per
+period, under a cap per purchase, and when its account is short it signs an
+order to draw from its allowance (section 3.30), which anyone may relay. Its
+settings are written in the compose file, so they are measured with it.
+
+**Tested end to end on a local chain**
+([`v4/local/run.sh`](../examples/enclave-agent/v4/local/run.sh), in the
+automatic checks): with Circle's USDC code, our registry, `AgentAllowance` and
+a stand-in shop, five paths that would sign and every `POST` are refused; left
+alone, the agent drew and paid twice, then stopped at its daily limit; after a
+restart with a new key on the same account, it paid nothing more.
+
+**Limits.** Not yet run in a confidential machine: its compose hash needs a
+registry that approves it, and the allowance needs test USDC on Base Sepolia.
+The program decides by a fixed rule; a language model comes with step 3.3.
+Draw orders need a relayer to pay their gas.
+
+### 3.32 The text of the proposal
+
+Written on 18 November 2026, step 4.3 of the plan:
+[`docs/erc/erc-agent-only-tokens.md`](erc/erc-agent-only-tokens.md), in the
+format of the ethereum/ERCs repository (preamble, abstract, motivation,
+specification with the normative key words, rationale, backwards
+compatibility, test cases, reference implementation, security
+considerations). It states the rules of section 3.8 (eight since section 3.33) with the two points
+the conformance suite found (section 3.29), adds that eligibility never
+depends on the presence of code nor on owning an identity token, and treats
+ERC-8004, ERC-6551 and EIP-7702 in its rationale. ERC-8004 and EIP-7702 were
+checked on 18 November 2026: ERC-8004 is still a draft, and EIP-7702 has been
+live on Ethereum since the Pectra upgrade of 7 May 2025.
+
+**Tested.** [`tools/erc_package.py`](../tools/erc_package.py) builds the files
+to submit, with the conformance suite made self-contained, and runs the
+reference implementation exactly as printed in the text through that suite,
+in a fresh project: all its tests pass. The automatic checks run it on every
+change, so the text and the code cannot drift apart.
+
+**Limits.** Authors, number and discussion topic are left to fill in; nothing
+has been submitted (step 4.6). The review and the second implementation that
+followed are in section 3.33.
+
+### 3.33 Independent review, and a second implementation
+
+Done on 18 November 2026, steps 4.2 and 4.3 of the plan, by two agents that had
+not seen the work being done. Each saw only the text of the proposal (the
+second without its reference implementation), in a folder of its own.
+
+**The review** (hostile, as an ERC editor and a security auditor) traced the
+reference implementation and found it faithful to the rules as written, but
+the rules too weak in five places: nothing required ERC-721 authorisation on
+other transfer or burn paths, so a recognised administrator could move anyone's
+token; approval paths other than `approve` and `setApprovalForAll` were not
+covered; the approval rule checked the caller but not the holder; "caller" was
+not defined; and the guarantees were stated more strongly than venues and
+wrappers allow. It also found key words of the specification outside its
+section, and imprecise comparisons with ERC-3643 and EIP-7702. Its factual
+checks of ERC-8004, ERC-6551 and EIP-7702 agreed with the text.
+
+**The second implementation**, on Solady 0.1.26 instead of OpenZeppelin, was
+written from the text alone with its own tests, and listed every place where
+the text forced a guess: 25 the first time. It passed our conformance suite at
+the first run. Its author reached the same flaw as the reviewer on its own: an
+operator approved by a holder that is then frozen could still grant approvals
+for that holder's tokens, the very case rule 5 was meant to close. It also
+found that Solady's public `setApprovalForAll` does not go through the internal
+function a careful implementer would guard.
+
+**What changed.**
+
+1. **The standard:** `_approve` now also requires the holder to be recognised
+   (<!--f:lines.ERC721AgentOnly-->72<!--/f--> lines; an approval costs
+   <!--f:gas.14-->73,143<!--/f--> gas through the account, 316 more). The
+   conformance suite has a test for it, and a ninth wrong implementation
+   (without that check) that it catches. The proofs of section 2.5 and the
+   12 mutants of the standard all still pass or are caught.
+2. **The proposal:** definitions of caller, holder, grant and granter; rule 5
+   covers every function that grants an approval and checks the holder and
+   the granter; a new rule 8 requires ERC-721 authorisation on every path; a
+   "Registries and venues" subsection holds the recommendations that were
+   scattered; the guarantees are stated as what they are (a recognised
+   account can still wrap the token or sell claims on it).
+3. **The second implementation then followed the revised text**, again from
+   the text alone, and found ten smaller points in it (signed approvals,
+   forwarded senders, two sentences of the rationale), which were fixed. It
+   is in [`test/conformance/solady`](../test/conformance/solady), with its
+   author's own <!--f:tests.SoladyOwn-->57<!--/f--> tests, and runs through the
+   suite in the automatic checks.
+
+**Limits.** Both agents are models, like the author of the work they checked;
+they are independent of it, not of their kind. The implementer's notes left
+open how a registry should remove a faulty venue that holds other agents'
+tokens. Nothing replaces a human editor and an external audit (steps 4.6 and
+6.4).
+
+### 3.34 A page to watch a registry
+
+Done on 18 November 2026, step 4.5 of the plan:
+[`docs/monitor/index.html`](monitor/index.html), one page with no server and
+no dependency. It reads an `AttestedAgentRegistry` on Base Sepolia from public
+nodes, in the browser: its settings (notice delay, bond, key lifetime), the
+verifier in force, the attesters, every decision announced and when it takes
+effect, its agents (account, session key now, whether it is an agent now,
+enrollments) and its venues, with the latest events. This is where a holder
+sees a change coming during its notice delay (section 3.17). It signs nothing
+and asks for no wallet. It lists our registries from the deployments file;
+any other address can be typed in.
+
+**How it reads.** The public node of Base Sepolia limits event queries to 200
+blocks; the page uses another public node that accepts 50,000, and falls back
+to the first for plain reads. A function that an older registry lacks shows as
+"—".
+
+**Tested.** [`tools/monitor_page.py`](../tools/monitor_page.py) builds the
+page from its template and checks each event topic and function selector it
+uses against the registry's source, in the automatic checks. The page's own
+code was run against the live chain on 18 November 2026: on the registry of
+section 3.21 it showed the one agent with its account, its current key and two
+enrollments, the direct verifier in force, the three attesters with two
+needed, and the zero-knowledge verifier announced for 19 November at 05:21
+UTC, which is what the chain holds; on our oldest registry, which lacks the
+newer functions, it showed them as missing without failing.
+
+**Limits.** It is a page to open, not a service: nobody is warned unless they
+look. A watcher that alerts on new announcements would need a scheduled job.
+Not yet put online: that is a publication for Julien to decide (GitHub Pages,
+for instance). Claude's artifact pages cannot reach the chain.
+
+### 3.35 The same rules for ERC-1155
+
+Done on 18 November 2026, step 4.4 of the plan. The rules say who may take part
+in a movement or an approval, not what is moved: [`docs/erc/profiles.md`](erc/profiles.md)
+states them once for any token, then for ERC-1155, and says what an ERC-20
+profile would change.
+
+**What was built.** [`ERC1155AgentOnly`](../src/ERC1155AgentOnly.sol),
+<!--f:lines.ERC1155AgentOnly-->62<!--/f--> lines: one check covers every id of a
+batch, since they share caller, holder and recipient, and `setApprovalForAll`
+is the only grant ERC-1155 has. Its interface has the same single function as
+the ERC-721 one, hence the same ERC-165 identifier.
+
+**What it found.** Our agent accounts could never have received an ERC-1155:
+the standard delivers to a contract only if it answers `onERC1155Received`,
+and they did not. `AgentAccount` now answers it and its batch version; the
+accounts of registries already deployed keep their code and still cannot.
+
+**Tested.** A conformance suite for the profile
+(<!--f:tests.Reference1155-->16<!--/f--> tests) that our implementation
+passes and that eight implementations each missing one check fail; a test with
+real agent accounts and our registry; 9 mutants caught.
+
+**Limits.** No ERC-20 profile was written: its `transfer` and x402 payments
+are pushes, which the rules refuse outside a venue, so its payment flows would
+need redesigning (see the note).
+
+### 3.36 More symbolic proofs, and a flaw in the loan venue
+
+Done on 18 November 2026, step 6.1 of the plan. Five new properties, proved
+with Halmos for every value of their arguments
+([`test/halmos/VenueProps.t.sol`](../test/halmos/VenueProps.t.sol)), in the
+automatic checks with the earlier ones:
+
+| Property | Contract |
+| --- | --- |
+| What the venue owes its lenders is always covered by what it holds, for any amounts, with or without a fee on transfers; a withdrawal never takes more than what was repaid | `AgentLoan` |
+| Nobody but the account draws from its allowance | `AgentAllowance` |
+| However two draws are sized and timed within one period, at most the limit leaves | `AgentAllowance` |
+| The allowance never promises more than it holds, even with a fee on transfers | `AgentAllowance` |
+| Unless the caller is the key the registry names, `execute` and `executeBatch` refuse whatever the target, value and data, and nothing leaves the account | `AgentAccount` |
+
+Each was checked to fail when the rule it states is broken: the guard of the
+account removed, the limit or the account check of the allowance removed.
+
+**What it found.** The first property failed on the code as it was: in a
+currency that keeps part of every transfer, the loan venue recorded the full
+repayment as owed to the lender but received less, so the last lender to
+withdraw could not be paid. `AgentLoan` now refuses a repayment that does not
+arrive in full (`ShortPayment`); the loan then stands and the lender can claim
+the token when it is due. Two tests cover it
+([`LoanFee.t.sol`](../test/LoanFee.t.sol)), and the 23 mutants of the venue are
+caught. The gas of every recorded operation is unchanged.
+
+**Limits.** A currency whose balances change by themselves (rebasing) can
+still make the venue owe more than it holds; such currencies are not supported.
+The proofs cover one offer, one funding and one repayment, not every sequence
+of loans.
+
+### 3.37 Operating a registry, rehearsed
+
+Done on 18 November 2026, step 6.6 of the plan: [`docs/operations.md`](operations.md)
+says who can act on what and how fast, what to watch, what to do in five kinds
+of incident (an agent misbehaving or its key known, a faulty venue, a verifier
+that accepts too much or was announced by mistake, a lost attester key, a
+hostile quorum), and how to create attester keys.
+
+**Rehearsed.** [`examples/operations/drill.sh`](../examples/operations/drill.sh)
+runs the procedures on a local chain with throwaway keys made at run time, in
+the automatic checks. Its agent holds a token approved to a venue in force and
+draws from an allowance. Frozen by its sponsor in one transaction, it can no
+longer act and the venue can no longer take its token, which a control taken
+before the freeze could; its allowance closed, the sponsor gets the rest back
+and the agent keeps only what it drew; revoked by two attesters, unfreezing
+does not bring it back; the venue removed at once; a verifier announced, then
+cancelled by a halt, after which no enrollment passes.
+
+**Limits.** Nothing warns anyone automatically: the procedures assume someone
+looks at the monitor within each notice delay. A hostile quorum of attesters
+cannot be stopped on chain, only seen coming.
+
+### 3.38 Which model, from which machine: options for step 3.3
+
+Researched on 18 November 2026, nothing bought. Step 3.3 lets a language model
+propose what the agent does; the rules of sections 3.30 and 3.31 still decide
+what can be signed. The model must run where its operator cannot read or
+change it, and the agent must check that before trusting an answer.
+
+| Option | What it is | Cost found | What the agent checks |
+| --- | --- | --- | --- |
+| Phala Private AI API | OpenAI-compatible API at `inference.phala.com`, models in Intel TDX and NVIDIA confidential GPUs | Per token, from the live catalog: for instance `openai/gpt-oss-120b` $0.15 in / $0.60 out per million tokens, `google/gemma-4-31b-it` $0.15 / $0.46. Paid from the same Phala balance as our machines, but gifted credit cannot pay for it | The gateway's attestation, then a signed receipt per response (`/v1/aci/receipts/{id}`) binding the request and response hashes |
+| NEAR AI Cloud | OpenAI-compatible API, Intel TDX and NVIDIA GPU enclaves | Per token; for instance DeepSeek V4 Flash $0.30 / $0.50 per million. A new account | TDX and NVIDIA attestations, signed messages |
+| A model in our own machine | A small open model inside the agent's TDX machine, no GPU | No API cost; a larger machine (the 8-core one of section 3.27 costs $0.464 an hour) | Nothing more: it is measured with the program |
+| A GPU machine of our own | Rented confidential GPU | $84 charged upfront for the first 24 hours of an H200 on Phala | Its own attestation |
+
+**Estimate for a demonstration** (about 100 decisions of some 2,000 tokens in
+and 300 out, with the cheapest capable model above): under $0.10 of tokens.
+
+**Recommended:** the Phala API, which needs no new account and whose receipts
+the agent can check; it needs a small real top-up of the Phala balance (made
+by Julien, not with a card typed by us), since gifted credit does not pay for
+it. Then a small model in our own machine as a fallback, to compare.
+
+### 3.39 Is Base ready? A first check
+
+Checked on 18 November 2026, step 6.5 of the plan, by read-only calls to Base's
+public node. Automata's verifier (`0xaDde…Ea1F`) and PCCS router (`0xaf2a…492B`)
+are deployed on Base at the same addresses as on Base Sepolia, as their
+release v1.1.0 lists, and their code is byte-for-byte the code we used on Base
+Sepolia. Intel's evaluation list on Base was issued on 31 October and is valid
+until 30 November 2026.
+
+**But our quotes are refused there.** The quote of section 3.21, accepted on
+Base Sepolia, comes back from the same code on Base with `QEIDVE`, Automata's
+code for an error verifying the identity of Intel's quoting enclave, for every
+evaluation on chain: the Intel data that checks a TDX quoting enclave is
+missing or out of date on Base. Until it is published there, no agent can be
+enrolled on Base by direct verification of a TDX quote. Automata's on-chain store
+takes Intel's signed data; whether anyone may publish it there or only
+Automata, and at what gas cost on Base, was not checked. Either way it is a
+step with real money, left for phase 6. The nightly checks now
+report Base's readiness every night, without failing.
+
+### 3.40 One command to replay it all
+
+Done on 18 November 2026, steps 7.2 and 7.4 of the plan.
+[`tools/reproduce.sh`](../tools/reproduce.sh) replays every check of the
+repository, one line per step, and stops at the first failure: recorded data
+against its hashes, formatting, the tests, the figures of this document, the
+recorded addresses, the conformance suites and their faulty versions, the ERC
+text and its printed reference implementation, the monitor page, the fourth
+agent program and the incident drill on local chains, the symbolic proofs,
+and, with an RPC address, the tests on a copy of Base Sepolia. On 18 November
+2026 all twelve passed in the workspace. Every folder of recorded data now has
+a README saying where it comes from and a `SHA256SUMS` that
+[`tools/datasets.py`](../tools/datasets.py) keeps and checks.
+
+**Limits.** Not yet run on a machine that has never seen the project; the
+automatic checks on GitHub come close, with a fresh machine each time.
+
+### 3.41 A short article, reviewed
+
+Written on 18 November 2026, steps 7.1 and 7.3 of the plan:
+[`docs/paper.md`](paper.md), the design, the threat model, the evidence and the
+limits, with two diagrams (the parts and who decides; an enrollment by the
+direct and the zero-knowledge routes). Its marked figures are checked by
+`tools/figures.py` like those of this document.
+
+**Reviewed by a separate AI agent** acting as a hostile reviewer, with this
+document to check against: "major revision". Its main points, all taken: the
+threat model said every widening decision waits for the notice delay, but
+attester-signed enrollments are immediate; a forged quote from any TDX server
+(TEE.fail) enrolls a key the adversary holds, which the table did not say; the
+guarantee was stated as "no human owner" where the token only enforces "an
+account the registry recognises"; the spending limit was overstated (local and
+fork tests only; tokens and approvals are not covered); ERC-7710 was
+dismissed unfairly, and the x402 claim held only for its EIP-3009 method; a
+lapse of Intel's data on chain longer than the key lifetime would freeze every
+token, which was missing; the cost figures needed their inputs. One point was
+wrong: the zero-knowledge proof was recorded on chain on 18 November (section
+3.28), which the reviewer could not see. The article now carries a table of
+guarantees and the assumptions each rests on.
+
 ## 4. Use cases
 
 The standard is content-agnostic: the token can be anything an ERC-721 can be.
@@ -2355,7 +2804,10 @@ Options studied and set aside:
 4. Enrollment through a zk proof of the quote verification: feasibility
    (section 3.25), verifier (section 3.26) and a real proof of our own quote,
    accepted on a fork of Base Sepolia for 750,404 gas instead of 3.7 million
-   (section 3.27). Next: making a fresh proof cheaply for each enrollment.
+   (section 3.27), then a live registry switched to the zk verifier and its
+   agent's key renewed through it on 19 November 2026 (section 3.28). Next:
+   making a fresh proof cheaply for each enrollment; on Base, the direct route
+   stays cheaper (step 2.4).
 5. Publication of the idea on [Ethereum Magicians](https://ethereum-magicians.org/),
    then a pull request to [ethereum/ERCs](https://github.com/ethereum/ERCs)
    once a second implementation passes the same tests.
@@ -2393,7 +2845,7 @@ unless stated otherwise.
 | USDC `FiatTokenV2_2` checks contract payers through ERC-1271, in both forms of `transferWithAuthorization` | Confirmed by test against the compiled source, commit `fc85788` | [circlefin/stablecoin-evm](https://github.com/circlefin/stablecoin-evm) |
 | Automata DCAP Attestation returns, for a verified quote, its version, body type, security level, platform family and report body, in that order | Read in the source at tag `v1.2.0` (`serializeOutput`), 14 November 2026, then confirmed by execution on Base Sepolia on 15 November 2026 (section 3.12) | [automata-dcap-attestation](https://github.com/automata-network/automata-dcap-attestation/tree/v1.2.0) |
 | Automata's verifier does not check the debug flag of a TDX machine | Read in the same source: no test of the machine's attributes in the V4 and V5 verifiers. Not executed | Same |
-| Automata DCAP Attestation is deployed on Base | Stated by its repository (`deployment/current/8453`). **Not checked on-chain** | Same |
+| Automata DCAP Attestation is deployed on Base | Confirmed on 18 November 2026 by read-only calls: same addresses as on Base Sepolia, code byte-for-byte identical; our TDX quote is refused there with `QEIDVE` (section 3.39) | Same |
 | Automata DCAP Attestation is deployed on Base Sepolia and verifies a real TDX quote | Confirmed on 15 November 2026 by a transaction through our verifier (section 3.12) | [BaseScan](https://sepolia.basescan.org/tx/0x713be5c31abcd1fed0ce5923725520330b3ea0d0d99bcc3241cc55a14241110c) |
 | dstack logs the key provider in RTMR3 and tells verifiers to check it against what they expect | Read in its attestation guide on 16 November 2026 (section 2.1 and conclusion). Our verifier does not check it (section 3.11) | [dstack attestation](https://github.com/Dstack-TEE/dstack/blob/master/docs/attestation-tdx.md) |
 | A Phala Cloud machine's quote is accepted by Automata's verifier on Base Sepolia, and dstack writes `compose-hash` before `boot-mr-done` | Confirmed on 16 November 2026 by transaction (section 3.13) | [BaseScan](https://sepolia.basescan.org/tx/0x3bde5e7d3ccf206d60290a8b9de98ae72ea5d79f2fc6368141c3e652613b9fcf) |
@@ -2414,7 +2866,9 @@ unless stated otherwise.
 | The standard x402 client pays from an agent account once given the 28-line signer adapter | Confirmed by execution on 14 November 2026: packages `@x402/fetch` and `@x402/express` 2.31.0, local chain | `examples/x402/demo.mjs` |
 | Our RISC Zero proof is valid for Automata's program and our output | Confirmed on 17 November 2026: read-only call to the RISC Zero router of Base Sepolia (`verify` does not revert; with one bit of the output digest changed it reverts with `0x439cc0cd`), then 5 fork tests | `test/fork/zk/risc0-seal.hex`, `risc0-journal.hex` |
 | The program's output equals Automata's direct on-chain check of our quote | Confirmed on 17 November 2026: same bytes as `verifyAndAttestOnChain`, and the six Intel data hashes equal those of the PCCS router at the time of check | `research/zk-proof` |
-| Every contract cited in this document is at its address on Base Sepolia, with the code recorded | Confirmed on 17 November 2026 for the <!--f:deployed-->70<!--/f--> contracts of `deployments/base-sepolia.json` and the 3 external ones (code hash read on chain); checked again every night | `tools/deployments.py` |
+| A live registry takes a zk-proven quote after its 24-hour notice, and the agent keeps its account | Confirmed on 19 November 2026 by transaction: `enroll` approved by the zk verifier, 48,287 gas, same account, nonce 3 (section 3.28) | [BaseScan](https://sepolia.basescan.org/tx/0xf3178291e99ddf339458b21263a1de4ff0af72bb705457d22ddbe32bf6731c72) |
+| USDC checks a contract payer's ERC-1271 signature with a read-only call, so the payer cannot count its own spending at that moment | Confirmed on 18 November 2026 by test against the compiled source (`test/X402Static.t.sol`, section 3.30) | [circlefin/stablecoin-evm](https://github.com/circlefin/stablecoin-evm) |
+| Every contract cited in this document is at its address on Base Sepolia, with the code recorded | Confirmed on 17 November 2026 for the <!--f:deployed-->73<!--/f--> contracts of `deployments/base-sepolia.json` and the 3 external ones (code hash read on chain); checked again every night | `tools/deployments.py` |
 
 ## 10. Sources
 

@@ -379,3 +379,44 @@ folder.
 
 Limit: Phala Cloud's form still writes the other fields of the manifest, as
 before. They are measured, and `compose-hash.py` rebuilds them.
+
+## Fourth program: nothing from outside makes it sign
+
+`v4/agent.js` (step 3.2 of the plan, written on 18 November 2026). The first
+three programs signed what their HTTP side was asked for, within fixed shapes:
+anyone who could reach the machine could make the agent buy. This one cannot
+be asked.
+
+- Its HTTP side only shows its key and its state (`GET /`), the manifest, and
+  the enrollment quote of its own key. No path signs anything; any other path
+  is refused.
+- Every signature comes from its own loop. When its key is the one the
+  registry recognises, the loop buys one paid x402 page at most once per
+  period, under a cap per purchase. When the account is short, it signs an
+  order to draw from its allowance (`AgentAllowance`, study section 3.30) and
+  shows it in its state; anyone may relay it (`v4/relay.sh`), paying the gas
+  and changing nothing.
+- Its settings (chain, registry, agent, allowance, token, cap, periods, node,
+  shop) come from the compose file, written literally, so they are measured
+  with the program; it refuses to start if one is missing or malformed.
+- The budget is no longer in its memory: the allowance holds it. A lying node
+  can at worst make it ask for a draw or a payment that the allowance and the
+  token refuse.
+
+**Tested end to end on a local chain** (`v4/local/run.sh`, also in the
+automatic checks): Circle's USDC code, our registry and `AgentAllowance`, a
+stand-in x402 shop, and the program itself. Five paths that would sign
+(`/mint`, `/buy`, `/pay`, `/draw`, `/sign`) and every `POST` are refused. Left
+alone, the agent drew from its allowance and paid twice for the page, then
+stopped at its daily limit. Restarted, hence with a new key enrolled on the
+same account, it paid nothing more.
+
+**Prepared for a real machine** (18 November 2026). `v4/make_compose.py` writes
+`v4/docker-compose.yml`, the program with its settings for Base Sepolia: a
+fresh registry for this run (`0x3cA8…f609`, two of three attesters, a notice
+delay of 120 seconds, no verifier until the program's measured code is known)
+and its allowance contract (`0x72E9…6ACf`). With our pre-launch script, its
+compose hash is
+`4ae2d85a34b43fc586666f3fd5501e5d31ad494e5644285b62497cc7ee5a7c1a`
+(`manifest/compose-hash.py`). Not yet run: the machine costs a few cents of
+Phala credit and is started only with Julien's go-ahead.

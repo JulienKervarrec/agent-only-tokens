@@ -45,6 +45,7 @@ contract AgentLoan is ReentrancyGuard {
     error BadState();
     error NotDue();
     error TermsChanged();
+    error ShortPayment();
 
     /// The borrower deposits its token and publishes its terms.
     function offer(IERC721 nft, uint256 id, IERC20 currency, uint256 principal, uint256 repayAmount, uint64 duration)
@@ -94,7 +95,10 @@ contract AgentLoan is ReentrancyGuard {
         delete loans[nft][id];
         owed[l.currency][l.lender] += l.repay;
         emit Repaid(nft, id);
+        // What is owed must be held: a currency that keeps part of a transfer is refused here.
+        uint256 before = l.currency.balanceOf(address(this));
         l.currency.safeTransferFrom(msg.sender, address(this), l.repay);
+        if (l.currency.balanceOf(address(this)) - before != l.repay) revert ShortPayment();
         nft.transferFrom(address(this), msg.sender, id);
     }
 

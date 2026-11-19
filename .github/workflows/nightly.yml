@@ -34,6 +34,11 @@ jobs:
       # Intel's data on chain expires about monthly; fails 3 days before a quote would be refused.
       - name: Intel's data behind the DCAP verifier
         run: python3 tools/collateral.py --rpc "$BASE_SEPOLIA_RPC" --warn-days 3
+      # Base mainnet, for step 6.5: on 18 November 2026 our quotes were refused there ("QEIDVE",
+      # the Intel data of the TDX quoting enclave is missing). Reported every night, never fails.
+      - name: Base mainnet readiness (report only)
+        continue-on-error: true
+        run: python3 tools/collateral.py --rpc https://mainnet.base.org --warn-days 3
 
   image:
     name: dstack image against our quotes

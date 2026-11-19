@@ -665,6 +665,36 @@
       "run": "our own pre-launch script, 17 November 2026 (study 3.21)",
       "block": 59998622,
       "codeHash": "0x3744866c2ef138e04791e5d941510372b519e2db808c911c91f7ca4925c45eaf"
+    },
+    {
+      "address": "0x00679dc263Cc311905F3814C485795C2A0A19bF9",
+      "name": "DstackConfigIdZkVerifier",
+      "role": "zk verifier announced for registry 0xE784…aD52: same approved code, RISC Zero proofs of Automata's DCAP program, maximum proof age 3 hours",
+      "run": "switch to the zk verifier, 18 November 2026 (study 3.28)",
+      "block": 60287218,
+      "codeHash": "0xff5521408778b9d75fb8d4b21ee6a23c2cdead2dcca813af02c75c9c7b331138",
+      "source": "cf44964",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0x3cA87b940194A38BB577f0A5a3089b67cf3af609",
+      "name": "AttestedAgentRegistry",
+      "role": "registry for the fourth program; no verifier until its code is known",
+      "run": "fourth program on a real machine, prepared 18 November 2026 (study 3.31)",
+      "block": 60469983,
+      "codeHash": "0xc8d6bfa43634bb6c303768119d668889e3535e25591606747a76a59da21b7716",
+      "source": "v0.4.8",
+      "sourcify": "pending"
+    },
+    {
+      "address": "0x72E92d7bb95425cf59f7F967b698DBFbBa8c6ACf",
+      "name": "AgentAllowance",
+      "role": "allowance of the fourth program's agent",
+      "run": "fourth program on a real machine, prepared 18 November 2026 (study 3.31)",
+      "block": 60469987,
+      "codeHash": "0xe083089fc6495165349c6c1c91189b7def36e8a9f6af096c49f395484a76fec2",
+      "source": "v0.4.8",
+      "sourcify": "pending"
     }
   ],
   "external": [
@@ -789,6 +819,10 @@
     {
       "address": "0x7296ba58669ab91b4707b02f764b0d52bff9853d",
       "role": "third program under our own pre-launch script, key after restart (generated inside the enclave; never held ETH)"
+    },
+    {
+      "address": "0xeb12d2f5c023e149646542c223510c5d899a31f8",
+      "role": "third program under our own pre-launch script, key renewed through the zk verifier (quote of 18 November, enrolled 19 November 2026; generated inside the enclave; never held ETH)"
     }
   ],
   "otherChains": [
@@ -806,6 +840,21 @@
       "address": "0x2D943E25e1859ED786AFe4AFB2B42e14EFAC691e",
       "chain": "Base",
       "role": "its signature library"
+    },
+    {
+      "address": "0xaDdeC7e85c2182202b66E331f2a4A0bBB2cEEa1F",
+      "chain": "Base",
+      "role": "Automata DCAP Attestation v1.1.0; code byte-identical to Base Sepolia's, read on 18 November 2026 (study 3.39)"
+    },
+    {
+      "address": "0xaf2a0D5473062b36E2dE986DA09d945EB26d492B",
+      "chain": "Base",
+      "role": "Automata PCCS router v1.1.0; code byte-identical to Base Sepolia's, read on 18 November 2026"
+    },
+    {
+      "address": "0xcF614258C68730D8cB9713AcAe425875D1FDb370",
+      "chain": "Base",
+      "role": "Automata TcbEvalDao: Intel's TCB evaluation list, issued 31 October 2026, read on 18 November 2026"
     }
   ]
 }

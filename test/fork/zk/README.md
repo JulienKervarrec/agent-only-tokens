@@ -22,3 +22,13 @@ DCAP v1.1 program (image id `0xcc80…9695`) checked our own dstack quote at
 `1794946769` (17 November 2026, 20:19:29 UTC). Made with
 [`research/zk-proof`](../../../research/zk-proof/README.md); accepted by the
 live RISC Zero router of Base Sepolia. Used by `ZkRealProofBaseSepolia.t.sol`.
+
+## The agent's second proof (step 2.3)
+
+`switch-seal.hex` and `switch-journal.hex`: a real proof of the quote the
+agent of section 3.21 made on 18 November 2026 for its next enrollment (nonce
+2, key `0xeb12…31f8`, digest `0xf375…2f21`), checked at `1794984098`
+(06:41:38 UTC). The prover fetched the quote from the agent itself. Recorded on
+chain by `attestWithProof`
+([tx](https://sepolia.basescan.org/tx/0x665e2d4a810981f78e7a5049115eee84208461eb957590b43c19e5239e5635f7));
+used by `ZkSwitchBaseSepolia.t.sol`.

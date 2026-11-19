@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Watches the Intel data that Automata's DCAP verifier needs on Base Sepolia.
+"""Watches the Intel data that Automata's DCAP verifier needs on Base Sepolia (or on Base).
 
     python3 tools/collateral.py                    the archived quotes of our machines
     python3 tools/collateral.py --warn-days 3      fails if one would be refused within 3 days
@@ -25,8 +25,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 RPC = "https://sepolia.base.org"
-DCAP = "0xaDdeC7e85c2182202b66E331f2a4A0bBB2cEEa1F"  # Automata DCAP Attestation, Base Sepolia
-TCB_EVAL_DAO = "0xcF614258C68730D8cB9713AcAe425875D1FDb370"  # Automata TcbEvalDao, Base Sepolia
+DCAP = "0xaDdeC7e85c2182202b66E331f2a4A0bBB2cEEa1F"  # Automata DCAP Attestation, same address and code on Base
+TCB_EVAL_DAO = "0xcF614258C68730D8cB9713AcAe425875D1FDb370"  # Automata TcbEvalDao, same address on Base
 QUOTES = ["test/experimental/phala/quote*.hex"]
 DAY = 86400
 HORIZON = 60  # days searched ahead

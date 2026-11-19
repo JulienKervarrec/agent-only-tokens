@@ -41,8 +41,13 @@ Foundry v1.5.1 and solc 0.8.28 are what the automated checks use.
 | `forge test` | Unit, fuzz and invariant tests |
 | `forge test --isolate --match-contract GasTest` | Rewrites `snapshots/Gas.json`, the gas of each operation. The automated check fails if the committed file differs from what this command writes |
 | `python3 tools/figures.py` | Figures quoted in the documentation; `--write` updates them |
+| `bash tools/reproduce.sh` | Every check below in one command (add `BASE_SEPOLIA_RPC` for the fork tests) |
+| `python3 tools/datasets.py --check` | Each folder of recorded data matches its `SHA256SUMS` |
+| `python3 tools/conformance.py` | The conformance suite catches each deliberately wrong implementation in `test-faulty` |
+| `python3 tools/erc_package.py OUT --check` | Builds the ERC proposal for ethereum/ERCs in `OUT`, and runs its printed reference implementation through the self-contained suite |
+| `python3 tools/monitor_page.py` | Rebuilds `docs/monitor/index.html` from its template and the deployments file, after checking every event topic and selector it uses; `--check` fails if the page is stale |
 | `python3 tools/deployments.py` | Every address cited is in `deployments/base-sepolia.json` |
-| `halmos --match-contract "AgentOnlyProps\|RegistryProps"` | Symbolic proofs (Halmos 0.3.3) |
+| `halmos --match-contract "AgentOnlyProps\|RegistryProps\|LoanProps\|AllowanceProps\|AccountProps"` | Symbolic proofs (Halmos 0.3.3) |
 | `python3 tools/slither_check.py slither.json` | Slither report against `tools/slither-accepted.json` (see the workflow for the Slither command) |
 | `python3 tools/mutate.py` | Mutation testing; about half an hour |
 | `python3 tools/proofs.py` | Each proof of the registry fails on the registries broken on purpose; a few minutes |

@@ -24,9 +24,16 @@ echo "18085185d2bed16c459ddd755a175ca28a736329b5e73494654eb712a2c2ef09  guest/dc
 # Automata's lock file: the RISC Zero versions it pins make proofs for the v3.0.0 verifier on Base.
 cp /a/rust-crates/Cargo.lock .
 
-# Our quote, as published in the repo (v0.4.6), and the Intel collateral as Base Sepolia has it now.
-curl -fsSL -o quote.hex https://raw.githubusercontent.com/JulienKervarrec/agent-only-tokens/2719c394d1eea436a3ed13be27c129dda26e8a9f/test/experimental/phala/quote-own-prelaunch.hex
-echo "b573d55fd70b98cf62fe78b334c040bb5e454c49ec46cf860df19423fadc5a8f  quote.hex" | sha256sum -c
+# The quote: by default ours as published in the repo (v0.4.6); with QUOTE_URL, the answer of a
+# running agent (JSON with a "quote" field), kept whole in /out/agent.json. Then the Intel
+# collateral as Base Sepolia has it now.
+if [ -n "${QUOTE_URL:-}" ]; then
+  curl -fsSL -o /out/agent.json "$QUOTE_URL"
+  python3 -c 'import json; print(json.load(open("/out/agent.json"))["quote"].removeprefix("0x"))' > quote.hex
+else
+  curl -fsSL -o quote.hex https://raw.githubusercontent.com/JulienKervarrec/agent-only-tokens/2719c394d1eea436a3ed13be27c129dda26e8a9f/test/experimental/phala/quote-own-prelaunch.hex
+  echo "b573d55fd70b98cf62fe78b334c040bb5e454c49ec46cf860df19423fadc5a8f  quote.hex" | sha256sum -c
+fi
 python3 fetch_collateral.py col
 cp -r col quote.hex /out/
 

@@ -1012,5 +1012,59 @@
     "name": "the zk route skips the shared checks",
     "find": "        digest = _checkOutput(output);\n        _approveConfigId",
     "replace": "        digest = bytes32(0);\n        _approveConfigId"
+  },
+  {
+    "file": "src/AgentAllowance.sol",
+    "name": "a new period does not reset what was drawn",
+    "find": "if (w != a.window) (a.window, a.drawn) = (w, 0);",
+    "replace": ""
+  },
+  {
+    "file": "src/AgentAllowance.sol",
+    "name": "what is drawn is not counted",
+    "find": "a.drawn += uint128(amount);",
+    "replace": ""
+  },
+  {
+    "file": "src/AgentAllowance.sol",
+    "name": "the balance is not reduced by a draw",
+    "find": "a.balance -= amount;",
+    "replace": ""
+  },
+  {
+    "file": "src/AgentAllowance.sol",
+    "name": "available ignores the balance",
+    "find": "return left < a.balance ? left : a.balance;",
+    "replace": "return left;"
+  },
+  {
+    "file": "src/AgentAllowance.sol",
+    "name": "available ignores what was drawn",
+    "find": "uint256 left = a.perPeriod - (_window(a) == a.window ? a.drawn : 0);",
+    "replace": "uint256 left = a.perPeriod;"
+  },
+  {
+    "file": "src/AgentAllowance.sol",
+    "name": "the deposit credits the amount asked, not what arrived",
+    "find": "a.balance += received;",
+    "replace": "a.balance += amount;"
+  },
+  {
+    "file": "src/AgentAllowance.sol",
+    "name": "closing leaves the allowance open",
+    "find": "delete _allowances[id];",
+    "replace": ""
+  },
+  {
+    "file": "src/ERC1155AgentOnly.sol",
+    "name": "a push counts as a pull",
+    "find": "bool pull = to == caller;",
+    "replace": "bool pull = true;"
+  },
+  {
+    "file": "src/ERC1155AgentOnly.sol",
+    "name": "any caller counts as a venue",
+    "find": "venue = agentRegistry.isVenue(caller);",
+    "replace": "venue = true;"
   }
 ]

@@ -25,6 +25,18 @@ jobs:
       - run: git clone --depth 1 --branch v1.9.7 https://github.com/foundry-rs/forge-std lib/forge-std
       - run: forge fmt --check src
       - run: forge test
+      - name: Recorded data matches its SHA256SUMS
+        run: python3 tools/datasets.py --check
+      - name: Conformance suite catches each faulty implementation
+        run: python3 tools/conformance.py
+      - name: ERC text, its reference implementation and the self-contained suite
+        run: python3 tools/erc_package.py "$RUNNER_TEMP/erc" --check
+      - name: Registry monitor page, built from its template and checked
+        run: python3 tools/monitor_page.py --check
+      - name: Fourth agent program, end to end on a local chain
+        run: bash examples/enclave-agent/v4/local/run.sh
+      - name: Incident drill of docs/operations.md, on a local chain
+        run: bash examples/operations/drill.sh
       - name: Gas of each operation, against snapshots/Gas.json
         run: |
           rm snapshots/Gas.json
@@ -52,7 +64,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install halmos==0.3.3
-      - run: halmos --match-contract "AgentOnlyProps|RegistryProps"
+      - run: halmos --match-contract "AgentOnlyProps|RegistryProps|LoanProps|AllowanceProps|AccountProps"
 
   slither:
     name: Static analysis (Slither)
@@ -75,6 +87,6 @@ jobs:
       # Slither exits with an error as soon as it reports anything: the next step decides.
       - run: >-
           slither . --ignore-compile --compile-force-framework foundry
-          --filter-paths "node_modules/|/lib/|/test/" --json slither.json || true
+          --filter-paths "node_modules/|/lib/|/test/|/test-faulty/" --json slither.json || true
       - name: Findings against the accepted list
         run: python3 tools/slither_check.py slither.json
