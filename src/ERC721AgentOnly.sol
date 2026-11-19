@@ -50,12 +50,14 @@ abstract contract ERC721AgentOnly is ERC721, IERC721AgentOnly {
         return super._update(to, tokenId, auth);
     }
 
-    /// Granting an approval is an action (rule 2): the granter must be recognised too, or a
+    /// Granting an approval is an action: the granter and the holder must be recognised, or a
     /// frozen holder could prepare a movement for after it is unfrozen. Revoking is always free.
     function _approve(address to, uint256 tokenId, address auth, bool emitEvent) internal virtual override {
         if (to != address(0)) {
+            address holder = _requireOwned(tokenId);
             if (!_allowed(to)) revert NotAgent(to);
             if (!_allowed(_msgSender())) revert NotAgent(_msgSender());
+            if (holder != _msgSender() && !_allowed(holder)) revert NotAgent(holder);
         }
         super._approve(to, tokenId, auth, emitEvent);
     }
