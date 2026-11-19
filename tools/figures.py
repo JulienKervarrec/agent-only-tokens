@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-DOCS = ["README.md", "docs/study.md", "src/experimental/README.md", "examples/enclave-agent/README.md"]
+DOCS = ["README.md", "docs/study.md", "src/experimental/README.md", "examples/enclave-agent/README.md", "docs/erc/profiles.md", "docs/paper.md"]
 MARK = re.compile(r"<!--f:([\w.]+)-->(.*?)<!--/f-->")
 
 

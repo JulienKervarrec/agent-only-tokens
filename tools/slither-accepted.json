@@ -67,5 +67,9 @@
   "unused-state: TdxQuoteVerifier.RTMR3": {
     "count": 2,
     "reason": "Offset shared by the verifiers that inherit from it; two of them do not read RTMR3."
-  }
+  },
+  "incorrect-equality: AgentAllowance.available": "It compares two period numbers, whole numbers counted from the opening; equal means the same period, as intended.",
+  "timestamp: AgentAllowance.available": "Periods are counted in block time, a day or so long; a few seconds of drift by the block producer moves the boundary by as much, never the limit.",
+  "timestamp: AgentAllowance.draw": "Same as AgentAllowance.available: the period a draw falls in is read from block time.",
+  "uninitialized-local: ERC1155AgentOnly._update.venue": "Starts false on purpose: on a pull the caller's venue status is not needed (as in ERC721AgentOnly)."
 }
