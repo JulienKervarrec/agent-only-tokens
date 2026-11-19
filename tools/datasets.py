@@ -15,7 +15,7 @@ FOLDERS = [
     "test/usdc", "test/fork/zk", "test/experimental/tdx", "test/experimental/phala", "test/experimental/dstack",
     "examples/enclave-agent/run-2026-11-16", "examples/enclave-agent/run-2026-11-16-x402",
     "examples/enclave-agent/run-2026-11-16-v3", "examples/enclave-agent/run-2026-11-16-upgrade",
-    "examples/enclave-agent/run-2026-11-17-prelaunch",
+    "examples/enclave-agent/run-2026-11-17-prelaunch", "examples/enclave-agent/run-2026-11-19-v4",
 ]
 SKIP = {"SHA256SUMS", "README.md", "LICENSE"}
 
