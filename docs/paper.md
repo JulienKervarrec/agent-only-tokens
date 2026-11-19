@@ -223,8 +223,12 @@ code shows it). We therefore put the limit where the money is. A delegation
 from the sponsor's account under ERC-7710, with a caveat limiting transfers per
 period, would be an equivalent alternative; Safe's allowance module is another.
 
-**Limits.** Tested on a local chain and on a copy of Base Sepolia, not yet in a
-confidential machine. The limit covers funds drawn from the allowance, not the
+Run once in a confidential machine on Base Sepolia (19 November 2026): the
+agent drew the day's limit in two orders it signed itself, paid five x402
+purchases with it, kept the same limit after a restart with a new key, then
+stopped.
+
+**Limits.** One machine, one day. The limit covers funds drawn from the allowance, not the
 agent's tokens or approvals; payees are not restricted; up to twice the limit
 can leave across the boundary of two periods; and the agent can draw again
 every period.
@@ -236,8 +240,8 @@ every period.
 | The rules hold for every input of one action by any of three accounts | Symbolic proofs with Halmos, with proofs on the registry, the loan venue, the allowance and the account: <!--f:proofs-->13<!--/f--> in all; those of the registry are also run against registries broken on purpose, where they must fail |
 | No check is untested | Mutation testing: <!--f:mutants-->347<!--/f--> mutants (each removes one check or changes one line), all caught but <!--f:mutants.accepted-->1<!--/f--> that cannot change behaviour |
 | The text says what the code does | A conformance suite of <!--f:tests.Reference-->17<!--/f--> tests that our implementation and a second one on Solady pass, and that nine implementations each missing one check all fail |
-| It works with real machines and chains | Agents enrolled on Base Sepolia from quotes of real Intel TDX machines; an agent paid for an x402 page from its account; a key renewed after a restart, on the same account; a zero-knowledge proof of a quote recorded on chain |
-| What is deployed is what was published | Of the <!--f:deployed-->73<!--/f--> contracts we deployed on Base Sepolia, <!--f:deployed.clones-->19<!--/f--> are account clones; all <!--f:deployed.verified-->54<!--/f--> others are verified on Sourcify, <!--f:deployed.exact-->49<!--/f--> with an exact match. The code at every recorded address is checked every night |
+| It works with real machines and chains | Agents enrolled on Base Sepolia from quotes of real Intel TDX machines; an agent paid for x402 pages from its account, within an on-chain daily limit; a key renewed after a restart, on the same account; a zero-knowledge proof of a quote recorded on chain |
+| What is deployed is what was published | Of the <!--f:deployed-->75<!--/f--> contracts we deployed on Base Sepolia, <!--f:deployed.clones-->20<!--/f--> are account clones; all <!--f:deployed.verified-->55<!--/f--> others are verified on Sourcify, <!--f:deployed.exact-->52<!--/f--> with an exact match. The code at every recorded address is checked every night |
 | Everything can be replayed | `tools/reproduce.sh` replays every check in one command |
 
 Two separate AI agents that had not seen the work read the proposal: one as a

@@ -379,10 +379,10 @@ finding fails the check.
 And the figures of sections 3.2, 3.3 and 3.9 are compared with the repository
 by `tools/figures.py`.
 
-The code of the deployed contracts can now be read. Of the <!--f:deployed-->73<!--/f--> contracts
-deployed on Base Sepolia for the tests, <!--f:deployed.clones-->19<!--/f--> are agent accounts, clones
-of an implementation. <!--f:deployed.verified-->54<!--/f--> of the others are verified on Sourcify:
-<!--f:deployed.exact-->49<!--/f--> match their source exactly, <!--f:deployed.match-->3<!--/f--> on code only (their sources
+The code of the deployed contracts can now be read. Of the <!--f:deployed-->75<!--/f--> contracts
+deployed on Base Sepolia for the tests, <!--f:deployed.clones-->20<!--/f--> are agent accounts, clones
+of an implementation. <!--f:deployed.verified-->55<!--/f--> of the others are verified on Sourcify:
+<!--f:deployed.exact-->52<!--/f--> match their source exactly, <!--f:deployed.match-->3<!--/f--> on code only (their sources
 differed by comments). `deployments/base-sepolia.json` names, for each one, the
 commit of the repository that compiles to it; nine of them run earlier
 versions of the code, which were found by recompiling the history, and two
@@ -2284,7 +2284,8 @@ limit per period fixed at opening. Only that account can draw, only to itself,
 never more than the limit in a period. Nobody can raise the limit; the sponsor
 can close and take back the rest at any time. The account then holds only what
 it drew: that is all a misled agent can spend, in x402 or otherwise, and the
-limit belongs to the account, so a new key does not reset it.
+limit belongs to the account, so a new key does not reset it (seen on a real
+machine on 19 November 2026, section 3.31).
 
 **Tested** ([`Allowance.t.sol`](../test/Allowance.t.sol),
 <!--f:tests.Allowance-->10<!--/f--> tests, on Circle's USDC code): draws within
@@ -2300,9 +2301,8 @@ mutants of the contract (`tools/mutate.py --only Allowance`) are caught.
 
 **Limits.** It caps the amount, not the payees: a misled agent can still pay
 the wrong shop, within the limit. Fixed windows let up to twice the limit out
-across the boundary of two periods. Not yet run from a real machine: our
-current agent program signs only a mint and one fixed payment, and a new
-program needs its own code approval; that comes with step 3.2.
+across the boundary of two periods. Run from a real machine with the fourth
+agent program on 19 November 2026 (section 3.31).
 
 ### 3.31 An agent that nothing from outside can make sign
 
@@ -2323,10 +2323,24 @@ a stand-in shop, five paths that would sign and every `POST` are refused; left
 alone, the agent drew and paid twice, then stopped at its daily limit; after a
 restart with a new key on the same account, it paid nothing more.
 
-**Limits.** Not yet run in a confidential machine: its compose hash needs a
-registry that approves it, and the allowance needs test USDC on Base Sepolia.
-The program decides by a fixed rule; a language model comes with step 3.3.
-Draw orders need a relayer to pay their gas.
+**Run on a real machine** on 19 November 2026
+([`run-2026-11-19-v4`](../examples/enclave-agent/run-2026-11-19-v4/README.md)):
+Phala Cloud, dstack OS 0.5.12, our pre-launch script, Base Sepolia. Phala Cloud
+showed, and the machine measured, the compose hash computed the day before. A
+verifier approving exactly that code was set on the registry, and the agent's
+key was enrolled with no attester signature. With 1 test USDC in its
+allowance at 0.05 a day, the agent signed on its own two draw orders (0.03, then
+the 0.02 left), which we relayed, and made five purchases from
+`x402.org/protected`, 0.01 each, settled, one per period. Every request from
+outside that could make it sign was refused. Restarted, it had a new key and
+did nothing until that key was enrolled on the same account; the limit was not
+reset (0.02 still left). Once the day's 0.05 was spent, it signed nothing more
+for a whole period, and a further draw was refused (`OverLimit`). The machine
+ran about 1 h 25 min, then was deleted.
+
+**Limits.** The program decides by a fixed rule; a language model comes with
+step 3.3. Draw orders need a relayer to pay their gas; we relayed them, anyone
+could have. One machine, one day.
 
 ### 3.32 The text of the proposal
 
@@ -2868,7 +2882,8 @@ unless stated otherwise.
 | The program's output equals Automata's direct on-chain check of our quote | Confirmed on 17 November 2026: same bytes as `verifyAndAttestOnChain`, and the six Intel data hashes equal those of the PCCS router at the time of check | `research/zk-proof` |
 | A live registry takes a zk-proven quote after its 24-hour notice, and the agent keeps its account | Confirmed on 19 November 2026 by transaction: `enroll` approved by the zk verifier, 48,287 gas, same account, nonce 3 (section 3.28) | [BaseScan](https://sepolia.basescan.org/tx/0xf3178291e99ddf339458b21263a1de4ff0af72bb705457d22ddbe32bf6731c72) |
 | USDC checks a contract payer's ERC-1271 signature with a read-only call, so the payer cannot count its own spending at that moment | Confirmed on 18 November 2026 by test against the compiled source (`test/X402Static.t.sol`, section 3.30) | [circlefin/stablecoin-evm](https://github.com/circlefin/stablecoin-evm) |
-| Every contract cited in this document is at its address on Base Sepolia, with the code recorded | Confirmed on 17 November 2026 for the <!--f:deployed-->73<!--/f--> contracts of `deployments/base-sepolia.json` and the 3 external ones (code hash read on chain); checked again every night | `tools/deployments.py` |
+| An agent in a confidential machine keeps to an on-chain daily limit, across a restart with a new key | Confirmed on 19 November 2026 on Base Sepolia: two draw orders signed by the agent, five settled x402 purchases, limit unchanged after the restart, a further draw refused (`OverLimit`) (section 3.31) | [run-2026-11-19-v4](../examples/enclave-agent/run-2026-11-19-v4/README.md) |
+| Every contract cited in this document is at its address on Base Sepolia, with the code recorded | Confirmed on 17 November 2026 for the <!--f:deployed-->75<!--/f--> contracts of `deployments/base-sepolia.json` and the 3 external ones (code hash read on chain); checked again every night | `tools/deployments.py` |
 
 ## 10. Sources
 

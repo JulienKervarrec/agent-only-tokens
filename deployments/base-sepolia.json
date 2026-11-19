@@ -679,22 +679,40 @@
     {
       "address": "0x3cA87b940194A38BB577f0A5a3089b67cf3af609",
       "name": "AttestedAgentRegistry",
-      "role": "registry for the fourth program; no verifier until its code is known",
-      "run": "fourth program on a real machine, prepared 18 November 2026 (study 3.31)",
+      "role": "registry for the fourth program; its verifier (0xD850…987c) was set once the code was measured, on 19 November 2026",
+      "run": "fourth program on a real machine, 18 and 19 November 2026 (study 3.31)",
       "block": 60469983,
       "codeHash": "0xc8d6bfa43634bb6c303768119d668889e3535e25591606747a76a59da21b7716",
-      "source": "v0.4.8",
-      "sourcify": "pending"
+      "source": "0775a0c",
+      "sourcify": "exact_match"
     },
     {
       "address": "0x72E92d7bb95425cf59f7F967b698DBFbBa8c6ACf",
       "name": "AgentAllowance",
       "role": "allowance of the fourth program's agent",
-      "run": "fourth program on a real machine, prepared 18 November 2026 (study 3.31)",
+      "run": "fourth program on a real machine, 18 and 19 November 2026 (study 3.31)",
       "block": 60469987,
       "codeHash": "0xe083089fc6495165349c6c1c91189b7def36e8a9f6af096c49f395484a76fec2",
-      "source": "v0.4.8",
-      "sourcify": "pending"
+      "source": "0775a0c",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0xD850afBFFD888b289196ECA2C98a906cC615987c",
+      "name": "DstackConfigIdVerifier",
+      "role": "approves the fourth program (compose hash 4ae2d85a…7c1a); verifier of registry 0x3cA8…f609",
+      "run": "fourth program on a real machine, 19 November 2026 (study 3.31)",
+      "block": 60737826,
+      "codeHash": "0xf7c76527b456b4d9bef920b20255294a30b32c5636b380a8c5807e2787dc707f",
+      "source": "0775a0c",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0xbb8202d84cC93F2bDb69170F6dFaf03Ee84fd44F",
+      "name": "AgentAccount (clone)",
+      "role": "account of the fourth program's agent; draws from allowance 1 of 0x72E9…6ACf",
+      "run": "fourth program on a real machine, 19 November 2026 (study 3.31)",
+      "block": 60738563,
+      "codeHash": "0x45f7e239a73fff63731d22ff2849d9a063b06aeae2843b594e4c860cad776fba"
     }
   ],
   "external": [
@@ -823,6 +841,14 @@
     {
       "address": "0xeb12d2f5c023e149646542c223510c5d899a31f8",
       "role": "third program under our own pre-launch script, key renewed through the zk verifier (quote of 18 November, enrolled 19 November 2026; generated inside the enclave; never held ETH)"
+    },
+    {
+      "address": "0x296c9982735f6fb01ac0a8ba0ada12158a3c2be1",
+      "role": "fourth program, first key, 19 November 2026 (generated inside the enclave; never held ETH)"
+    },
+    {
+      "address": "0x4a8d16825e0ece57bc1f057ee393a30d8caed896",
+      "role": "fourth program, key after the restart, 19 November 2026 (generated inside the enclave; never held ETH)"
     }
   ],
   "otherChains": [
