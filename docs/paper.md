@@ -241,7 +241,7 @@ every period.
 | No check is untested | Mutation testing: <!--f:mutants-->347<!--/f--> mutants (each removes one check or changes one line), all caught but <!--f:mutants.accepted-->1<!--/f--> that cannot change behaviour |
 | The text says what the code does | A conformance suite of <!--f:tests.Reference-->17<!--/f--> tests that our implementation and a second one on Solady pass, and that nine implementations each missing one check all fail |
 | It works with real machines and chains | Agents enrolled on Base Sepolia from quotes of real Intel TDX machines; an agent paid for x402 pages from its account, within an on-chain daily limit; a key renewed after a restart, on the same account; a zero-knowledge proof of a quote recorded on chain |
-| What is deployed is what was published | Of the <!--f:deployed-->75<!--/f--> contracts we deployed on Base Sepolia, <!--f:deployed.clones-->20<!--/f--> are account clones; all <!--f:deployed.verified-->55<!--/f--> others are verified on Sourcify, <!--f:deployed.exact-->52<!--/f--> with an exact match. The code at every recorded address is checked every night |
+| What is deployed is what was published | Of the <!--f:deployed-->78<!--/f--> contracts we deployed on Base Sepolia, <!--f:deployed.clones-->21<!--/f--> are account clones; all <!--f:deployed.verified-->57<!--/f--> others are verified on Sourcify, <!--f:deployed.exact-->54<!--/f--> with an exact match. The code at every recorded address is checked every night |
 | Everything can be replayed | `tools/reproduce.sh` replays every check in one command |
 
 Two separate AI agents that had not seen the work read the proposal: one as a
@@ -276,8 +276,8 @@ mainnet, on 18 November 2026, the data that checks a TDX quoting enclave was
 missing or out of date (`QEIDVE`), so our quotes were refused there.
 
 **What is not done.** Nothing has been audited by a person; everything ran on a
-test network; the agent decides by a fixed rule, not yet by a language model;
-the reviewers were AI models.
+test network; the language model behind an agent's decisions (one run, three
+questions) is trusted through Phala's gateway; the reviewers were AI models.
 
 ## 9. Related work
 

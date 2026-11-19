@@ -379,10 +379,10 @@ finding fails the check.
 And the figures of sections 3.2, 3.3 and 3.9 are compared with the repository
 by `tools/figures.py`.
 
-The code of the deployed contracts can now be read. Of the <!--f:deployed-->75<!--/f--> contracts
-deployed on Base Sepolia for the tests, <!--f:deployed.clones-->20<!--/f--> are agent accounts, clones
-of an implementation. <!--f:deployed.verified-->55<!--/f--> of the others are verified on Sourcify:
-<!--f:deployed.exact-->52<!--/f--> match their source exactly, <!--f:deployed.match-->3<!--/f--> on code only (their sources
+The code of the deployed contracts can now be read. Of the <!--f:deployed-->78<!--/f--> contracts
+deployed on Base Sepolia for the tests, <!--f:deployed.clones-->21<!--/f--> are agent accounts, clones
+of an implementation. <!--f:deployed.verified-->57<!--/f--> of the others are verified on Sourcify:
+<!--f:deployed.exact-->54<!--/f--> match their source exactly, <!--f:deployed.match-->3<!--/f--> on code only (their sources
 differed by comments). `deployments/base-sepolia.json` names, for each one, the
 commit of the repository that compiles to it; nine of them run earlier
 versions of the code, which were found by recompiling the history, and two
@@ -2338,8 +2338,8 @@ reset (0.02 still left). Once the day's 0.05 was spent, it signed nothing more
 for a whole period, and a further draw was refused (`OverLimit`). The machine
 ran about 1 h 25 min, then was deleted.
 
-**Limits.** The program decides by a fixed rule; a language model comes with
-step 3.3. Draw orders need a relayer to pay their gas; we relayed them, anyone
+**Limits.** The program decides by a fixed rule; the fifth program adds a model
+(section 3.42). Draw orders need a relayer to pay their gas; we relayed them, anyone
 could have. One machine, one day.
 
 ### 3.32 The text of the proposal
@@ -2615,6 +2615,38 @@ wrong: the zero-knowledge proof was recorded on chain on 18 November (section
 3.28), which the reviewer could not see. The article now carries a table of
 guarantees and the assumptions each rests on.
 
+
+### 3.42 A model decides, and the agent checks the answer
+
+Done on 19 November 2026 (step 3.3). The fifth agent program
+([`v5/agent.js`](../examples/enclave-agent/v5/agent.js)) asks a language model, before each
+purchase, whether to buy, through Phala's confidential AI gateway, and buys only on an answer it
+has verified itself, with no dependency. It fetches the gateway's attestation report with a fresh
+nonce, has the gateway's TDX quote checked by Automata's DCAP verifier on Base Sepolia through a
+read-only call (genuine, platform up to date, not in debug mode), and checks that the quote's
+report data and RTMR3 match the report and the gateway's measured code. It pins the connection to
+a TLS key the attested keyset lists, and checks each answer's receipt: Ed25519 signature by an
+attested key, hashes of the exact question and answer bytes, and the gateway's check of the
+model's server. A failed check, a missing API key or an answer other than `BUY` means no
+purchase. The model can only say yes or no to one purchase within the limits of sections 3.30
+and 3.31.
+
+The API key is a secret given to the machine encrypted: the manifest names it (`allowed_envs`)
+and its hash covers that name, not the value. The program never shows the key.
+
+**Tested** on a local chain against a stand-in gateway: with no API key, a `SKIP`, or each of
+nine kinds of cheating (bad receipt signature, wrong answer hash, unverified model server,
+unattested TLS key, report for another nonce, no receipt, quote rejected, platform not up to date)
+the agent does not buy; with an honest gateway it buys within its allowance. **Run on a real
+machine** ([`run-2026-11-19-v5`](../examples/enclave-agent/run-2026-11-19-v5/README.md)): the
+agent checked the real gateway and every receipt, asked three times (`SKIP`, `BUY`, `SKIP`, all
+verified) and made exactly one purchase, settled. A question cost about 0.00004 USD with
+`openai/gpt-oss-120b`; the machine ran about 35 minutes.
+
+**Limits.** Inside the machine, the quote check relies on the Base Sepolia node's answer to a
+read-only call. The gateway's own code is recorded, not pinned. The model sees only the price,
+the balances and the page address; a page's own text never reaches it.
+
 ## 4. Use cases
 
 The standard is content-agnostic: the token can be anything an ERC-721 can be.
@@ -2883,7 +2915,8 @@ unless stated otherwise.
 | A live registry takes a zk-proven quote after its 24-hour notice, and the agent keeps its account | Confirmed on 19 November 2026 by transaction: `enroll` approved by the zk verifier, 48,287 gas, same account, nonce 3 (section 3.28) | [BaseScan](https://sepolia.basescan.org/tx/0xf3178291e99ddf339458b21263a1de4ff0af72bb705457d22ddbe32bf6731c72) |
 | USDC checks a contract payer's ERC-1271 signature with a read-only call, so the payer cannot count its own spending at that moment | Confirmed on 18 November 2026 by test against the compiled source (`test/X402Static.t.sol`, section 3.30) | [circlefin/stablecoin-evm](https://github.com/circlefin/stablecoin-evm) |
 | An agent in a confidential machine keeps to an on-chain daily limit, across a restart with a new key | Confirmed on 19 November 2026 on Base Sepolia: two draw orders signed by the agent, five settled x402 purchases, limit unchanged after the restart, a further draw refused (`OverLimit`) (section 3.31) | [run-2026-11-19-v4](../examples/enclave-agent/run-2026-11-19-v4/README.md) |
-| Every contract cited in this document is at its address on Base Sepolia, with the code recorded | Confirmed on 17 November 2026 for the <!--f:deployed-->75<!--/f--> contracts of `deployments/base-sepolia.json` and the 3 external ones (code hash read on chain); checked again every night | `tools/deployments.py` |
+| An agent in a confidential machine buys only on a model's answer it verified (gateway quote, pinned TLS, signed receipt) | Confirmed on 19 November 2026 on Base Sepolia: three verified answers (`SKIP`, `BUY`, `SKIP`), one settled purchase (section 3.42) | [run-2026-11-19-v5](../examples/enclave-agent/run-2026-11-19-v5/README.md) |
+| Every contract cited in this document is at its address on Base Sepolia, with the code recorded | Confirmed on 17 November 2026 for the <!--f:deployed-->78<!--/f--> contracts of `deployments/base-sepolia.json` and the 3 external ones (code hash read on chain); checked again every night | `tools/deployments.py` |
 
 ## 10. Sources
 
