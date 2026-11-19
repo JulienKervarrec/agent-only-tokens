@@ -44,6 +44,8 @@ ATT="[$(cast wallet address $A1),$(cast wallet address $A2),$(cast wallet addres
 REG=$(create "$(artifact out/AttestedAgentRegistry.sol/AttestedAgentRegistry.json)$(cast abi-encode 'f(address[],uint256,uint256,uint64,uint64,address,address)' "$ATT" 2 0 86400 60 0x0000000000000000000000000000000000000000 0x0000000000000000000000000000000000000000 | cut -c3-)")
 BOX=$(create "$(artifact out/AgentAllowance.sol/AgentAllowance.json)")
 
+# The collection and the second currency live in script/SepoliaDemo.s.sol, which `forge test` does not build.
+[ -f out/SepoliaDemo.s.sol/TestUSD.json ] || forge build script/SepoliaDemo.s.sol >/dev/null
 SWAP=$(create "$(artifact out/AgentSwap.sol/AgentSwap.json)")
 NFT=$(create "$(artifact out/SepoliaDemo.s.sol/DemoAgentCollection.json)$(cast abi-encode 'f(address)' $REG | cut -c3-)")
 OTHER=$(create "$(artifact out/SepoliaDemo.s.sol/TestUSD.json)")
@@ -99,7 +101,7 @@ mode() { curl -fsS -X POST "http://127.0.0.1:8444/mode?to=$1" >/dev/null; }
 STUB=$(create "$(artifact out/TdxEnrollment.t.sol/DcapStub.json)")
 # dstack's socket path is fixed in the program; the stand-in needs to listen there.
 SOCK=/var/run/dstack.sock
-if [ -w /var/run ]; then node $HERE/local/dstack.mjs $SOCK & else sudo node $HERE/local/dstack.mjs $SOCK & fi
+if [ -w /var/run ]; then node $HERE/local/dstack.mjs $SOCK & else sudo "$(command -v node)" $HERE/local/dstack.mjs $SOCK & fi
 for i in $(seq 50); do [ -S $SOCK ] && break; sleep 0.2; done
 [ -w /var/run ] || sudo chmod 666 $SOCK
 
