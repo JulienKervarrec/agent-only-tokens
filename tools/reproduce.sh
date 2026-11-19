@@ -22,6 +22,7 @@ step "ERC text and its printed reference implementation" python3 tools/erc_packa
 step "registry monitor page" python3 tools/monitor_page.py --check
 step "fourth agent program, end to end, local chain" bash examples/enclave-agent/v4/local/run.sh
 step "fifth agent program (model decisions), local chain" bash examples/enclave-agent/v5/local/run.sh
+step "sixth agent program (token, journal), local chain" bash examples/enclave-agent/v6/local/run.sh
 step "incident drill, local chain" bash examples/operations/drill.sh
 if command -v halmos >/dev/null; then
   step "symbolic proofs (Halmos)" halmos --match-contract "AgentOnlyProps|RegistryProps|LoanProps|AllowanceProps|AccountProps"
