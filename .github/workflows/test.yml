@@ -35,6 +35,8 @@ jobs:
         run: python3 tools/monitor_page.py --check
       - name: Fourth agent program, end to end on a local chain
         run: bash examples/enclave-agent/v4/local/run.sh
+      - name: Fifth agent program (model decisions, stand-in gateway), local chain
+        run: bash examples/enclave-agent/v5/local/run.sh
       - name: Incident drill of docs/operations.md, on a local chain
         run: bash examples/operations/drill.sh
       - name: Gas of each operation, against snapshots/Gas.json

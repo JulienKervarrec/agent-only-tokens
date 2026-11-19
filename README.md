@@ -302,9 +302,9 @@ with the reason for each (`tools/slither-accepted.json`, <!--f:slither.accepted-
 also matched `AttestedAgentRegistry.sol` and hid every finding in the
 registry; the filter is now `/test/`.
 
-**The deployed code can be read.** <!--f:deployed-->75<!--/f--> contracts were deployed on Base Sepolia
-for the tests. <!--f:deployed.clones-->20<!--/f--> are agent accounts, clones of an implementation;
-<!--f:deployed.verified-->55<!--/f--> of the others are verified on [Sourcify](https://sourcify.dev): <!--f:deployed.exact-->52<!--/f--> match
+**The deployed code can be read.** <!--f:deployed-->78<!--/f--> contracts were deployed on Base Sepolia
+for the tests. <!--f:deployed.clones-->21<!--/f--> are agent accounts, clones of an implementation;
+<!--f:deployed.verified-->57<!--/f--> of the others are verified on [Sourcify](https://sourcify.dev): <!--f:deployed.exact-->54<!--/f--> match
 their source exactly, <!--f:deployed.match-->3<!--/f--> match on code only (their sources differed by
 comments). `deployments/base-sepolia.json` names, for each one, the commit of
 this repository that compiles to it. Example: the

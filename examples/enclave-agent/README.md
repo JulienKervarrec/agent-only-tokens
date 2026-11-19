@@ -430,3 +430,46 @@ x402 purchases of 0.01 from `x402.org/protected`, all settled, kept to one per
 period, refused every request from outside, and after a restart with a new key
 kept the same limit; then it stopped. The machine ran about 1 h 25 min, then
 was deleted.
+
+## Fifth program: a model decides, and the agent checks the answer
+
+`v5/agent.js` (step 3.3) is the fourth program with one change: before each purchase it asks a
+language model, through Phala's confidential AI gateway, whether to buy, and it buys only on an
+answer it has verified itself, with no dependency:
+
+1. The gateway's attestation report, asked with a fresh random nonce, binds its keyset to that
+   nonce; its TDX quote is checked by Automata's DCAP verifier on Base Sepolia through a
+   read-only call (genuine, platform up to date, not in debug mode), and the quote's report data
+   and RTMR3, replayed from the event log, match the report and the gateway's measured code.
+2. The connection to the gateway is pinned to a TLS key that keyset lists for the host.
+3. The answer's receipt is signed (Ed25519) by a key of that keyset; it carries the hashes of the
+   exact question and answer bytes, and the gateway's check of the model's server.
+
+Any failed check, a missing API key, or an answer other than `BUY` means no purchase; there is
+at most one question per period and a daily number of questions. The model can only say yes or
+no to one purchase; the cap per purchase, the period and the allowance still bound the spending.
+The gateway's API key is given to the machine as an encrypted secret: the manifest names it
+(`allowed_envs`) but does not hold it, and the program never shows it.
+
+`v5/local/run.sh` runs it on a local chain against a stand-in gateway (`v5/local/gateway.mjs`)
+and the DCAP stub of the unit tests: with no API key, a `SKIP`, a bad receipt signature, a wrong
+answer hash, an unverified model server, an unattested TLS key, a report for another nonce, no
+receipt, a quote the verifier rejects, or a platform not up to date, the agent does not buy; with
+an honest gateway it buys within its allowance, then stops. The checks were also run, from a
+browser, against the real gateway on 19 November 2026: all passed, and Automata accepted the
+gateway's quote (platform up to date).
+
+Compose hash with our pre-launch script and the key named:
+`python3 manifest/compose-hash.py v5/docker-compose.yml manifest/prelaunch-ours.sh --allow PHALA_AI_API_KEY`.
+**Run on a real machine** (19 November 2026, `run-2026-11-19-v5/`): compose hash
+`fb6c9d29…263f` shown by Phala Cloud and measured; verifier
+[`0xa071…0609`](https://sepolia.basescan.org/address/0xa071a904CC60f36a67aD73167838d49A092A0609);
+key enrolled with no attester signature. Inside the machine the agent checked the real gateway
+(Automata accepted its quote, platform up to date) and every receipt. It asked three times:
+`SKIP`, `BUY`, `SKIP`, all verified, and made exactly one purchase, settled. Requests from
+outside were refused and the API key never shown. About 35 minutes, then the machine was deleted.
+
+**Limits.** Inside the machine, the quote check relies on the Base Sepolia node answering the
+read-only call honestly. The program trusts the gateway's report of the model's server; the
+gateway's own code is recorded (its compose hash and commit), not pinned. The model sees only
+the price, the balances and the page address.
