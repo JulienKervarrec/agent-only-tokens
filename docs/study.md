@@ -379,10 +379,10 @@ finding fails the check.
 And the figures of sections 3.2, 3.3 and 3.9 are compared with the repository
 by `tools/figures.py`.
 
-The code of the deployed contracts can now be read. Of the <!--f:deployed-->78<!--/f--> contracts
-deployed on Base Sepolia for the tests, <!--f:deployed.clones-->21<!--/f--> are agent accounts, clones
-of an implementation. <!--f:deployed.verified-->57<!--/f--> of the others are verified on Sourcify:
-<!--f:deployed.exact-->54<!--/f--> match their source exactly, <!--f:deployed.match-->3<!--/f--> on code only (their sources
+The code of the deployed contracts can now be read. Of the <!--f:deployed-->85<!--/f--> contracts
+deployed on Base Sepolia for the tests, <!--f:deployed.clones-->23<!--/f--> are agent accounts, clones
+of an implementation. <!--f:deployed.verified-->62<!--/f--> of the others are verified on Sourcify:
+<!--f:deployed.exact-->59<!--/f--> match their source exactly, <!--f:deployed.match-->3<!--/f--> on code only (their sources
 differed by comments). `deployments/base-sepolia.json` names, for each one, the
 commit of the repository that compiles to it; nine of them run earlier
 versions of the code, which were found by recompiling the history, and two
@@ -2647,6 +2647,46 @@ verified) and made exactly one purchase, settled. A question cost about 0.00004 
 read-only call. The gateway's own code is recorded, not pinned. The model sees only the price,
 the balances and the page address; a page's own text never reaches it.
 
+### 3.43 The agent buys a token from another agent, and keeps a journal
+
+Done on 19 November 2026 (steps 3.4 and 3.5). The sixth agent program
+([`v6/agent.js`](../examples/enclave-agent/v6/agent.js)) adds two things to the fifth.
+
+**A token from another agent.** At most one purchase a day and one question per period. The
+token comes from the chain, never from the page or the model: the newest listing, in one fixed
+collection on one fixed venue, that is priced in the fixed asset under a fixed cap, open to this
+agent, still owned by its seller, a registered agent, with the venue still approved. A verified
+`BUY` makes the program sign one order of its account: a batch that approves exactly the price and
+buys at exactly that price, all or nothing. The last page bought, if any, reaches the model only
+as untrusted data.
+
+**A journal.** Each decision (hashes of the exact question and answer, receipt id), payment and
+signed order goes into a hash chain kept in memory. A quote binds its head, its length and the
+caller's nonce (`tools/verify_journal.py` checks all of it, including Intel's check through
+Automata and the program named in MRCONFIGID). dstack's `EmitEvent`, which extended RTMR3, was
+removed in July 2026 (dstack PR 768) because other TEEs cannot do the same; a quote over the head
+works on any TEE that gives quotes with report data.
+
+**Tested** on a local chain: a selling agent lists five tokens, only one allowed; the page tells
+the agent to buy another one at any price and to send its balance elsewhere; a stand-in model
+answers `BUY` to everything. The agent buys the allowed token only, once, at its price, with no
+approval left behind. The journal replays; a changed entry, a shortened journal or another nonce
+are refused.
+
+**Run on real machines** ([`run-2026-11-19-v6`](../examples/enclave-agent/run-2026-11-19-v6/README.md)).
+The first version asked about a token only after buying a page; the model said `SKIP` to the page
+five times, so nothing was bought, and its journal (six entries) checked out. The second version,
+on a second machine enrolled for the same agent, found the allowed token, got a verified `BUY` and
+signed the purchase: token 1 bought from agent 2 for 0.02 USDC, tokens above the cap or with no
+venue approval left alone. Its journal (three entries) checked out, and the order's data hash in it
+is the hash of the calldata relayed on chain. About 75 minutes of machines in all.
+
+**Limits.** The journal and the daily limit live in memory: a restart starts a new journal and
+may buy one more token that day; the allowance still bounds the spending. A quote proves what the
+program stated when it answered, not what happened before its last start. The listing scan reads
+the 20 newest ids of a collection that exposes `lastId()`. Each relayed order costs the relayer
+gas, not the agent.
+
 ## 4. Use cases
 
 The standard is content-agnostic: the token can be anything an ERC-721 can be.
@@ -2916,7 +2956,7 @@ unless stated otherwise.
 | USDC checks a contract payer's ERC-1271 signature with a read-only call, so the payer cannot count its own spending at that moment | Confirmed on 18 November 2026 by test against the compiled source (`test/X402Static.t.sol`, section 3.30) | [circlefin/stablecoin-evm](https://github.com/circlefin/stablecoin-evm) |
 | An agent in a confidential machine keeps to an on-chain daily limit, across a restart with a new key | Confirmed on 19 November 2026 on Base Sepolia: two draw orders signed by the agent, five settled x402 purchases, limit unchanged after the restart, a further draw refused (`OverLimit`) (section 3.31) | [run-2026-11-19-v4](../examples/enclave-agent/run-2026-11-19-v4/README.md) |
 | An agent in a confidential machine buys only on a model's answer it verified (gateway quote, pinned TLS, signed receipt) | Confirmed on 19 November 2026 on Base Sepolia: three verified answers (`SKIP`, `BUY`, `SKIP`), one settled purchase (section 3.42) | [run-2026-11-19-v5](../examples/enclave-agent/run-2026-11-19-v5/README.md) |
-| Every contract cited in this document is at its address on Base Sepolia, with the code recorded | Confirmed on 17 November 2026 for the <!--f:deployed-->78<!--/f--> contracts of `deployments/base-sepolia.json` and the 3 external ones (code hash read on chain); checked again every night | `tools/deployments.py` |
+| Every contract cited in this document is at its address on Base Sepolia, with the code recorded | Confirmed on 17 November 2026 for the <!--f:deployed-->85<!--/f--> contracts of `deployments/base-sepolia.json` and the 3 external ones (code hash read on chain); checked again every night | `tools/deployments.py` |
 
 ## 10. Sources
 

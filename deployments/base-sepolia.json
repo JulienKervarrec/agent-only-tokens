@@ -741,6 +741,72 @@
       "run": "fifth program on a real machine, 19 November 2026 (step 3.3, study 3.42)",
       "block": 60805857,
       "codeHash": "0x75fdf5d654b28fafff9775c00fd541949a8e65d60ecf9ba47a87ecc6ceb9423e"
+    },
+    {
+      "address": "0x0ed6B4783aFDad45F6626b919bC18ad414A0141d",
+      "name": "AttestedAgentRegistry",
+      "role": "registry for the sixth program (token purchase, journal); verifiers 0xba9e…90e7, then 0xfd48…39EB, each set once its code was measured",
+      "run": "sixth program on a real machine, 19 November 2026 (steps 3.4 and 3.5, study 3.43)",
+      "block": 60861870,
+      "codeHash": "0xa0fec56368db03a208614ec53d8be3ace83cbb78e6bd169807d2b280538ceafd",
+      "source": "29d6774",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0xc013e14d7d1e1c94ab4C825ddE1a4b20d465bA7e",
+      "name": "AgentSwap",
+      "role": "sale venue of registry 0x0ed6…141d, approved with notice; the selling agent listed three tokens on it",
+      "run": "sixth program on a real machine, 19 November 2026 (steps 3.4 and 3.5, study 3.43)",
+      "block": 60861878,
+      "codeHash": "0x07ec9e688ded9e764c22c261b625cb67492206d4b7993307bc14a04d35072e36",
+      "source": "29d6774",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0x932e7F5Bb26fC94ef7bD7E5A2A9b9eE686d236AC",
+      "name": "DemoAgentCollection",
+      "role": "collection of the sixth program run (registry 0x0ed6…141d)",
+      "run": "sixth program on a real machine, 19 November 2026 (steps 3.4 and 3.5, study 3.43)",
+      "block": 60861885,
+      "codeHash": "0x9a0481cd96c80a625ec84951f06dfaa900a7f95a14c2d9e8d93c03441750f67e",
+      "source": "29d6774",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0xba9e664FE43965cA7eA0a5c427A9FC9B334290e7",
+      "name": "DstackConfigIdVerifier",
+      "role": "approves the sixth program (compose hash 38e23083…3dc8); verifier of registry 0x0ed6…141d",
+      "run": "sixth program on a real machine, 19 November 2026 (steps 3.4 and 3.5, study 3.43)",
+      "block": 60875261,
+      "codeHash": "0xf7c76527b456b4d9bef920b20255294a30b32c5636b380a8c5807e2787dc707f",
+      "source": "29d6774",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0x502416152ac3ec1b0d881ad1a55ABaF73D587CF8",
+      "name": "AgentAccount (clone)",
+      "role": "account of the selling agent of that run (agent 2, a test key enrolled by attesters, not in a machine)",
+      "run": "sixth program on a real machine, 19 November 2026 (steps 3.4 and 3.5, study 3.43)",
+      "block": 60861903,
+      "codeHash": "0x015664a352c110d6e181a56ac1dc14e4fb9b6a54f81b625b14673f2a5f9adfe6"
+    },
+    {
+      "address": "0xf0DA9912D2ef3Ae929667E85EEa4695A277Cc8af",
+      "name": "AgentAccount (clone)",
+      "role": "account of the sixth program's agent; draws from allowance 3 of 0x72E9…6ACf",
+      "run": "sixth program on a real machine, 19 November 2026 (steps 3.4 and 3.5, study 3.43)",
+      "block": 60876040,
+      "codeHash": "0xe10d04bf880ced17a99e0a7b6c906042178a13b6113f25dd40f49b4bab289ff8"
+    },
+    {
+      "address": "0xfd484A1E7bd15c201E14b2462CE8C82ADa0039EB",
+      "name": "DstackConfigIdVerifier",
+      "role": "approves the second version of the sixth program (compose hash cd3fbbd8…408e); verifier of registry 0x0ed6…141d from 19 November 2026",
+      "run": "sixth program on a real machine, 19 November 2026 (steps 3.4 and 3.5, study 3.43)",
+      "block": 60896265,
+      "codeHash": "0xf7c76527b456b4d9bef920b20255294a30b32c5636b380a8c5807e2787dc707f",
+      "source": "29d6774",
+      "sourcify": "exact_match"
     }
   ],
   "external": [
@@ -881,6 +947,14 @@
     {
       "address": "0x29bf73ed1cd6e5da7b6b3e4817088ed64a5e7393",
       "role": "fifth program, 19 November 2026 (generated inside the enclave; never held ETH)"
+    },
+    {
+      "address": "0x1a87b635ddab8fcdea775b82f30a02527c20de81",
+      "role": "sixth program (token purchase, journal), key generated inside the enclave; never held ETH"
+    },
+    {
+      "address": "0xd101fa4fd80355d17fcdff7bc11bc63ea8c233ed",
+      "role": "sixth program, second version: bought token 1 from agent 2 on its own (key generated inside the enclave; never held ETH)"
     }
   ],
   "otherChains": [

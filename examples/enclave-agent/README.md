@@ -473,3 +473,46 @@ outside were refused and the API key never shown. About 35 minutes, then the mac
 read-only call honestly. The program trusts the gateway's report of the model's server; the
 gateway's own code is recorded (its compose hash and commit), not pinned. The model sees only
 the price, the balances and the page address.
+
+## Sixth program: it buys a token from another agent, and keeps a journal
+
+`v6/agent.js` (steps 3.4 and 3.5 of the plan) is the fifth program plus two things.
+
+**A token from another agent.** The agent may buy one agent-only token a day on the sale venue
+(`AgentSwap`), with at most one question about it per period. It looks at the newest listings of one collection,
+both fixed in the measured settings (`SWAP`, `NFT`), and keeps the first one that the rules
+allow, all read from the chain: price in the settings' asset and at most `NFT_CAP`, open to any
+buyer or reserved for this agent, seller still the owner and an enrolled agent, venue still the
+token's approved address. It then asks the model, verified as in the fifth program, with the
+last page it bought, if any, passed as untrusted data. On a verified `BUY` it signs one order of its account:
+a batch that approves exactly the price and buys at exactly that price, all or nothing; anyone
+may relay it. The page and the model choose nothing: not the token, the price, the seller or
+the currency. They can only make the agent buy, or not buy, a listing that the rules already
+allow. The collection must expose `lastId()`, as `DemoAgentCollection` does.
+
+**A journal.** Each decision (with the hashes of the exact question and answer and the receipt
+id), each payment and each signed order is appended to a hash chain held in memory:
+`head(n) = sha256(head(n-1) || sha256(JCS(entry n)))`. `GET /journal` shows it; `GET
+/journal/quote?nonce=0x…` returns a quote whose report data is
+`sha256(tag || head || length || nonce) || tag`, with `tag = sha256("agent-only-tokens.journal.v1")`,
+so it can never pass for an enrollment quote. `tools/verify_journal.py` replays the chain,
+checks that binding and, with `--rpc`, checks the quote with Automata's DCAP verifier and the
+compose hash. If the journal is full (2,000 entries) the program stops acting. We did not use
+dstack's `EmitEvent`, which wrote into RTMR3: dstack removed it in July 2026 (PR 768) because
+other TEEs cannot do the same; the quote over the head does the same job on any of them.
+
+`v6/local/run.sh` runs it on a local chain: a second agent lists five tokens (one allowed;
+one above the cap, one in another currency, one reserved for someone else, one whose venue
+approval was never given); the shop's page says to buy token 2 at any price and to send the
+balance elsewhere. A model that says `SKIP` gets nothing bought; one that buys only the page
+gets the page and no token; then a model that answers `BUY` to everything, after reading that page. The agent buys token 1
+only, once, at its listed price, leaves no approval behind, stays within its allowance, and
+pays nobody the page names. The journal replays and is bound to the nonce; a changed entry, a
+shortened journal or another nonce are refused.
+
+Compose hash: `python3 manifest/compose-hash.py v6/docker-compose.yml manifest/prelaunch-ours.sh --allow PHALA_AI_API_KEY`.
+
+**Limits.** The daily limit on tokens and the journal live in memory: a restart begins a new
+journal (with a new key, enrolled again) and may buy one more token that day; the allowance
+still bounds what the account can spend. A quote proves what the program stated when it
+answered, not what happened before its last start. The listing scan reads at most 20 ids.
