@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent-Only Tokens: registry monitor</title>
+<style>
+  :root { --bg: #fbfaf7; --fg: #1d1c1a; --muted: #6b6760; --line: #e3dfd6; --card: #fff; --ok: #1f7a4d; --warn: #a15c00; --bad: #b3261e; --accent: #2f5bd3; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #161513; --fg: #ece9e3; --muted: #a39e94; --line: #34312c; --card: #1e1c19; --ok: #5cc28d; --warn: #e2a24b; --bad: #f08a80; --accent: #8aa8ff; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 28px 0 10px; }
+  p.lede { color: var(--muted); margin: 0 0 20px; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  select, input, button { font: inherit; color: inherit; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; }
+  input { min-width: 0; flex: 1 1 340px; font-family: ui-monospace, monospace; font-size: 13px; }
+  button { background: var(--accent); color: #fff; border-color: transparent; cursor: pointer; }
+  button:disabled { opacity: .6; cursor: default; }
+  .status { color: var(--muted); font-size: 13px; margin-top: 8px; min-height: 20px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+  .card .k { color: var(--muted); font-size: 12px; }
+  .card .v { font-size: 15px; margin-top: 2px; overflow-wrap: anywhere; }
+  table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); font-size: 13px; vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  tr:last-child td { border-bottom: 0; }
+  .wrap { overflow-x: auto; }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; }
+  a { color: var(--accent); text-decoration: none; }
+  .ok { color: var(--ok); } .warn { color: var(--warn); } .bad { color: var(--bad); } .muted { color: var(--muted); }
+  .pill { display: inline-block; padding: 1px 8px; border-radius: 999px; border: 1px solid currentColor; font-size: 12px; }
+  .empty { color: var(--muted); padding: 12px; background: var(--card); border: 1px dashed var(--line); border-radius: 10px; }
+  footer { color: var(--muted); font-size: 12px; margin-top: 32px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Registry monitor</h1>
+  <p class="lede">Reads an <code>AttestedAgentRegistry</code> on Base Sepolia straight from public nodes, in your browser, with no server: who is an agent, which verifier is in force, which decisions are announced and when they take effect, and which venues are approved. Read-only: it signs nothing and asks for no wallet.</p>
+
+  <div class="bar">
+    <select id="known" aria-label="Known registries"></select>
+    <input id="addr" spellcheck="false" aria-label="Registry address">
+    <button id="go">Read the chain</button>
+  </div>
+  <div class="status" id="status"></div>
+
+  <div id="out"></div>
+
+  <footer>Nodes used, in order: <span id="nodes"></span>. Events are read in ranges of <span id="span"></span> blocks from the registry's deployment block. A registry of an older version may lack some functions: they show as "—". Part of <a href="https://github.com/JulienKervarrec/agent-only-tokens">Agent-Only Tokens</a>, test network only.</footer>
+</main>
+<script>
+"use strict";
+// ---- settings
+const RPCS = ["https://base-sepolia-rpc.publicnode.com", "https://sepolia.base.org"];
+const LOG_SPAN = 50000; // the largest range the first node accepts
+const EXPLORER = "https://sepolia.basescan.org/";
+// Our registries on Base Sepolia, from deployments/base-sepolia.json (written by tools/monitor_page.py).
+const REGISTRIES = /*REGISTRIES*/[];
+
+// ---- event topics and function selectors (checked by tools/monitor_page.py)
+const TOPIC = {
+  "0xa18aaa5ce0fd40330d649de9818fad58683a6dd406a85961f7410292d772a823": "Enrolled",
+  "0x54fbb6647c3aab61e507a9e2e1f90218b87da7457689aa2c93ce1dfcebfbf7ab": "FrozenSet",
+  "0x61e27b0bfd8e18e6b92ec32ce1c28bb698d27bfe93e84c7e94d4db0a3135c760": "Revoked",
+  "0xfe4758e6ccdb65cb7d78b678b554dc5319e940c6ee582e94811b7d48fbb506c5": "Retired",
+  "0x6896147e8dd53722c19900dbaf6f12b7f61eb129cad63acda7eda70f2a860540": "BondWithdrawn",
+  "0xc4e177dc07e056713f8b74c72392c2096c95037ce4dcfd1aa3fde9539f77be83": "VenueSet",
+  "0x73403f2b1062d9f36212ae3b414652d55dccaa49c565c9304b51b36e9c3e86fd": "EnrollmentVerifierSet",
+  "0xda6533449c9e4355cc619d5b538236afd1d2c74aedc5f52c6afeadd03e972b03": "EnrollmentsHalted",
+  "0xf9b770fe7222a8e1bc69ba34912cf31ed8769be97c56bc4d01b581db7e3bbed0": "AttestersSet",
+};
+const SEL = {
+  keyOf: "0x7b3a1347", accountOf: "0x8f4e4321", isAgent: "0x1ffbb064", isVenue: "0xc44d6c54",
+  venueSince: "0x1aeeb4a1", enrollmentNonce: "0x27522e6b", enrollmentVerifier: "0x77e35e98",
+  enrollmentHalted: "0xef1e0d92", announcedVerifier: "0xe14710c0", announcedVerifierAt: "0xd1a9e895",
+  attesterSet: "0x30705690", threshold: "0x42cde4e8", announcedAttesters: "0xbc44cdb4",
+  noticeDelay: "0x01f6026c", bond: "0x64c9ec6f", keyTtl: "0x038af635",
+};
+
+// ---- JSON-RPC
+let rpcId = 0;
+async function rpc(method, params) {
+  let last;
+  for (const url of RPCS) {
+    try {
+      const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: ++rpcId, method, params }) });
+      const j = await r.json();
+      if (j.error) { last = new Error(j.error.message); continue; }
+      return j.result;
+    } catch (e) { last = e; }
+  }
+  throw last || new Error("no node answered");
+}
+const word = (v) => BigInt(v).toString(16).padStart(64, "0");
+const addrWord = (a) => a.toLowerCase().replace(/^0x/, "").padStart(64, "0");
+// A read-only call; null when the function does not exist on this registry or reverts.
+async function call(to, sel, args = "") {
+  try {
+    const out = await rpc("eth_call", [{ to, data: sel + args }, "latest"]);
+    return out && out.length > 2 ? out.slice(2) : null;
+  } catch (e) { return null; }
+}
+const words = (hex) => (hex ? hex.match(/.{64}/g) || [] : []);
+const asUint = (w) => (w === undefined ? null : BigInt("0x" + w));
+const asAddr = (w) => (w === undefined ? null : "0x" + w.slice(24));
+const asBool = (w) => (w === undefined ? null : BigInt("0x" + w) !== 0n);
+const ZERO = "0x0000000000000000000000000000000000000000";
+
+// ---- formatting
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const short = (a) => (a ? a.slice(0, 6) + "…" + a.slice(-4) : "—");
+const link = (a, kind = "address") => (a && a !== ZERO ? `<a class="mono" href="${EXPLORER}${kind}/${a}" target="_blank" rel="noopener" title="${a}">${short(a)}</a>` : `<span class="muted">none</span>`);
+const dash = (v) => (v === null || v === undefined ? "—" : esc(v));
+function duration(s) {
+  s = Number(s);
+  if (s < 120) return s + " s";
+  if (s < 7200) return Math.round(s / 60) + " min";
+  if (s < 172800) return Math.round(s / 3600) + " h";
+  return Math.round(s / 86400) + " days";
+}
+const date = (t) => new Date(Number(t) * 1000).toISOString().replace("T", " ").slice(0, 16) + " UTC";
+function when(t, now) {
+  if (!t) return "—";
+  const d = Number(t) - Number(now);
+  return date(t) + (d > 0 ? ` <span class="warn">(in ${duration(d)})</span>` : ` <span class="muted">(${duration(-d)} ago)</span>`);
+}
+const eth = (wei) => (wei === null ? "—" : (Number(wei) / 1e18).toString() + " ETH");
+
+// ---- reading
+async function logs(address, from, to, onProgress) {
+  const all = [];
+  for (let start = from; start <= to; start += LOG_SPAN) {
+    const end = Math.min(start + LOG_SPAN - 1, to);
+    onProgress(start, to);
+    const part = await rpc("eth_getLogs", [{ address, fromBlock: "0x" + start.toString(16), toBlock: "0x" + end.toString(16) }]);
+    all.push(...part);
+  }
+  return all;
+}
+function decode(log) {
+  const name = TOPIC[log.topics[0]];
+  const w = words(log.data.slice(2));
+  const t1 = log.topics[1];
+  const base = { name: name || "unknown", block: parseInt(log.blockNumber, 16), tx: log.transactionHash };
+  switch (name) {
+    case "Enrolled": return { ...base, agentId: BigInt(t1), key: asAddr(w[0]), evidence: "0x" + w[1] };
+    case "FrozenSet": return { ...base, agentId: BigInt(t1), frozen: asBool(w[0]) };
+    case "Revoked": case "Retired": return { ...base, agentId: BigInt(t1) };
+    case "BondWithdrawn": return { ...base, agentId: BigInt(t1), amount: asUint(w[0]) };
+    case "VenueSet": return { ...base, venue: "0x" + t1.slice(26), approved: asBool(w[0]), evidence: "0x" + w[1], since: asUint(w[2]) };
+    case "EnrollmentVerifierSet": return { ...base, verifier: "0x" + t1.slice(26), evidence: "0x" + w[0], since: asUint(w[1]) };
+    case "EnrollmentsHalted": return { ...base, verifier: "0x" + t1.slice(26), evidence: "0x" + w[0] };
+    case "AttestersSet": {
+      const n = Number(asUint(w[4]));
+      return { ...base, set: BigInt(t1), attesters: w.slice(5, 5 + n).map(asAddr), threshold: asUint(w[1]), evidence: "0x" + w[2], since: asUint(w[3]) };
+    }
+    default: return base;
+  }
+}
+
+async function read(address, fromBlock, status) {
+  const head = await rpc("eth_getBlockByNumber", ["latest", false]);
+  const latest = parseInt(head.number, 16), now = BigInt(head.timestamp);
+  const code = await rpc("eth_getCode", [address, "latest"]);
+  if (!code || code === "0x") throw new Error("no contract at this address on Base Sepolia");
+  const events = (await logs(address, fromBlock, latest, (b, to) => status(`Reading events: block ${b.toLocaleString()} of ${to.toLocaleString()}…`))).map(decode);
+  status("Reading the current state…");
+  const g = async (sel, args) => call(address, sel, args);
+  const [delay, bond, ttl, verifier, halted, annV, annAt, set, thr, annA] = await Promise.all([
+    g(SEL.noticeDelay), g(SEL.bond), g(SEL.keyTtl), g(SEL.enrollmentVerifier), g(SEL.enrollmentHalted),
+    g(SEL.announcedVerifier), g(SEL.announcedVerifierAt), g(SEL.attesterSet), g(SEL.threshold), g(SEL.announcedAttesters),
+  ]);
+  const state = {
+    address, latest, now, events,
+    delay: asUint(words(delay)[0]), bond: asUint(words(bond)[0]), ttl: asUint(words(ttl)[0]),
+    verifier: asAddr(words(verifier)[0]), halted: asBool(words(halted)[0]),
+    announcedVerifier: asAddr(words(annV)[0]), announcedVerifierAt: asUint(words(annAt)[0]),
+    set: asUint(words(set)[0]), threshold: asUint(words(thr)[0]),
+    announcedSet: asUint(words(annA)[0]), announcedNeeded: asUint(words(annA)[1]), announcedSince: asUint(words(annA)[2]),
+  };
+  // Agents: every id seen in an event, then its state now.
+  const ids = [...new Set(events.filter((e) => e.agentId !== undefined).map((e) => e.agentId.toString()))];
+  state.agents = await Promise.all(ids.map(async (id) => {
+    const [key, account, nonce] = await Promise.all([g(SEL.keyOf, word(id)), g(SEL.accountOf, word(id)), g(SEL.enrollmentNonce, word(id))]);
+    const acc = asAddr(words(account)[0]);
+    const isAgent = acc && acc !== ZERO ? asBool(words(await g(SEL.isAgent, addrWord(acc)))[0]) : null;
+    const mine = events.filter((e) => e.agentId !== undefined && e.agentId.toString() === id);
+    const frozenEv = mine.filter((e) => e.name === "FrozenSet").pop();
+    const closed = mine.find((e) => e.name === "Revoked") ? "revoked" : mine.find((e) => e.name === "Retired") ? "retired" : null;
+    return { id, key: asAddr(words(key)[0]), account: acc, nonce: asUint(words(nonce)[0]), isAgent, frozen: frozenEv ? frozenEv.frozen : false, closed,
+      enrollments: mine.filter((e) => e.name === "Enrolled").length, last: mine.filter((e) => e.name === "Enrolled").pop() };
+  }));
+  // Venues: every venue named in an event, then its state now.
+  const venues = [...new Set(events.filter((e) => e.venue).map((e) => e.venue))];
+  state.venues = await Promise.all(venues.map(async (v) => {
+    const [since, is] = await Promise.all([g(SEL.venueSince, addrWord(v)), g(SEL.isVenue, addrWord(v))]);
+    return { venue: v, since: asUint(words(since)[0]), isVenue: asBool(words(is)[0]), last: events.filter((e) => e.venue === v).pop() };
+  }));
+  state.attesterSets = events.filter((e) => e.name === "AttestersSet");
+  return state;
+}
+
+// ---- rendering
+function render(s) {
+  const pending = [];
+  if (s.announcedVerifierAt && s.announcedVerifierAt > s.now)
+    pending.push(["New enrollment verifier", link(s.announcedVerifier), when(s.announcedVerifierAt, s.now)]);
+  if (s.announcedSince && s.announcedSince > s.now)
+    pending.push([`Attester set ${s.announcedSet} (${s.announcedNeeded} needed)`, "", when(s.announcedSince, s.now)]);
+  for (const v of s.venues) if (v.since && v.since > s.now) pending.push(["Venue approval", link(v.venue), when(v.since, s.now)]);
+
+  const current = s.attesterSets.filter((e) => s.set !== null && e.set === s.set).pop();
+  const card = (k, v) => `<div class="card"><div class="k">${k}</div><div class="v">${v}</div></div>`;
+  let h = "";
+  h += `<h2>Registry ${link(s.address)}</h2><div class="grid">`;
+  h += card("Latest block", `${s.latest.toLocaleString()}<br><span class="muted">${date(s.now)}</span>`);
+  h += card("Notice delay", s.delay === null ? "—" : duration(s.delay));
+  h += card("Bond per agent", eth(s.bond));
+  h += card("Key lifetime", s.ttl === null ? "—" : duration(s.ttl));
+  h += card("Enrollment verifier in force", (s.verifier === null ? "—" : s.verifier !== ZERO ? link(s.verifier) : '<span class="muted">none: attesters sign enrollments</span>') + (s.halted ? ' <span class="pill bad">enrollments halted</span>' : ""));
+  h += card("Attesters", s.set === null ? "—" : `set ${s.set}, ${dash(s.threshold)} needed` + (current ? `<br>${current.attesters.map((a) => link(a)).join(" ")}` : ""));
+  h += `</div>`;
+
+  h += `<h2>Announced, not yet in force</h2>`;
+  h += pending.length
+    ? `<div class="wrap"><table><tr><th>Decision</th><th>Address</th><th>Takes effect</th></tr>${pending.map((p) => `<tr><td>${p[0]}</td><td>${p[1]}</td><td>${p[2]}</td></tr>`).join("")}</table></div>`
+    : `<div class="empty">Nothing announced: no decision is waiting for its notice delay.</div>`;
+
+  h += `<h2>Agents (${s.agents.length})</h2>`;
+  h += s.agents.length
+    ? `<div class="wrap"><table><tr><th>Id</th><th>Account</th><th>Session key now</th><th>Agent now?</th><th>Enrollments</th><th>Last enrollment</th></tr>${s.agents.map((a) => {
+        const st = a.closed ? `<span class="pill bad">${a.closed}</span>` : a.frozen ? '<span class="pill warn">frozen</span>' : a.isAgent ? '<span class="pill ok">yes</span>' : '<span class="pill warn">no (key expired?)</span>';
+        return `<tr><td>${esc(a.id)}</td><td>${link(a.account)}</td><td>${link(a.key)}</td><td>${st}</td><td>${a.enrollments}${a.nonce !== null ? ` <span class="muted">(nonce ${a.nonce})</span>` : ""}</td><td>${a.last ? `<a href="${EXPLORER}tx/${a.last.tx}" target="_blank" rel="noopener">block ${a.last.block.toLocaleString()}</a>` : "—"}</td></tr>`;
+      }).join("")}</table></div>`
+    : `<div class="empty">No agent has been enrolled in this registry.</div>`;
+
+  h += `<h2>Venues (${s.venues.length})</h2>`;
+  h += s.venues.length
+    ? `<div class="wrap"><table><tr><th>Venue</th><th>State now</th><th>Since</th></tr>${s.venues.map((v) => {
+        const st = v.isVenue ? '<span class="pill ok">approved, in force</span>' : v.since && v.since > s.now ? '<span class="pill warn">announced</span>' : '<span class="pill muted">not a venue</span>';
+        return `<tr><td>${link(v.venue)}</td><td>${st}</td><td>${v.since ? when(v.since, s.now) : "—"}</td></tr>`;
+      }).join("")}</table></div>`
+    : `<div class="empty">No venue was ever approved in this registry.</div>`;
+
+  const recent = s.events.slice(-25).reverse();
+  h += `<h2>Latest events (${s.events.length} in all)</h2>`;
+  h += recent.length
+    ? `<div class="wrap"><table><tr><th>Block</th><th>Event</th><th>Details</th></tr>${recent.map((e) => `<tr><td><a href="${EXPLORER}tx/${e.tx}" target="_blank" rel="noopener">${e.block.toLocaleString()}</a></td><td>${esc(e.name)}</td><td>${details(e, s.now)}</td></tr>`).join("")}</table></div>`
+    : `<div class="empty">No event yet.</div>`;
+  document.getElementById("out").innerHTML = h;
+}
+function details(e, now) {
+  switch (e.name) {
+    case "Enrolled": return `agent ${e.agentId}, key ${link(e.key)}`;
+    case "FrozenSet": return `agent ${e.agentId} ${e.frozen ? "frozen" : "unfrozen"}`;
+    case "Revoked": case "Retired": return `agent ${e.agentId}`;
+    case "BondWithdrawn": return `agent ${e.agentId}, ${eth(e.amount)}`;
+    case "VenueSet": return `${link(e.venue)} ${e.approved ? "approved" : "removed"}, from ${when(e.since, now)}`;
+    case "EnrollmentVerifierSet": return `${link(e.verifier)}, from ${when(e.since, now)}`;
+    case "EnrollmentsHalted": return `verifier ${link(e.verifier)}`;
+    case "AttestersSet": return `set ${e.set}: ${e.attesters.map((a) => link(a)).join(" ")}, ${e.threshold} needed, from ${when(e.since, now)}`;
+    default: return '<span class="muted">an event this page does not know</span>';
+  }
+}
+
+// ---- page
+const $ = (id) => document.getElementById(id);
+$("nodes").textContent = RPCS.join(", ");
+$("span").textContent = LOG_SPAN.toLocaleString();
+const known = $("known");
+for (const r of REGISTRIES.slice().reverse()) {
+  const o = document.createElement("option");
+  o.value = r.address; o.textContent = `${short(r.address)} · ${r.run}`;
+  known.appendChild(o);
+}
+const other = document.createElement("option");
+other.value = ""; other.textContent = "Another registry…";
+known.appendChild(other);
+const pick = () => { if (known.value) $("addr").value = known.value; };
+known.addEventListener("change", () => { pick(); if (known.value) go(); });
+pick();
+async function go() {
+  const address = $("addr").value.trim();
+  if (!/^0x[0-9a-fA-F]{40}$/.test(address)) { $("status").textContent = "Enter a registry address (0x followed by 40 hexadecimal characters)."; return; }
+  const entry = REGISTRIES.find((r) => r.address.toLowerCase() === address.toLowerCase());
+  let from = entry ? entry.block : null;
+  $("go").disabled = true;
+  const status = (t) => { $("status").textContent = t; };
+  try {
+    if (from === null) {
+      const head = parseInt(await rpc("eth_blockNumber", []), 16);
+      from = Math.max(0, head - 10 * LOG_SPAN); // an unknown registry: its last ten ranges only
+      status("Unknown registry: reading only its last " + (10 * LOG_SPAN).toLocaleString() + " blocks.");
+    }
+    const s = await read(address, from, status);
+    render(s);
+    status(`Read at block ${s.latest.toLocaleString()} (${date(s.now)}).`);
+  } catch (e) {
+    status("Could not read the chain: " + e.message);
+  } finally {
+    $("go").disabled = false;
+  }
+}
+$("go").addEventListener("click", go);
+go();
+</script>
+</body>
+</html>
