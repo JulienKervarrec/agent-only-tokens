@@ -10,6 +10,7 @@ optimizer_runs = 200
 remappings = [
   "@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/",
   "forge-std/=lib/forge-std/src/",
+  "solady/=node_modules/solady/src/",
 ]
 
 # Read access to the official Uniswap V3 artifacts, to the compiled USDC contract and to the
@@ -30,3 +31,7 @@ runs = 512
 runs = 128
 depth = 100
 fail_on_revert = false
+
+# Deliberately wrong implementations that must fail the conformance suite (tools/conformance.py).
+[profile.faulty]
+test = "test-faulty"
