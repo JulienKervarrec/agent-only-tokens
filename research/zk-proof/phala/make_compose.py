@@ -18,12 +18,15 @@ with tarfile.open(fileobj=buf, mode="w:gz") as t:
             t.addfile(info, fh)
 bundle = base64.b64encode(buf.getvalue()).decode()
 
+# QUOTE_URL (optional): a running agent's answer to prove instead of the published quote.
+quote_url = f'\n      QUOTE_URL: "{os.environ["QUOTE_URL"]}"' if os.environ.get("QUOTE_URL") else ""
+
 compose = f"""services:
   prover:
     image: rust:1-bookworm
     working_dir: /data
     environment:
-      RISC0_WORK_DIR: aotwork
+      RISC0_WORK_DIR: aotwork{quote_url}
       BUNDLE: "{bundle}"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
