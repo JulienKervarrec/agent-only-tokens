@@ -418,5 +418,15 @@ delay of 120 seconds, no verifier until the program's measured code is known)
 and its allowance contract (`0x72E9…6ACf`). With our pre-launch script, its
 compose hash is
 `4ae2d85a34b43fc586666f3fd5501e5d31ad494e5644285b62497cc7ee5a7c1a`
-(`manifest/compose-hash.py`). Not yet run: the machine costs a few cents of
-Phala credit and is started only with Julien's go-ahead.
+(`manifest/compose-hash.py`).
+
+**Run on a real machine** (19 November 2026, `run-2026-11-19-v4/`): the same
+compose hash shown by Phala Cloud and measured by the machine; verifier
+[`0xD850…987c`](https://sepolia.basescan.org/address/0xD850afBFFD888b289196ECA2C98a906cC615987c)
+set on the registry; key enrolled with no attester signature (account
+[`0xbb82…d44F`](https://sepolia.basescan.org/address/0xbb8202d84cC93F2bDb69170F6dFaf03Ee84fd44F)).
+The agent drew the day's 0.05 USDC in two orders it signed itself, made five
+x402 purchases of 0.01 from `x402.org/protected`, all settled, kept to one per
+period, refused every request from outside, and after a restart with a new key
+kept the same limit; then it stopped. The machine ran about 1 h 25 min, then
+was deleted.
