@@ -14,8 +14,8 @@ jobs:
     name: Foundry tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
       - run: npm ci
@@ -39,6 +39,11 @@ jobs:
         run: bash examples/enclave-agent/v5/local/run.sh
       - name: Sixth agent program (token from another agent, journal), local chain
         run: bash examples/enclave-agent/v6/local/run.sh
+      # The reference implementation of x402's sign-in-with-x, which the next test must agree with.
+      - run: npm ci --ignore-scripts
+        working-directory: examples/x402
+      - name: Seventh agent program (the token as a pass), local chain
+        run: bash examples/enclave-agent/v7/local/run.sh
       - name: Incident drill of docs/operations.md, on a local chain
         run: bash examples/operations/drill.sh
       - name: Gas of each operation, against snapshots/Gas.json
@@ -55,8 +60,8 @@ jobs:
     name: Symbolic proofs (Halmos)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
       - run: npm ci
@@ -64,7 +69,7 @@ jobs:
         with:
           version: v1.5.1
       - run: git clone --depth 1 --branch v1.9.7 https://github.com/foundry-rs/forge-std lib/forge-std
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - run: pip install halmos==0.3.3
@@ -74,8 +79,8 @@ jobs:
     name: Static analysis (Slither)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
       - run: npm ci
@@ -83,7 +88,7 @@ jobs:
         with:
           version: v1.5.1
       - run: git clone --depth 1 --branch v1.9.7 https://github.com/foundry-rs/forge-std lib/forge-std
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - run: pip install slither-analyzer==0.11.6
