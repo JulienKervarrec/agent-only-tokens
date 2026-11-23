@@ -245,10 +245,10 @@ every period.
 | What | How it is shown |
 | --- | --- |
 | The rules hold for every input of one action by any of three accounts | Symbolic proofs with Halmos, with proofs on the registry, the loan venue, the allowance and the account: <!--f:proofs-->13<!--/f--> in all; those of the registry are also run against registries broken on purpose, where they must fail |
-| No check is untested | Mutation testing: <!--f:mutants-->347<!--/f--> mutants (each removes one check or changes one line), all caught but <!--f:mutants.accepted-->1<!--/f--> that cannot change behaviour |
+| No check is untested | Mutation testing: <!--f:mutants-->356<!--/f--> mutants (each removes one check or changes one line), all caught but <!--f:mutants.accepted-->1<!--/f--> that cannot change behaviour |
 | The text says what the code does | A conformance suite of <!--f:tests.Reference-->17<!--/f--> tests that our implementation and a second one on Solady pass, and that nine implementations each missing one check all fail |
 | It works with real machines and chains | Agents enrolled on Base Sepolia from quotes of real Intel TDX machines; an agent paid for x402 pages from its account, within an on-chain daily limit; an agent bought a token from another agent on its own, after a verified answer of a model, and a quote over its journal of decisions was checked against Intel's; a key renewed after a restart, on the same account; a zero-knowledge proof of a quote recorded on chain |
-| What is deployed is what was published | Of the <!--f:deployed-->87<!--/f--> contracts we deployed on Base Sepolia, <!--f:deployed.clones-->23<!--/f--> are account clones; all <!--f:deployed.verified-->64<!--/f--> others are verified on Sourcify, <!--f:deployed.exact-->61<!--/f--> with an exact match. The code at every recorded address is checked every night |
+| What is deployed is what was published | Of the <!--f:deployed-->88<!--/f--> contracts we deployed on Base Sepolia, <!--f:deployed.clones-->23<!--/f--> are account clones; all <!--f:deployed.verified-->65<!--/f--> others are verified on Sourcify, <!--f:deployed.exact-->62<!--/f--> with an exact match. The code at every recorded address is checked every night |
 | Everything can be replayed | `tools/reproduce.sh` replays every check in one command |
 
 Two separate AI agents that had not seen the work read the proposal: one as a

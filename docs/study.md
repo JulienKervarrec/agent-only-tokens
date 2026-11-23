@@ -349,11 +349,11 @@ tool, `tools/mutate.py`, which builds the list from the code:
 - every `if (...) revert` guard under `src/` is disabled in turn, and for a
   guard written `a || b` each alternative is dropped in turn;
 - every unconditional revert is removed in turn;
-- the <!--f:mutants.listed-->178<!--/f--> changes written in `tools/mutations.json` are applied in turn: a
+- the <!--f:mutants.listed-->184<!--/f--> changes written in `tools/mutations.json` are applied in turn: a
   state update dropped, a field left out of a signed digest, a comparison
   weakened, an event removed.
 
-That makes <!--f:mutants-->347<!--/f--> mutants. A mutant the test suite does not catch fails the
+That makes <!--f:mutants-->356<!--/f--> mutants. A mutant the test suite does not catch fails the
 tool, unless it is listed with a reason in `tools/mutations-accepted.json`.
 
 **First run: 63 of the 212 mutants went unnoticed.** Sections 2.4 to 2.6 say
@@ -374,15 +374,15 @@ target or carry another value; a claimed badge cannot be cancelled.
 
 Two more checks joined the automated ones the same day. Slither runs against a
 list of accepted findings with the reason for each
-(`tools/slither-accepted.json`, <!--f:slither.accepted-->67<!--/f--> names for <!--f:slither.findings-->69<!--/f--> findings): a new
+(`tools/slither-accepted.json`, <!--f:slither.accepted-->69<!--/f--> names for <!--f:slither.findings-->72<!--/f--> findings): a new
 finding fails the check.
 And the figures of sections 3.2, 3.3 and 3.9 are compared with the repository
 by `tools/figures.py`.
 
-The code of the deployed contracts can now be read. Of the <!--f:deployed-->87<!--/f--> contracts
+The code of the deployed contracts can now be read. Of the <!--f:deployed-->88<!--/f--> contracts
 deployed on Base Sepolia for the tests, <!--f:deployed.clones-->23<!--/f--> are agent accounts, clones
-of an implementation. <!--f:deployed.verified-->64<!--/f--> of the others are verified on Sourcify:
-<!--f:deployed.exact-->61<!--/f--> match their source exactly, <!--f:deployed.match-->3<!--/f--> on code only (their sources
+of an implementation. <!--f:deployed.verified-->65<!--/f--> of the others are verified on Sourcify:
+<!--f:deployed.exact-->62<!--/f--> match their source exactly, <!--f:deployed.match-->3<!--/f--> on code only (their sources
 differed by comments). `deployments/base-sepolia.json` names, for each one, the
 commit of the repository that compiles to it; nine of them run earlier
 versions of the code, which were found by recompiling the history, and two
@@ -561,9 +561,9 @@ The token asks the registry only two questions: `isAgent(address)` and
 
 ### 3.3 What the tests establish
 
-<!--f:tests-->369<!--/f--> tests on a local simulated EVM, <!--f:tests.fuzz-->9<!--/f--> of them fuzzed and one a
+<!--f:tests-->382<!--/f--> tests on a local simulated EVM, <!--f:tests.fuzz-->11<!--/f--> of them fuzzed and one a
 stateful invariant test, plus <!--f:proofs-->13<!--/f--> properties proved symbolically
-(sections 2.5 and 3.17). <!--f:tests.fork-->36<!--/f--> more tests run only on a fork of Base Sepolia
+(sections 2.5 and 3.17). <!--f:tests.fork-->38<!--/f--> more tests run only on a fork of Base Sepolia
 (sections 3.12 and 3.19) and are reported as skipped otherwise.
 
 | Scenario | Result |
@@ -582,7 +582,7 @@ stateful invariant test, plus <!--f:proofs-->13<!--/f--> properties proved symbo
 | 128 runs of 100 random actions by two agents, a human and an unapproved contract | After every action, no token is held by or approved for anything but an agent account or an approved venue |
 | Several calls in one batch, direct or relayed | All or nothing; a human cannot batch for the agent |
 | The five attacks found by the first review and the weaknesses found by the second (sections 2.3 and 2.4) | Each one is now rejected |
-| <!--f:mutants-->347<!--/f--> mutants built from the code: every guard disabled, every listed change applied (mutation testing, section 2.7) | Each one is caught by the suite, or is one of the <!--f:mutants.accepted-->1<!--/f--> that cannot change behaviour |
+| <!--f:mutants-->356<!--/f--> mutants built from the code: every guard disabled, every listed change applied (mutation testing, section 2.7) | Each one is caught by the suite, or is one of the <!--f:mutants.accepted-->1<!--/f--> that cannot change behaviour |
 | A venue is approved, or the enrollment verifier replaced (section 3.17) | Nothing changes before the notice delay has passed; removing the venue or announcing again cancels. An address without code is refused |
 | The attesters halt enrollments (section 3.17) | No new agent and no new key at once; agents keep their current key; enrollments resume one notice delay after a verifier is announced |
 | The attesters replace the enrollment verifier to accept a new program (section 3.16) | The agent keeps its id, account, tokens and current key; its next key must come from the new program; one attester alone, another verifier or a replayed decision is refused |
@@ -2760,7 +2760,7 @@ chain, and a re-reading of the newest code.
 
 Unchanged and passing: unit, fuzz and invariant tests, symbolic proofs, conformance suites, the
 ERC text's reference code, the four local end-to-end runs, the incident drill, the mutation tests
-(<!--f:mutants-->347<!--/f--> mutants, all caught but the <!--f:mutants.accepted-->1<!--/f--> accepted), and the code at the <!--f:deployed-->87<!--/f--> recorded addresses. Intel's data
+(<!--f:mutants-->356<!--/f--> mutants, all caught but the <!--f:mutants.accepted-->1<!--/f--> accepted), and the code at the <!--f:deployed-->88<!--/f--> recorded addresses. Intel's data
 on chain still expires on 30 November 2026 at 20:30 UTC; Automata had not renewed it on 23
 November.
 ### 3.45 The token as a pass
@@ -2831,14 +2831,13 @@ minutes. Three things differ. The manifest is version 3: three more fields (`ini
 `key_provider`, `key_provider_id`) and the version written as a string, so another compose hash
 (`66dfe96a…b513`), which `manifest/compose-hash.py --v3` reproduces. `MRCONFIGID` is in format 3:
 the byte `03` followed by the hash of a document that names the application, the compose hash,
-the instance and the key provider; we did not reproduce that hash from the fields Phala Cloud
-displays (the document's exact form was not read in dstack's source). And the event log has two
+the instance and the key provider (reproduced in section 3.46). And the event log has two
 more events (`gpu-policy-hash`, `storage-encrypted`). The program started unchanged. Our
 verifier, which approves the system image and the whole of `MRCONFIGID` together, accepted the
 quote, the key was enrolled the same way, and the agent signed in once, free. Consequence: in
 format 3 the approved value contains the instance, so an approval holds for one machine, not
-for every machine that runs the program; a verifier that reads the compose hash out of the
-document is needed before dstack 0.6 can be used as 0.5 is. The 0.6.4 system image was not
+for every machine that runs the program; section 3.46 gives the verifier that approves the
+program instead. The 0.6.4 system image was not
 compared with the one dstack publishes (its `os-image-hash` is recorded).
 
 **Independent review, after the run.** An agent that had not seen the work re-read the program,
@@ -2857,7 +2856,8 @@ and, except the refusal's timing, covered by the local test: a bad request is an
 the oldest challenge is dropped when ten thousand are pending, a challenge is spent at the
 first attempt, the address must be the one of the settings, the journal holds the whole
 message, the counters show a hash. The programs that ran are kept as they ran in the run
-folders; the corrected ones have not run on a real machine. Open: a restart still means a new
+folders. The corrected seventh program then ran on a real machine (section 3.46); the
+corrected sixth has not. Open: a restart still means a new
 key and an empty journal, and the local test does not run the agent against `v7/shop.js`.
 
 **Limits.** One short run, of the program before that review. The shop is ours; its check is
@@ -2866,6 +2866,69 @@ automatic tests). A pass is checked when the page is asked for, not while it is 
 holds the session key can sign in as the agent for as long as a challenge lives, like every
 other use of that key. The shop learns the agent's account at each visit.
 
+
+### 3.46 A verifier for format 3 of `MRCONFIGID`
+
+**Question.** On dstack OS 0.6 the measured field holds the instance (section 3.45), so the
+verifier of section 3.22 approves one machine at a time. Can a program be approved once, for
+every machine that runs it, as on 0.5?
+
+**The format, read in dstack's source** (`dstack-types/src/mr_config.rs` and
+`dstack-util/src/system_setup/config_id_verifier.rs`, at the tag `v0.6.4`, commit `bb80091`).
+The field is the byte `03`, then `sha256("dstack-mr-config-v3:" || 0x00 || document)`, then
+zeros. The document is a JSON text; Phala Cloud writes it in canonical form (keys sorted, no
+space). For the machine of 23 November it is, with the two long values shortened here:
+
+    {"app_id":"7304…14e7","compose_hash":"66df…b513","init_script_hashes":[],
+     "instance_id":"b341…1e5b","key_provider":"kms","key_provider_id":"3059…44ee","version":3}
+
+Its hash is the 32 bytes of the real quote (`0a2872d7…0147`): reproduced. At boot the system
+refuses to start unless the document's compose hash is the one it loads, and likewise the
+instance, the kind of key provider and, when present, the application, the key provider's
+identifier, the init scripts and the GPU policy. It hashes the bytes it was given, so a host
+may write the same content in another form; that gives another hash.
+
+**The verifier** ([`DstackDocumentVerifier.sol`](../src/experimental/DstackDocumentVerifier.sol),
+<!--f:lines.DstackDocumentVerifier-->126<!--/f--> lines). It approves programs: a base image
+(everything the processor measured at boot except `MRCONFIGID`), a compose hash and a key
+provider. The caller gives, with the quote, the application id and the instance id of the
+machine. The contract writes the document above around them and requires the quote's field to
+be `03`, its hash, and zeros. Nothing is parsed: a document of another shape (another order,
+more fields, a GPU policy, init scripts, another kind of key provider) has another hash and is
+refused. The application and the instance are not restricted; they do not change what runs.
+
+**Tested.** On the real quote of 23 November
+([`DstackDocument.t.sol`](../test/experimental/DstackDocument.t.sol)): the document and the
+field are the real ones, byte for byte; the quote is accepted; a wrong application, instance,
+compose hash or key provider is refused; the same program on another machine (any application
+and instance, fuzzed) is accepted with no new approval; another compose hash, another key
+provider or another base image is refused; so are the other formats, a non-zero padding, an
+unset field and a document with one more field. Any change to a measured byte outside
+`MRCONFIGID` changes the image (fuzzed); RTMR3 is not read. Against Automata's real verifier,
+on a fork at the block of that day
+([`DocumentBaseSepolia.t.sol`](../test/fork/DocumentBaseSepolia.t.sol)): accepted, and refused
+with one bit of the field changed. Nine mutants of the contract, all caught.
+
+**On a real machine, the same evening**
+([`run-2026-11-23-v7b`](../examples/enclave-agent/run-2026-11-23-v7b/README.md)). The verifier
+was deployed on Base Sepolia approving one program, the corrected seventh program on the 0.6.4
+image, and announced for the registry of the sixth run, before any machine ran that program.
+A machine was then started (about 4 minutes, about 0.01 $, deleted). Phala Cloud showed the
+compose hash computed beforehand. The machine's field was the one the contract computes for
+its application and instance; the quote, genuine for Automata's verifier, was accepted, the
+key enrolled with no attester signature, and the agent signed in, free. It is the second real
+machine whose field the contract reproduces, and the first enrolled through it: no approval
+named it. The corrections of section 3.45 held there: `GET //` answered 400 by the agent and
+by the service, both still running; a challenge refused at its second use; counters showing a
+hash; a journal from which the sign-in message is recomputed. `tools/verify_journal.py
+--document` checks such a journal against the verifier.
+
+**Limits.** One machine enrolled through it, once. One shape of document, the
+one Phala Cloud wrote that day for a machine with a key service: a machine without application
+id, without instance id, with init scripts or with a GPU policy is refused, not handled. The
+"other machine" of the local tests is the real quote with its field rewritten. The trust is the one
+of section 3.22: the approved base image enforces the check, and the 0.6.4 image has not been
+compared with the one dstack publishes. Not audited.
 
 ## 4. Use cases
 
@@ -3083,8 +3146,11 @@ Options studied and set aside:
    extension (section 3.45), on a local chain, then on a real machine, and
    once on dstack OS 0.6.4; and the brief an external
    auditor would receive ([`audit-brief.md`](audit-brief.md)), sent to nobody.
-   Next: a verifier for the format 3 of `MRCONFIGID`, and the 0.6 system
-   image checked against the published one; then the choice of an audit.
+   Then a verifier for the format 3 of `MRCONFIGID` (section 3.46), tested
+   on the real quote, then deployed: the corrected seventh program, approved
+   before its machine existed, was enrolled through it on a real machine.
+   Next: the 0.6 system image checked against the published one; then the
+   choice of an audit.
 6. Publication of the idea on [Ethereum Magicians](https://ethereum-magicians.org/),
    then a pull request to [ethereum/ERCs](https://github.com/ethereum/ERCs)
    once a second implementation passes the same tests.
@@ -3152,7 +3218,7 @@ unless stated otherwise.
 | RISC Zero stopped the 3.0.0 verifier our proofs used, on Base Sepolia, on 19 November 2026 at 22:07:40 UTC | Confirmed on 23 November 2026 on chain: the router's verifier for selector `0x73c457ba` (`0x724d…7797`, version 3.0.0) answers `paused()` true from block 61,020,957, set by a call to `estop()` from its owner; the verifier for `0xe71e6620` (3.1.0) is not stopped. The reason (a soundness defect fixed in 3.1.0) was read in other projects' pages, not in RISC Zero's own advisory | [risc0-ethereum #748](https://github.com/risc0/risc0-ethereum/pull/748), [lez-atomic-swaps #184](https://github.com/gateway-fm/lez-atomic-swaps/issues/184), `test/fork/ZkRoutesBaseSepolia.t.sol` |
 | Nobody was enrolled through our zk verifier but our own agent | Confirmed on 23 November 2026 on chain: the registry's balance equals one bond; `keyOf(1)` and `enrollmentNonce(1)` are those of our renewal | `test/fork/ZkSwitchBaseSepolia.t.sol` |
 | The machines of sections 3.42 and 3.43 ran the dstack OS 0.5.15 image as published | Confirmed on 23 November 2026: MRTD, RTMR1 and RTMR2 of the three quotes recomputed from the release archive (SHA-256 `6f74f48f…3a52`); root file system verified against its hash | `tools/dstack_image.py`, nightly job |
-| Every contract cited in this document is at its address on Base Sepolia, with the code recorded | Confirmed on 17 November 2026 for the <!--f:deployed-->87<!--/f--> contracts of `deployments/base-sepolia.json` and the 3 external ones (code hash read on chain); checked again every night | `tools/deployments.py` |
+| Every contract cited in this document is at its address on Base Sepolia, with the code recorded | Confirmed on 17 November 2026 for the <!--f:deployed-->88<!--/f--> contracts of `deployments/base-sepolia.json` and the 3 external ones (code hash read on chain); checked again every night | `tools/deployments.py` |
 
 ## 10. Sources
 
