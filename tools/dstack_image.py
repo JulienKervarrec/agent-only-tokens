@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Recomputes the boot measurements of a dstack OS image and compares them with quotes.
 
-    python3 tools/dstack_image.py <image directory> <quote.hex>... [--memory 2G]
+    python3 tools/dstack_image.py <image directory>... <quote.hex>... [--memory 2G]
 
-The image directory is the content of a dstack release archive (`metadata.json`, `ovmf.fd`,
+Several image directories may be given: each quote must then equal one of them on all three
+registers. An image directory is the content of a dstack release archive (`metadata.json`, `ovmf.fd`,
 `bzImage`, `initramfs.cpio.gz`, `sha256sum.txt`). The script checks the files against
 `sha256sum.txt`, prints the OS image hash (the SHA-256 of `sha256sum.txt`, which a dstack
 machine writes into its RTMR3 event log as `os-image-hash`), then for each quote whether MRTD,
@@ -199,48 +200,59 @@ def size(text):
     return int(text[:-1]) * units[text[-1]] if text[-1] in units else int(text, 0)
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("image")
-    parser.add_argument("quotes", nargs="+")
-    parser.add_argument("--memory", type=size)
-    args = parser.parse_args()
-
-    image = Path(args.image)
+def load(image, sizes):
     listing = (image / "sha256sum.txt").read_bytes()
     for line in listing.decode().splitlines():
         digest, name = line.split()
         if hashlib.sha256((image / name).read_bytes()).hexdigest() != digest:
-            sys.exit(f"{name} does not match sha256sum.txt")
+            sys.exit(f"{image}: {name} does not match sha256sum.txt")
     meta = json.loads((image / "metadata.json").read_text())
     fw = (image / meta["bios"]).read_bytes()
     kernel = (image / meta["kernel"]).read_bytes()
     initrd = (image / meta["initrd"]).read_bytes()
-
     # QEMU adds the firmware pages to the TD in one pass or in two (all pages, then their
     # content), depending on its version: both are computed, and the quote says which was used.
     orders = {"one pass": mrtd(fw), "two passes": mrtd(fw, two_pass=True)}
-    computed = {"rtmr2": rtmr2(meta["cmdline"], initrd)}
-    sizes = [args.memory] if args.memory else [size(s) for s in
-                                               ("1G", "2G", "3G", "4G", "6G", "8G", "12G", "16G", "32G")]
+    found = {"version": meta.get("version"), "orders": orders, "rtmr2": rtmr2(meta["cmdline"], initrd),
+             "rtmr1": {m: rtmr1(kernel, len(initrd), m) for m in sizes}}
     print(f"image {meta.get('version')} ({meta.get('git_revision', '')[:7]}), dev: {meta.get('is_dev')}")
     print(f"  OS image hash {hashlib.sha256(listing).hexdigest()}")
     for order, value in orders.items():
         print(f"  MRTD  {value.hex()} (pages added in {order})")
-    print(f"  RTMR2 {computed['rtmr2'].hex()}")
+    print(f"  RTMR2 {found['rtmr2'].hex()}")
+    return found
+
+
+def compare(image, got):
+    order = next((o for o, v in image["orders"].items() if v == got["mrtd"]), None)
+    memory = next((m for m, v in image["rtmr1"].items() if v == got["rtmr1"]), None)
+    checks = {"MRTD": order is not None, "RTMR1": memory is not None, "RTMR2": got["rtmr2"] == image["rtmr2"]}
+    notes = ([f"pages added in {order}"] if order else []) + ([f"memory {memory >> 20} MiB"] if memory else [])
+    return checks, notes
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("paths", nargs="+", help="image directories and quote files, in any order")
+    parser.add_argument("--memory", type=size)
+    args = parser.parse_args()
+    sizes = [args.memory] if args.memory else [size(s) for s in
+                                               ("1G", "2G", "3G", "4G", "6G", "8G", "12G", "16G", "32G")]
+    images = [load(Path(p), sizes) for p in args.paths if Path(p).is_dir()]
+    quotes = [p for p in args.paths if not Path(p).is_dir()]
+    if not images or not quotes:
+        sys.exit("give at least one image directory and one quote")
 
     failures = 0
-    for path in args.quotes:
+    for path in quotes:
         quote = bytes.fromhex(Path(path).read_text().strip().removeprefix("0x"))
         got = quote_registers(quote)
-        memory = next((m for m in sizes if rtmr1(kernel, len(initrd), m) == got["rtmr1"]), None)
-        order = next((o for o, v in orders.items() if v == got["mrtd"]), None)
-        checks = {"MRTD": order is not None, "RTMR1": memory is not None,
-                  "RTMR2": got["rtmr2"] == computed["rtmr2"]}
+        results = [(image, *compare(image, got)) for image in images]
+        # A quote must equal one of the images on all three registers; otherwise the closest is shown.
+        image, checks, notes = max(results, key=lambda r: sum(r[1].values()))
         failures += not all(checks.values())
         detail = ", ".join(f"{k} {'equal' if v else 'DIFFERENT'}" for k, v in checks.items())
-        notes = ([f"pages added in {order}"] if order else []) + ([f"memory {memory >> 20} MiB"] if memory else [])
-        print(f"{path}: {detail}" + (f" ({', '.join(notes)})" if notes else ""))
+        print(f"{path}: image {image['version']}: {detail}" + (f" ({', '.join(notes)})" if notes else ""))
     sys.exit(1 if failures else 0)
 
 

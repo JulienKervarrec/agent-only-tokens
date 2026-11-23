@@ -4,13 +4,18 @@
   verify_journal.py ANSWER.json --nonce 0x...            # chain and report data only
   verify_journal.py ANSWER.json --nonce 0x... --rpc URL --dcap ADDRESS --compose-hash HEX
                                                          # plus Intel's check, read-only, on chain
+  ... --verifier ADDRESS                                 # plus: the same code as the registry trusts
 
 It recomputes the hash chain from the entries, checks that the quote's report data binds that
 head, that length and the nonce you chose, and, with --rpc, that Automata's DCAP verifier calls the
 quote genuine, that the machine is not in debug mode, that its MRCONFIGID names the program (the
 compose hash given), and, if the answer carries the event log, that it replays to RTMR3 with exactly
-that one compose hash. What it proves: the measured program, on that
-machine, stated this ordered list of entries when it answered. What it does not: that nothing
+that one compose hash. With --verifier (a DstackConfigIdVerifier, the
+registry's enrollment verifier), the whole measured code of the quote, operating system image and
+program together, must be one that verifier approves: without it, only the program is checked, not
+the system under it. A platform that Intel does not call up to date is refused unless
+--accept-level says otherwise. What it proves: the measured program, on that machine, stated this
+ordered list of entries when it answered. What it does not: that nothing
 happened before the program's last start (a restart begins a new journal), or after the quote.
 No dependency beyond the Python standard library.
 """
@@ -18,6 +23,8 @@ import argparse, hashlib, json, sys, urllib.request
 
 TAG = hashlib.sha256(b"agent-only-tokens.journal.v1").digest()
 SELECTOR = "38d8480a"  # verifyAndAttestOnChain(bytes)
+CODE_OF = "1e05758f"  # codeOf(bytes)
+IS_APPROVED = "ac127ce4"  # isApprovedCode(bytes32)
 OUT_BODY = 11  # DCAP verifier output: version(2) body type(2) tcb(1) platform(6), then the body
 
 
@@ -57,7 +64,13 @@ def main():
     ap.add_argument("--rpc")
     ap.add_argument("--dcap")
     ap.add_argument("--compose-hash")
+    ap.add_argument("--verifier")
+    ap.add_argument("--accept-level", type=int, default=0, help="highest TCB status accepted (0: up to date)")
     a = ap.parse_args()
+    if a.rpc and not (a.dcap and a.compose_hash):
+        ap.error("--rpc needs --dcap and --compose-hash")
+    if (a.dcap or a.compose_hash or a.verifier) and not a.rpc:
+        ap.error("--dcap, --compose-hash and --verifier need --rpc")
     ans = json.load(open(a.answer))
     entries = ans["entries"]
     nonce = bytes.fromhex(a.nonce.removeprefix("0x"))
@@ -87,6 +100,8 @@ def main():
         sys.exit("FAIL: not a TDX quote of a production machine")
     if out[OUT_BODY + 520:OUT_BODY + 584] != rd:
         sys.exit("FAIL: verified report data differs")
+    if out[4] > a.accept_level:
+        sys.exit("FAIL: Intel's status of the platform is %d, above the accepted %d" % (out[4], a.accept_level))
     # dstack writes 0x01 || compose hash into MRCONFIGID (our verifiers on chain read it there).
     if out[OUT_BODY + 184:OUT_BODY + 232] != bytes([1]) + bytes.fromhex(a.compose_hash) + bytes(15):
         sys.exit("FAIL: MRCONFIGID does not name the program %s" % a.compose_hash)
@@ -104,6 +119,15 @@ def main():
         if composes != [a.compose_hash]:
             sys.exit("FAIL: compose hash %r in the event log, expected %s" % (composes, a.compose_hash))
     print("quote: genuine (security level %d), production machine, program %s" % (out[4], a.compose_hash))
+    if a.verifier:
+        # codeOf(bytes) then isApprovedCode(bytes32), on the registry's own enrollment verifier.
+        opad = b"\0" * ((32 - len(out) % 32) % 32)
+        code = eth_call(a.rpc, a.verifier, "0x" + CODE_OF + (32).to_bytes(32, "big").hex() + len(out).to_bytes(32, "big").hex() + (out + opad).hex())
+        if int(eth_call(a.rpc, a.verifier, "0x" + IS_APPROVED + code[2:]), 16) != 1:
+            sys.exit("FAIL: the verifier %s does not approve this code (%s)" % (a.verifier, code))
+        print("code: %s, system image and program, approved by %s" % (code, a.verifier))
+    else:
+        print("system image not checked (no --verifier): only the program's hash was")
 
 
 if __name__ == "__main__":
