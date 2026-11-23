@@ -23,8 +23,9 @@ five decisions), answered to our nonce `0xb300c065…c538`.
 
 ## Second machine: the token question no longer waits for a page
 
-Compose hash `cd3fbbd8cf98f462ce6d8132e6b68bd8bb40babc339a3dc2d2c14cbd8933408e` (the program in
-`v6/`), shown by Phala Cloud and equal to the one computed. Its quote (`quote-enroll-second.hex`):
+Compose hash `cd3fbbd8cf98f462ce6d8132e6b68bd8bb40babc339a3dc2d2c14cbd8933408e`
+(`docker-compose-second.yml`; the program in `v6/` has changed since), shown by Phala Cloud and
+equal to the one computed. Its quote (`quote-enroll-second.hex`):
 genuine, up to date. A second verifier, announced, then the new key enrolled for the same agent
 and account, with no attester signature; nothing else was changed.
 
@@ -56,3 +57,10 @@ Results on 19 November 2026: 3 and 6 entries, heads `0x9aed0b24…74a1` and `0xb
 each bound to its nonce; quotes genuine (security level 0), production machines, programs as
 given (read from MRCONFIGID). With another program's hash, the check fails. The answers leave out
 the event log, which is the same as in the enrollment quotes.
+
+Since 23 November 2026 the same command takes `--verifier`, the registry's enrollment verifier
+of that machine (`0xfd484A1E7bd15c201E14b2462CE8C82ADa0039EB` for the second,
+`0xba9e664FE43965cA7eA0a5c427A9FC9B334290e7` for the first): it then also checks that the whole
+measured code of the quote, system image included, is the one that verifier approves. Both pass,
+and each fails with the other's verifier. The two machines ran dstack OS 0.5.15 exactly as
+published (`tools/dstack_image.py`, study section 3.20).
