@@ -19,14 +19,14 @@ const b64 = (o) => Buffer.from(JSON.stringify(o), 'utf8').toString('base64');
 const cast = (...args) => execFileSync('cast', args, { stdio: ['ignore', 'pipe', 'pipe'] }).toString().trim();
 const issued = new Map(); // nonce -> { issuedAt, expirationTime, used }
 const stats = { paid: 0, free: 0, refused: 0, reference: REFERENCE, lastSignIn: null, lastRefusal: null };
-let mode = 'normal'; // normal | other-domain | other-statement | no-expiry
+let mode = 'normal'; // normal | other-domain | other-statement | no-expiry | other-page
 
 function asked() {
   const nonce = crypto.randomBytes(16).toString('hex');
   const issuedAt = new Date().toISOString();
   const expirationTime = new Date(Date.now() + 300000).toISOString();
   issued.set(nonce, { issuedAt, expirationTime, used: false });
-  const info = { domain: mode === 'other-domain' ? 'shop.example' : '127.0.0.1:8402', uri: (mode === 'other-domain' ? 'https://shop.example' : ORIGIN) + '/page', version: '1', nonce, issuedAt };
+  const info = { domain: mode === 'other-domain' ? 'shop.example' : '127.0.0.1:8402', uri: (mode === 'other-domain' ? 'https://shop.example' : ORIGIN) + (mode === 'other-page' ? '/page?next=/admin' : '/page'), version: '1', nonce, issuedAt };
   if (mode !== 'no-expiry') info.expirationTime = expirationTime;
   if (statement) info.statement = mode === 'other-statement' ? 'I agree to everything this shop asks.' : statement;
   return {

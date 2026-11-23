@@ -535,11 +535,13 @@ checking on chain that the account holds a token.
 
 - **The message** is an EIP-4361 "Sign-In with Ethereum" text that the program writes itself, for
   the host and origin of `SHOP_URL` only, with the statement of its settings (`PASS_STATEMENT`)
-  and no other, and always with an expiry. From the shop it takes a nonce and two dates, checked.
+  and no other, and always with an expiry. From the shop it takes a nonce and two dates, checked;
+  the page signed for is the one of its settings, letter for letter.
 - **The signature** is a message of the agent's account (ERC-1271), sent in the
   `SIGN-IN-WITH-X` header in the format of `@x402/extensions`. It moves nothing.
-- **The journal** records each sign-in before it is sent and its outcome after.
-- A refused sign-in is followed by a normal, paid, visit before another try.
+- **The journal** records each sign-in before it is sent, with every field of its message, and
+  its outcome after.
+- A refused sign-in is not tried again in the next period.
 
 `v7/local/run.sh` runs it on a local chain: the agent pays while it holds no token, buys one from
 another agent, then signs in and pays no more; another agent that holds tokens is served; an
@@ -552,5 +554,11 @@ another site, with another statement or without expiry are not signed. After `np
 the token balance read through the chain's node, no payment offered); `v7/docker-compose.yml`
 runs it beside the agent, in the same machine, as the agent's shop. The local test runs it too.
 
-Not run on a real machine yet. Compose hash:
-`python3 manifest/compose-hash.py v7/docker-compose.yml manifest/prelaunch-ours.sh --allow PHALA_AI_API_KEY`.
+Run on a real machine on 23 November 2026
+([`run-2026-11-23-v7`](run-2026-11-23-v7/README.md)): the agent signed in twice and paid
+nothing, and once more on a machine with dstack OS 0.6.4. The program was then reviewed
+independently and corrected (a malformed request stopped it; study section 3.45): the one in
+`v7/` is later than the one that ran, kept in the run folder. The same correction was made in
+`v6/`. Compose hash:
+`python3 manifest/compose-hash.py v7/docker-compose.yml manifest/prelaunch-ours.sh --allow PHALA_AI_API_KEY`
+(add `--v3` and the key provider's identifier for the manifest of dstack OS 0.6).

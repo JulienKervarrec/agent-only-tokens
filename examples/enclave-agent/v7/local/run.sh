@@ -8,8 +8,9 @@
 # It checks that the agent pays while it holds no token, buys one from another agent, then signs
 # in and pays no more; that another agent holding tokens is served and one holding none is not,
 # nor a plain key; that a sign-in cannot be replayed; that the agent signs no challenge made for
-# another site, with another statement, or without an expiry; and that nothing from outside makes
-# it sign. When `npm ci` was run in examples/x402, each sign-in must also be accepted by the
+# another site or page, with another statement, or without an expiry; that nothing from outside
+# makes it sign or stops it; and that the holder-only service of the real run survives a bad
+# request and a flood, and serves one sign-in once. When `npm ci` was run in examples/x402, each sign-in must also be accepted by the
 # reference implementation of the extension.
 # Throwaway keys, made here and never written down.
 # Run from the repository root after `forge build`: bash examples/enclave-agent/v7/local/run.sh
@@ -152,6 +153,9 @@ for path in /mint /buy /pay /draw /sign /signin /login /ask /decide /journal/app
   [ "$code" = 400 ] || fail "$path answered $code"
 done
 [ "$(curl -s -o /dev/null -w '%{http_code}' -X POST $AGENT/journal)" = 405 ] || fail "POST accepted"
+# A request line that is not a path once stopped the program: it is a bad request like another.
+[ "$(curl -s -o /dev/null -w '%{http_code}' --path-as-is "$AGENT//")" = 400 ] || fail "GET // not refused"
+curl -fsS $AGENT/ >/dev/null || fail "the agent stopped on GET //"
 
 # 2. No token yet: the agent pays for the page (a model that buys the page, not the token).
 mode buy-page; run_for 5
@@ -194,6 +198,8 @@ signin() { # $1: 'account' or 'key', $2 private key, $3 address that signs in; p
     sig=$(cast wallet sign "$msg" --private-key $2)
   fi
   header=$(python3 -c 'import base64,json,sys; i=json.loads(sys.argv[1]); i.update(address=sys.argv[2],chainId="eip155:84532",type="eip191",signature=sys.argv[3]); print(base64.b64encode(json.dumps(i).encode()).decode())' "$info" "$3" "$sig")
+  echo "$header" > $TMP/signin.header
+  [ -n "${NOSEND:-}" ] && return 0
   curl -s -o $TMP/signin.body -w '%{http_code}' -H "SIGN-IN-WITH-X: $header" http://127.0.0.1:${PORT:-8402}/page
 }
 # (The agent keeps visiting meanwhile, so the shop's counters move on their own: the answer
@@ -209,21 +215,50 @@ RPC_URL=$RPC NFT=$NFT CHAIN_ID=84532 ORIGIN=http://127.0.0.1:8402 STATEMENT="$ST
 sleep 1
 real() { curl -fsS http://127.0.0.1:8502/stats | python3 -c "import json,sys; print(json.load(sys.stdin)['$1'])"; }
 [ "$(PORT=8502 signin account $S2 $(cast to-checksum $SELLER))" = 200 ] && grep -q "free for the holder $(cast to-checksum $SELLER)" $TMP/signin.body || fail "holder service: holder not served: $(real lastRefusal)"
+HELD=$(cat $TMP/signin.header)
 [ "$(PORT=8502 signin account $S3 $(cast to-checksum $SHOPACC))" = 402 ] && [ "$(real lastRefusal)" = "holds no token" ] || fail "holder service: $(real lastRefusal)"
 [ "$(PORT=8502 signin key $STRANGER $(cast wallet address $STRANGER))" = 402 ] && [ "$(real lastRefusal)" = "signature refused by the account" ] || fail "holder service, plain key: $(real lastRefusal)"
-[ "$(curl -s -o /dev/null -w '%{http_code}' -H "SIGN-IN-WITH-X: $(real lastSignIn)" http://127.0.0.1:8502/page)" = 402 ] && [ "$(real lastRefusal)" = "nonce unknown or already used" ] || fail "holder service: replay"
-echo "holder-only service of the real run: holder served; no token, plain key and replay refused"
+[ "$(curl -s -o /dev/null -w '%{http_code}' -H "SIGN-IN-WITH-X: $HELD" http://127.0.0.1:8502/page)" = 402 ] && [ "$(real lastRefusal)" = "nonce unknown or already used" ] || fail "holder service: replay"
+[ "$(real lastSignInSha256)" = "$(printf %s "$HELD" | sha256sum | cut -d' ' -f1)" ] || fail "holder service: /stats does not show the hash of the last sign-in"
+curl -fsS http://127.0.0.1:8502/stats | grep -q "$HELD" && fail "holder service: /stats shows a header" || true
+# One sign-in sent twice at the same moment is served once.
+NOSEND=1 PORT=8502 signin account $S2 $(cast to-checksum $SELLER)
+TWICE=$(cat $TMP/signin.header)
+for k in 1 2; do curl -s -o /dev/null -w '%{http_code}\n' -H "SIGN-IN-WITH-X: $TWICE" http://127.0.0.1:8502/page > $TMP/twice.$k & done; wait %% 2>/dev/null || true; sleep 2
+[ "$(cat $TMP/twice.1 $TMP/twice.2 | sort | tr '\n' ' ')" = "200 402 " ] || fail "holder service: one sign-in sent twice answered $(cat $TMP/twice.1 $TMP/twice.2 | tr '\n' ' ')"
+# A bad request line, a failed attempt that spends its challenge, and a flood of challenges: still there.
+[ "$(curl -s -o /dev/null -w '%{http_code}' --path-as-is http://127.0.0.1:8502//)" = 400 ] || fail "holder service: GET // not refused"
+NOSEND=1 PORT=8502 signin account $S2 $(cast to-checksum $SELLER)
+SPENT=$(python3 -c 'import base64,json,sys; i=json.loads(base64.b64decode(sys.argv[1])); i["signature"]="0x"+"11"*65; print(base64.b64encode(json.dumps(i).encode()).decode())' "$(cat $TMP/signin.header)")
+[ "$(curl -s -o /dev/null -w '%{http_code}' -H "SIGN-IN-WITH-X: $SPENT" http://127.0.0.1:8502/page)" = 402 ] || fail "holder service: bad signature served"
+[ "$(curl -s -o /dev/null -w '%{http_code}' -H "SIGN-IN-WITH-X: $(cat $TMP/signin.header)" http://127.0.0.1:8502/page)" = 402 ] && [ "$(real lastRefusal)" = "nonce unknown or already used" ] || fail "holder service: a challenge gave two attempts"
+node -e 'let n=0; const go=async()=>{ while(n++<10200){ const r=await fetch("http://127.0.0.1:8502/page"); if(r.status!==402) process.exit(1); await r.arrayBuffer(); } }; Promise.all(Array.from({length:40},go)).then(()=>process.exit(0),()=>process.exit(1))' || fail "holder service: stopped answering under a flood of challenges"
+[ "$(PORT=8502 signin account $S2 $(cast to-checksum $SELLER))" = 200 ] || fail "holder service: holder locked out after a flood: $(real lastRefusal)"
+echo "holder-only service of the real run: holder served; no token, plain key, replay, twice at once and a second attempt refused; bad request and flood survived"
 
 # 6. Challenges the agent does not sign: for another site, with another statement, without an
 # expiry. It signs nothing and, the model saying BUY, pays instead.
-for m in other-domain other-statement no-expiry; do
+for m in other-domain other-statement no-expiry other-page; do
   shopmode $m; n=$(journal_has sign-in); p=$(paid)
   for i in $(seq 12); do [ "$(paid)" -gt "$p" ] && break; FROM=$RELAYER bash $HERE/relay.sh $AGENT $RPC >/dev/null || true; sleep 1; done
   [ "$(journal_has sign-in)" = "$n" ] || fail "signed a challenge in mode $m"
   [ "$(paid)" -gt "$p" ] || fail "mode $m: neither signed in nor paid"
 done
 shopmode normal
-echo "challenges for another site, with another statement or without expiry: not signed"
+echo "challenges for another site, another page, with another statement or without expiry: not signed"
+
+# Each sign-in in the journal carries every field of its message: the hash is recomputed here.
+curl -fsS $AGENT/journal | python3 -c '
+import hashlib, json, sys
+n = 0
+for e in json.load(sys.stdin)["entries"]:
+    if e["kind"] != "sign-in": continue
+    d = e["data"]
+    m = d["domain"] + " wants you to sign in with your Ethereum account:\n" + d["account"] + "\n\n" + (d["statement"] + "\n" if d["statement"] else "") + "\nURI: " + d["uri"] + "\nVersion: 1\nChain ID: " + d["chainId"] + "\nNonce: " + d["nonce"] + "\nIssued At: " + d["issuedAt"] + "\nExpiration Time: " + d["expirationTime"]
+    assert hashlib.sha256(m.encode()).hexdigest() == d["messageSha256"], "sign-in message not recomputed"
+    n += 1
+assert n > 0
+' || fail "the journal does not let a sign-in message be recomputed"
 
 # 7. The journal replays and is bound to our nonce; spending stayed within the allowance.
 NONCE=0x$(openssl rand -hex 32)

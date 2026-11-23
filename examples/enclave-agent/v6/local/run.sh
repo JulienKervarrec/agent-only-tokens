@@ -138,6 +138,9 @@ for path in /mint /buy /pay /draw /sign /ask /decide /journal/append /order /lis
 done
 [ "$(curl -s -o /dev/null -w '%{http_code}' -X POST $AGENT/journal)" = 405 ] || fail "POST accepted"
 [ "$(curl -s -o /dev/null -w '%{http_code}' "$AGENT/journal/quote?nonce=0x12")" = 400 ] || fail "short nonce accepted"
+# A request line that is not a path once stopped the program: it is a bad request like another.
+[ "$(curl -s -o /dev/null -w '%{http_code}' --path-as-is "$AGENT//")" = 400 ] || fail "GET // not refused"
+curl -fsS $AGENT/ >/dev/null || fail "the agent stopped on GET //"
 
 # 2. A model that says SKIP: no page, no token.
 mode skip; run_for 5

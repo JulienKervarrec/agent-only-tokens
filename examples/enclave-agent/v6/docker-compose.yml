@@ -631,5 +631,8 @@ services:
         http.createServer((req, res) => {
           const done = (code, body) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body)); };
           if (req.method !== 'GET') return done(405, { error: 'GET only' });
-          handle(new URL(req.url, 'http://agent')).then((body) => done(200, body), (e) => done(400, { error: String(e.message) }));
+          // A request line that is not a path ("//") makes URL throw: answered like any other bad request.
+          let url;
+          try { url = new URL(req.url, 'http://agent'); } catch (e) { return done(400, { error: 'bad request' }); }
+          handle(url).then((body) => done(200, body), (e) => done(400, { error: String(e.message) }));
         }).listen(8080, () => { console.log('agent session key', ADDRESS); loop(); });

@@ -5,8 +5,8 @@
 // Each challenge is issued once and expires; the message is rebuilt from the header; the
 // signature is checked on chain through ERC-1271 (the caller must be a contract account, as
 // every agent account is); then the token balance is read, at every request.
-// GET /stats shows the counters and the last accepted header, so that it can be checked again
-// elsewhere (examples/x402/siwx-verify.mjs).
+// GET /stats shows the counters, the SHA-256 of the last accepted header and the reason of the
+// last refusal, nothing else.
 const http = require('http');
 const crypto = require('crypto');
 
@@ -54,10 +54,13 @@ async function call(to, data) {
 }
 
 const issued = new Map(); // nonce -> { issuedAt, expirationTime, used }
-const stats = { free: 0, refused: 0, lastSignIn: null, lastRefusal: null };
+// Public counters. Of the last accepted sign-in only a hash is shown, not the header itself.
+const stats = { free: 0, refused: 0, lastSignInSha256: null, lastRefusal: null };
+const REASONS = ['nonce unknown or already used', 'not this service', 'dates', 'statement', 'format', 'signature refused by the account', 'holds no token'];
 function asked() {
   for (const [n, c] of issued) if (Date.parse(c.expirationTime) < Date.now()) issued.delete(n);
-  if (issued.size > 10000) throw new Error('too many challenges');
+  // Bounded: past the limit the oldest challenge is dropped, so a flood cannot stop new ones.
+  while (issued.size >= 10000) issued.delete(issued.keys().next().value);
   const nonce = crypto.randomBytes(16).toString('hex');
   const issuedAt = new Date().toISOString();
   const expirationTime = new Date(Date.now() + 300000).toISOString();
@@ -75,6 +78,8 @@ async function signedIn(header) {
   const p = JSON.parse(Buffer.from(header, 'base64').toString('utf8'));
   const c = issued.get(p.nonce);
   if (!c || c.used) throw new Error('nonce unknown or already used');
+  // Spent at once, whatever follows: one challenge gives one attempt, even to two at the same time.
+  c.used = true;
   if (p.domain !== origin.host || p.uri !== origin.origin + '/page' || p.version !== '1' || p.chainId !== 'eip155:' + CHAIN_ID) throw new Error('not this service');
   if (p.issuedAt !== c.issuedAt || p.expirationTime !== c.expirationTime || Date.parse(c.expirationTime) < Date.now()) throw new Error('dates');
   if ((p.statement || '') !== (STATEMENT || '')) throw new Error('statement');
@@ -86,14 +91,15 @@ async function signedIn(header) {
   const sig = p.signature.slice(2);
   const verdict = await call(p.address, selector('isValidSignature(bytes32,bytes)') + hash + pad('40') + pad((sig.length / 2).toString(16)) + sig.padEnd(192, '0'));
   if (!verdict.startsWith('0x1626ba7e')) throw new Error('signature refused by the account');
-  c.used = true;
   const balance = await call(NFT, selector('balanceOf(address)') + pad(p.address.slice(2).toLowerCase()));
   if (balance.length !== 66 || BigInt(balance) === 0n) throw new Error('holds no token');
   return p.address;
 }
 
 http.createServer((req, res) => {
-  const url = new URL(req.url, origin);
+  // A request line that is not a path ("//") makes URL throw: answered like any other bad request.
+  let url;
+  try { url = new URL(req.url, origin); } catch (e) { res.writeHead(400); return res.end(); }
   const refuse = () => { res.writeHead(402, { 'payment-required': Buffer.from(JSON.stringify(asked()), 'utf8').toString('base64') }); res.end('{}'); };
   if (req.method !== 'GET') { res.writeHead(405); return res.end(); }
   if (url.pathname === '/stats') { res.writeHead(200, { 'Content-Type': 'application/json' }); return res.end(JSON.stringify(stats)); }
@@ -102,12 +108,12 @@ http.createServer((req, res) => {
   if (typeof login !== 'string' || login.length > 4000) return refuse();
   signedIn(login).then((who) => {
     stats.free++;
-    stats.lastSignIn = login;
+    stats.lastSignInSha256 = crypto.createHash('sha256').update(login, 'utf8').digest('hex');
     res.writeHead(200, { 'Content-Type': 'text/plain' });
     res.end('the page, free for the holder ' + who + ', visit ' + stats.free);
   }, (e) => {
     stats.refused++;
-    stats.lastRefusal = String(e.message).slice(0, 200);
+    stats.lastRefusal = REASONS.includes(e.message) ? e.message : 'malformed';
     try { refuse(); } catch (x) { res.writeHead(503); res.end(); }
   });
 }).listen(8402);
