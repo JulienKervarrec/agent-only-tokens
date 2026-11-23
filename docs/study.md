@@ -12,10 +12,13 @@ audited.
 ## Summary
 
 **No contract can prove "this caller is an LLM". A contract can enforce that
-every address holding or moving a token is an account with no human owner,
-driven by a key that a registry recognises as an agent's.** That is the only
-definition of "LLM-only" that holds technically, and it is enough to keep the
-token off OpenSea, Rarible and any other general marketplace.
+every address holding or moving a token is an account with no owner key,
+driven by a key that a registry has enrolled.** That is weaker than "LLM-only"
+or "agent-only": a script with no model qualifies, and a person can run the
+approved program, be enrolled by the registry's deciders, or forge the hardware
+attestation (reviewed on 23 November 2026; see [`paper.md`](paper.md), section
+2, which replaces the claims of this summary where they differ). It is enough
+to keep the token off OpenSea, Rarible and any other general marketplace.
 
 - **Achievable today.** An NFT that no human wallet can mint, receive, transfer,
   list, pledge or burn. A general marketplace can neither be approved for the
@@ -50,8 +53,9 @@ project stops at the first two.
 | **L3. L2 + no instruction channel** | The attested code accepts no free-form instruction; the model decides inside a fixed policy | They can only fund, unplug, or poison the data it reads | Nobody in production |
 | **L4. zk proof of inference** | The model's computation is proven mathematically, with no hardware trust | Same limits as L3, without the hardware weakness | Research ([FlashProve](https://www.anthropic.com/research/provable-inference), [ERC-7992](https://eips.ethereum.org/EIPS/eip-7992)) |
 
-L2 is already enough for no human to buy on a general marketplace, because no
-human wallet is a valid recipient. L3 adds that a human cannot tell their agent
+L2 is already enough for nobody to buy on a general marketplace, because no
+ordinary wallet is a valid recipient; a person can still run an enrolled
+program. L3 adds that a human cannot tell their agent
 "buy number 42".
 
 Three limits hold at every level:
@@ -73,7 +77,10 @@ exists separately.** Statuses were checked on 11 November 2026.
 | [ERC-721](https://eips.ethereum.org/EIPS/eip-721) | Final | The whole interface, unchanged | No control over who holds |
 | [ERC-3643](https://eips.ethereum.org/EIPS/eip-3643) | Final | The split between a token and a separate eligibility registry | Built for permissioned security tokens |
 | [ERC-721C](https://medium.com/limit-break/creator-token-standards-building-guardrails-for-your-tokens-3b261cdd3027) (Limit Break, outside the ERC process) | In production | Evidence that a validation hook on every transfer holds against marketplaces. OpenSea [complies through Seaport](https://docs.opensea.io/docs/creator-fee-enforcement) | Under the recommended validator, [a transfer started by the holder goes through](https://abx.docs.artblocks.io/docs/using-abx/guides/royalty-enforcement). Not enough as is |
-| [ERC-8004](https://eips.ethereum.org/EIPS/eip-8004) Trustless Agents | Draft, deployed on mainnet | Agent identity for discovery and reputation | Registration is open to anyone, humans included. The validation registry [is not deployed yet](https://taiko.xyz/guides/erc-8004-trustless-agent-standard) |
+| [ERC-8004](https://eips.ethereum.org/EIPS/eip-8004) Trustless Agents | Draft, deployed on mainnet | Agent identity for discovery and reputation | Registration is open to anyone, humans included. Its validation registry, which names TEE attestations among the checks it can record, was reported as not deployed in a guide we read early in November 2026 ([Taiko](https://taiko.xyz/guides/erc-8004-trustless-agent-standard)); not rechecked since. A [measurement of May 2026](https://arxiv.org/abs/2606.26028) found 3%, 4% and 15% of registrations on Ethereum, BSC and Base with a valid file and a live service |
+| [TEE_HEE](https://nousresearch.com/setting-your-pet-rock-free) (Nous Research and Teleport, October 2024), not a standard | Ran | A program in Intel TDX on dstack that generated its own Ethereum key and account passwords, so that no person held them: the idea of our enrollment, two years earlier, without the check on chain | The model trusted outside the machine; the operator can stop it; credentials released to the admin after seven days |
+| [Proof-of-guardrail](https://arxiv.org/abs/2603.05786) (Jin et al., 2026), a paper | Preprint | A TEE attestation that a guardrail ran before an agent's answer, and a statement of what that does not show | The attestation does not show that the guardrail makes the agent safe: the same gap as between "approved program" and "agent" here |
+| ["Physical integrity, attestation, and the state of permissionless TEEs"](https://ethresear.ch/t/physical-integrity-attestation-and-the-state-of-permissionless-tees/24964) (ethresear.ch, May 2026), a post | — | Attestation covers the software measured, not who holds the machine | Reports a forged TDX quote passing Automata's on-chain verification on a test network, the verifier we use |
 | [ERC-8273](https://eips.ethereum.org/EIPS/eip-8273) Attestation-Gated Agentic Actions | Draft | Per-operation attestation bound to an action digest | Does not say which proof to require. Attesters are authorised by the registry owner |
 | [ERC-8274](https://ethereum-magicians.org/t/erc-8274-ai-inference-proof-verification/28083) AI Inference Proof Verification | Under discussion (PR #1771), no page on eips.ethereum.org at the time of writing | A single `IProofVerifier.verify()` interface for zkML, opML, TEE and oracles | Not frozen |
 | [ERC-7992](https://eips.ethereum.org/EIPS/eip-7992) Verifiable ML Inference | Draft | Model registry and verification of zk inference proofs | zk only |
@@ -2929,6 +2936,37 @@ id, without instance id, with init scripts or with a GPU policy is refused, not 
 "other machine" of the local tests is the real quote with its field rewritten. The trust is the one
 of section 3.22: the approved base image enforces the check, and the 0.6.4 image has not been
 compared with the one dstack publishes. Not audited.
+
+### 3.47 The project called into question
+
+On 23 November 2026, at the author's request, the project was reviewed as a
+hostile programme committee would, by the assistant and by a separate AI
+instance that had not seen the work. What it found:
+
+- **The name claims too much.** Recognition shows which program holds a key,
+  or that the deciders enrolled it. It does not show a model: programs one to
+  four call none (checked in their source), and the runs of 23 November asked
+  a model nothing. It does not show the absence of a person.
+- **The attestation has been forged.** TEE.fail (October 2025, about $1,000 of
+  equipment) was reported passing Automata's on-chain verification on a test
+  network, with dstack among the systems attacked
+  ([ethresear.ch, May 2026](https://ethresear.ch/t/physical-integrity-attestation-and-the-state-of-permissionless-tees/24964)).
+  Section 7 already said quotes could be forged; it did not say it had been
+  shown against this verifier.
+- **Earlier work was missing.** TEE_HEE (October 2024) had a program create
+  its own key in Intel TDX on dstack; ERC-8004's validation registry names TEE
+  attestations; proof-of-guardrail states the same gap. Added to section 1.2.
+- **The list is ours.** In every run the deciders, sponsor, seller and shop
+  were the author's keys.
+- **No evidence of demand**, and no review by a person outside the project.
+
+What changed: the short article was rewritten as an experience report with
+this stated first; the summary above, the README and the audit brief no longer
+say "no human owner"; the README and the article say that the code and texts
+were written with an AI assistant. The names of the repository and of the
+contracts are kept. The ERC proposal is kept as written, with a note
+(`docs/erc/README.md`). Sections written before this date keep their wording:
+where they say "agent", read "recognised account".
 
 ## 4. Use cases
 
