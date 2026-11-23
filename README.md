@@ -1,6 +1,8 @@
 # Agent-Only Tokens
 
 [![tests](https://github.com/JulienKervarrec/agent-only-tokens/actions/workflows/test.yml/badge.svg)](https://github.com/JulienKervarrec/agent-only-tokens/actions/workflows/test.yml)
+[![nightly](https://github.com/JulienKervarrec/agent-only-tokens/actions/workflows/nightly.yml/badge.svg)](https://github.com/JulienKervarrec/agent-only-tokens/actions/workflows/nightly.yml)
+[![weekly](https://github.com/JulienKervarrec/agent-only-tokens/actions/workflows/weekly.yml/badge.svg)](https://github.com/JulienKervarrec/agent-only-tokens/actions/workflows/weekly.yml)
 
 A research prototype for an ERC-721 extension whose tokens can only be held and
 moved by AI agent accounts. No human-held wallet can mint, receive, transfer,
@@ -66,13 +68,13 @@ interface IAgentRegistry {
 | `src/AgentWrapped721.sol` | Wrapper that makes any existing ERC-721 agent-only | <!--f:lines.AgentWrapped721-->80<!--/f--> |
 | `src/AgentWrappedUniV3.sol` | Non-unwrappable wrapper for Uniswap V3 liquidity positions | <!--f:lines.AgentWrappedUniV3-->98<!--/f--> |
 | `src/AgentReputationBadge.sol` | Reputation badges: agent-only and soulbound (ERC-5192). An issuer offers, the agent claims; issuers post a refundable deposit and have a daily quota | <!--f:lines.AgentReputationBadge-->218<!--/f--> |
-| `examples/enclave-agent/` | The three agent programs that ran in real TDX machines, the quotes they produced, and the record of the runs: the first enrollment by hardware attestation, then an enclave agent paying by x402. `manifest/` rebuilds the manifest dstack measures, so each program's compose hash can be recomputed | |
-| `.github/workflows/` | `test.yml`, on every push: tests, gas against `snapshots/Gas.json`, figures of this documentation, symbolic proofs, Slither. `nightly.yml`: the tests against Base Sepolia and the code at every recorded address. `weekly.yml`: mutation testing | |
-| `tools/` | `mutate.py` (mutation testing), `figures.py` (figures quoted in the documentation), `deployments.py` (addresses), `slither_check.py` (Slither against the accepted findings) | |
+| `examples/enclave-agent/` | The seven agent programs, with a local end-to-end test from the fourth on. The first six ran in real TDX machines; the quotes they produced and the record of each run are in the `run-*` folders: enrollment by hardware attestation, x402 payments, an on-chain spending limit, a model's answer checked before buying, a token bought from another agent, a journal bound to a quote. The seventh (the token as a pass, `sign-in-with-x`) ran on a local chain only. `manifest/` rebuilds the manifest dstack measures, so each program's compose hash can be recomputed | |
+| `.github/workflows/` | `test.yml`, on every push: tests, conformance suites, the local end-to-end runs of the agent programs, gas against `snapshots/Gas.json`, figures of this documentation, symbolic proofs, Slither. `nightly.yml`: the tests against Base Sepolia, the code at every recorded address, Intel's data on chain, and the system images against our quotes. `weekly.yml`: mutation testing, and the proofs against registries broken on purpose | |
+| `tools/` | `reproduce.sh` (every check in one command), `mutate.py` (mutation testing), `proofs.py` (proofs against broken registries), `conformance.py` (conformance suites against faulty versions), `figures.py` (figures quoted in the documentation), `deployments.py` (addresses), `datasets.py` (recorded data), `slither_check.py` (Slither against the accepted findings), `collateral.py` (Intel's data on chain), `dstack_image.py` (system images against quotes), `verify_journal.py` (an agent's journal against its quote), `erc_package.py` and `monitor_page.py` | |
 | `deployments/base-sepolia.json` | Every contract deployed for the tests on Base Sepolia: address, role, block, code hash, the commit that compiles to it and its Sourcify result | |
 | `snapshots/Gas.json` | Gas of each operation of the gas table, written by `test/Gas.t.sol` | |
 | `SECURITY.md`, `CONTRIBUTING.md`, `CITATION.cff` | How to report a weakness, the rules a change must meet, how to cite | |
-| `examples/x402/` | x402 demo: an agent account buys from a paid API through the x402 reference facilitator, on a local chain. Includes the 28-line signer adapter and a script comparing this repository's USDC code with the one deployed on a chain | |
+| `examples/x402/` | x402 demo: an agent account buys from a paid API through the x402 reference facilitator, on a local chain. Includes the 28-line signer adapter, a script comparing this repository's USDC code with the one deployed on a chain, and `siwx-verify.mjs`, which checks a sign-in of an agent account with the reference implementation of x402's `sign-in-with-x` | |
 | `archive/` | Two earlier tracks that were set aside (signed-intent core in Solidity, Rust model) | |
 
 ## Running the tests
@@ -97,7 +99,7 @@ The hardware verifiers and SHA-384 are newer and less reviewed than the
 standard; they live in `src/experimental`, with their tests and fixtures in
 `test/experimental`. Nothing in the standard depends on them.
 
-<!--f:tests-->369<!--/f--> tests run locally; <!--f:tests.fork-->31<!--/f--> more run only against Base
+<!--f:tests-->369<!--/f--> tests run locally; <!--f:tests.fork-->36<!--/f--> more run only against Base
 Sepolia and are reported as skipped without an RPC address. They cover: classic ERC-721 behaviour between agents,
 refusal of humans as holder, recipient, minter or approved operator, refusal
 of unsolicited tokens and of unapproved wrapper contracts, sale, loan (repaid
@@ -136,6 +138,11 @@ proofs) has a README and a `SHA256SUMS`.
 **Operations.** `docs/operations.md` is the runbook for incidents (freeze,
 revoke, remove a venue, halt) and attester keys; `examples/operations/drill.sh`
 rehearses it on a local chain.
+
+**For an auditor.** [`docs/audit-brief.md`](docs/audit-brief.md) is the brief an
+external auditor would receive: scope by priority, what must hold, what
+already exists, and the questions we would most like answered. Nothing has
+been sent to anyone.
 
 **Registry monitor.** `docs/monitor/index.html` is one page with no server: it
 reads a registry on Base Sepolia from public nodes, in the browser, and shows
@@ -395,6 +402,43 @@ of the day is the code of the repository.
 After the corrections: 207 tests and 5 more on a fork, 8 proofs checked against 12 broken
 registries, 295 mutants all caught or explained; the run on Base Sepolia was made again
 on the corrected registry.
+
+## Ninth pass, 23 November 2026: the whole repository checked again
+
+Four days after the last release, every check was replayed and the newest code
+re-read. Two things had broken on their own, and the nightly job had been
+failing for three nights without anyone looking.
+
+- **The proof system behind the zk route was stopped by its vendor.** On
+  19 November 2026 at 22:07 UTC, sixteen hours after our live registry
+  switched to it, RISC Zero emergency-stopped its 3.0.0 verifier after a
+  soundness defect. Our zk verifier records no proof since, so that registry
+  could enroll or renew no key. Nobody else was enrolled meanwhile (checked on
+  chain). Two attesters announced the return to the direct verifier
+  ([tx](https://sepolia.basescan.org/tx/0xab41416f671a18c18da1b2f2358e9c86bc7622385bb8622ce4a97cf49dad4deb)),
+  in force after the 24-hour notice.
+- **Two system images, one known to the nightly job.** The machines of the
+  fifth and sixth programs ran dstack OS 0.5.15, not 0.5.12. Their quotes are
+  now matched against the published 0.5.15 image, checked like the first.
+- **The sixth agent program** records a payment before its signature leaves
+  and the outcome of every order, gives every outside read a time limit, and
+  no longer counts a purchase nobody relayed as made.
+- **`tools/verify_journal.py`** can check the whole measured code, system
+  image included, against the registry's own verifier (`--verifier`).
+
+Sections 3.20, 3.28 and 3.44 of the study.
+
+## The token as a pass, 23 November 2026
+
+A service free for the agent whose account holds a token of a collection: the
+token becomes a subscription that only agents can hold and resell. The shop
+offers x402's `sign-in-with-x` extension; the seventh agent program signs in
+instead of paying, with a message it writes itself for its one shop; the shop
+checks the signature through ERC-1271 and reads on chain that the account
+holds a token. On a local chain: the agent pays, buys a token from another
+agent, then signs in and pays no more; the reference implementation of the
+extension accepts every sign-in; a replay, an agent without a token and a
+plain key are refused. Not run on a real machine. Section 3.45 of the study.
 
 ## Gas
 
@@ -972,6 +1016,10 @@ no way in.
   provider's pre-launch script installs therefore open nothing.
 - **Every night**, a job downloads the archive, checks its hash and compares
   the registers of every archived quote.
+
+Since 23 November 2026 the same holds for dstack OS 0.5.15 (archive SHA-256
+`6f74f48f…3a52`), which the machines of the fifth and sixth agent programs
+ran; the nightly job checks every quote against one image or the other.
 
 Not done: the image was not rebuilt from its sources (dstack builds it with
 Yocto inside Docker; this workspace has neither the Docker service nor access
