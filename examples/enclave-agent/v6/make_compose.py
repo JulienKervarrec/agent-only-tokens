@@ -32,6 +32,7 @@ SETTINGS = {
     "SWAP": "0xc013e14d7d1e1c94ab4C825ddE1a4b20d465bA7e",  # sale venue of the sixth program run
     "NFT": "0x932e7F5Bb26fC94ef7bD7E5A2A9b9eE686d236AC",  # collection of the sixth program run
     "NFT_CAP": "30000",  # 0.03 USDC at most per token
+    "ORDER_TTL": "600",  # a signed order is valid for 10 minutes
 }
 program = (here / "agent.js").read_text()
 lines = [

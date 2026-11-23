@@ -6,8 +6,9 @@
 // and on chain: it draws from its allowance (AgentAllowance) when its account is short; it buys
 // one paid x402 page at most once per period, under a cap; and, new in this version, it may buy
 // one agent-only token a day from another agent on the sale venue (AgentSwap), under a cap.
-// (The first run of this version asked about a token only after buying a page; see
-// run-2026-11-19-v6. The token question no longer waits for a page.)
+// (The runs of 19 November 2026, in run-2026-11-19-v6, used two earlier states of this file,
+// kept there as compose files. Since then: every outside read has a time limit, a payment is
+// recorded before it is sent, and the outcome of each order is recorded.)
 // Before each purchase it asks a language model, through Phala's confidential AI gateway, and
 // buys only on an answer it has verified (attested gateway, pinned connection, signed receipt
 // over the exact question and answer), as in the fifth version. The page it bought is shown to
@@ -15,7 +16,8 @@
 // purchase that the rules below already allow. The token, its price, its currency and its seller
 // are read from the chain, never from the page or the model.
 // Also new: a journal. Every decision, payment and signed order is appended to a hash chain kept
-// in memory; GET /journal shows it, and GET /journal/quote?nonce= returns a quote whose report
+// in memory (a payment before its signature leaves, an order when it is signed, and what became
+// of each afterwards); GET /journal shows it, and GET /journal/quote?nonce= returns a quote whose report
 // data binds the chain's head to the caller's nonce, so anyone can check afterwards, against the
 // measured program, what it decided and in which order (tools/verify_journal.py).
 const http = require('http');
@@ -116,7 +118,7 @@ const HEX = DIGITS + 'abcdefABCDEF';
 const all = (v, alphabet) => [...v].every((ch) => alphabet.includes(ch));
 const hex = (bytes) => (v) => typeof v === 'string' && v.length === 2 + 2 * bytes && v.startsWith('0x') && all(v.slice(2), HEX);
 const SHAPES = { address: hex(20), bytes32: hex(32), uint: (v) => typeof v === 'string' && v.length >= 1 && v.length <= 20 && all(v, DIGITS) };
-const SPEC = { CHAIN_ID: 'uint', REGISTRY: 'address', AGENT_ID: 'uint', ALLOWANCE: 'address', ALLOWANCE_ID: 'uint', ASSET: 'address', CAP: 'uint', DRAW: 'uint', EVERY: 'uint', TICK: 'uint', SWAP: 'address', NFT: 'address', NFT_CAP: 'uint' };
+const SPEC = { CHAIN_ID: 'uint', REGISTRY: 'address', AGENT_ID: 'uint', ALLOWANCE: 'address', ALLOWANCE_ID: 'uint', ASSET: 'address', CAP: 'uint', DRAW: 'uint', EVERY: 'uint', TICK: 'uint', SWAP: 'address', NFT: 'address', NFT_CAP: 'uint', ORDER_TTL: 'uint' };
 const CFG = {};
 for (const name of Object.keys(SPEC)) {
   const value = process.env[name];
@@ -152,6 +154,8 @@ const TICK = Number(CFG.TICK) * 1000; // the loop wakes up this often
 const NFT_CAP = BigInt(CFG.NFT_CAP); // per token bought on the venue, in the asset's smallest unit
 const NFT_EVERY = 86400 * 1000; // at most one token a day
 const NFT_SCAN = 20; // token ids looked at on the venue, from the newest
+const ORDER_TTL = Number(CFG.ORDER_TTL); // seconds a signed order stays valid on chain
+const WAIT = 20000; // no answer from the chain's node or the shop after this long is a failure
 
 function typed(name, chainId, verifyingContract, structHash) {
   const domain = keccak256(Buffer.concat([DOMAIN_TYPE, text(name), text('1'), word(chainId), word(verifyingContract)]));
@@ -164,7 +168,7 @@ const selector = (signature) => text(signature).subarray(0, 4);
 let rpcId = 0;
 async function call(to, signature, args) {
   const data = '0x' + Buffer.concat([selector(signature), ...args.map(word)]).toString('hex');
-  const answer = await fetch(CFG.RPC_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: ++rpcId, method: 'eth_call', params: [{ to: to, data: data }, 'latest'] }) });
+  const answer = await fetch(CFG.RPC_URL, { method: 'POST', signal: AbortSignal.timeout(WAIT), headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: ++rpcId, method: 'eth_call', params: [{ to: to, data: data }, 'latest'] }) });
   const body = await answer.json();
   if (typeof body.result !== 'string' || body.result.length < 66) throw new Error('chain call failed: ' + signature);
   return BigInt(body.result.slice(0, 66));
@@ -185,7 +189,7 @@ async function shop(headers) {
   for (let i = 0; i < 3; i++) {
     if (i > 0) await new Promise((resolve) => setTimeout(resolve, 1000 * i));
     try {
-      const answer = await fetch(CFG.SHOP_URL, { headers: headers });
+      const answer = await fetch(CFG.SHOP_URL, { headers: headers, signal: AbortSignal.timeout(WAIT) });
       if (answer.status < 500) return answer;
       failure = new Error('shop answered ' + answer.status);
     } catch (e) {
@@ -211,6 +215,8 @@ async function buy(account, asked, offer) {
   const transfer = keccak256(Buffer.concat([Buffer.from('1901', 'hex'), token, keccak256(Buffer.concat([TRANSFER_TYPE, word(auth.from), word(auth.to), word(auth.value), word(0), word(auth.validBefore), Buffer.from(auth.nonce.slice(2), 'hex')]))]));
   // Signed as a message of the agent's account, never as a bare hash.
   const digest = typed('AgentAccount', CFG.CHAIN_ID, account, keccak256(Buffer.concat([MESSAGE_TYPE, transfer])));
+  // Recorded before the signature leaves: the shop may settle it even if its answer is lost.
+  journal('payment', { to: auth.to, value: auth.value, nonce: auth.nonce, validBefore: auth.validBefore });
   const payment = { x402Version: 2, payload: { authorization: auth, signature: '0x' + sign(digest).toString('hex') }, extensions: asked.extensions, resource: asked.resource, accepted: offer };
   const second = await shop({ 'PAYMENT-SIGNATURE': Buffer.from(JSON.stringify(payment), 'utf8').toString('base64') });
   const header = second.headers.get('payment-response');
@@ -219,7 +225,7 @@ async function buy(account, asked, offer) {
   // What was bought: kept for the next question as untrusted data, never parsed or obeyed.
   if (settled) lastPage = (await second.text()).slice(0, 1000);
   const p = { at: Math.floor(Date.now() / 1000), to: auth.to, value: auth.value, status: second.status, settled: settled };
-  journal('payment', { to: p.to, value: p.value, nonce: auth.nonce, settled: settled, pageSha256: settled ? sha256hex(Buffer.from(lastPage, 'utf8')) : null });
+  journal('payment-result', { nonce: auth.nonce, status: second.status, settled: settled, pageSha256: settled ? sha256hex(Buffer.from(lastPage, 'utf8')) : null });
   return p;
 }
 
@@ -276,7 +282,7 @@ async function dcapVerify(quoteHex) {
   const q = Buffer.from(quoteHex.replace(/^0x/, ''), 'hex');
   const pad = Buffer.alloc((32 - (q.length % 32)) % 32);
   const data = '0x' + Buffer.concat([selector('verifyAndAttestOnChain(bytes)'), word(32), word(q.length), q, pad]).toString('hex');
-  const answer = await fetch(CFG.RPC_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: ++rpcId, method: 'eth_call', params: [{ to: AI.dcap, data: data, gas: '0x2faf080' }, 'latest'] }) });
+  const answer = await fetch(CFG.RPC_URL, { method: 'POST', signal: AbortSignal.timeout(WAIT), headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: ++rpcId, method: 'eth_call', params: [{ to: AI.dcap, data: data, gas: '0x2faf080' }, 'latest'] }) });
   const r = (await answer.json()).result;
   if (typeof r !== 'string' || r.length < 2 + 64 * 3) throw new Error('quote verifier call failed');
   const raw = Buffer.from(r.slice(2), 'hex');
@@ -381,6 +387,7 @@ const TOKEN_RULE = 'You decide for an autonomous agent whether to buy one token 
 // sha256(JCS(entry n))), head(0) = 32 zero bytes. Nothing removes or rewrites an entry. When it
 // is full the program stops acting rather than act without a record.
 const JOURNAL_MAX = 2000;
+const JOURNAL_RESERVE = 4; // more than one pass of the loop can append
 const JOURNAL_TAG = sha256(Buffer.from('agent-only-tokens.journal.v1', 'utf8'));
 const journalEntries = [];
 let journalHead = Buffer.alloc(32);
@@ -398,7 +405,7 @@ function journal(kind, data) {
 // have no say in which token, at what price, or from whom.
 async function words(to, signature, args, n) {
   const data = '0x' + Buffer.concat([selector(signature), ...args.map(word)]).toString('hex');
-  const answer = await fetch(CFG.RPC_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: ++rpcId, method: 'eth_call', params: [{ to: to, data: data }, 'latest'] }) });
+  const answer = await fetch(CFG.RPC_URL, { method: 'POST', signal: AbortSignal.timeout(WAIT), headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: ++rpcId, method: 'eth_call', params: [{ to: to, data: data }, 'latest'] }) });
   const r = (await answer.json()).result;
   if (typeof r !== 'string' || r.length < 2 + 64 * n) throw new Error('chain call failed: ' + signature);
   return Array.from({ length: n }, (_, i) => BigInt('0x' + r.slice(2 + 64 * i, 66 + 64 * i)));
@@ -441,7 +448,7 @@ async function tokenOrder(account, l) {
 // gas, nothing else: the order names the allowance, the amount and the deadline)
 async function signOrder(account, target, data, kind) {
   const nonce = await call(account, 'nonce()', []);
-  const deadline = Math.floor(Date.now() / 1000) + 600;
+  const deadline = Math.floor(Date.now() / 1000) + ORDER_TTL;
   const digest = typed('AgentAccount', CFG.CHAIN_ID, account, keccak256(Buffer.concat([EXECUTE_TYPE, word(target), word(0), keccak256(data), word(nonce), word(deadline)])));
   journal('order', { kind: kind, account: account, target: target, dataSha256: sha256hex(data), nonce: String(nonce), deadline: String(deadline) });
   return { kind: kind, account: account, target: target, value: '0', data: '0x' + data.toString('hex'), nonce: String(nonce), deadline: String(deadline), signature: '0x' + sign(digest).toString('hex') };
@@ -461,11 +468,24 @@ async function tick() {
   state.account = account;
   state.balance = String(await call(CFG.ASSET, 'balanceOf(address)', [account]));
   state.available = String(await call(CFG.ALLOWANCE, 'available(uint256)', [CFG.ALLOWANCE_ID]));
+  if (journalEntries.length + JOURNAL_RESERVE > JOURNAL_MAX) throw new Error('journal full: the program stops acting');
   if (state.order) {
-    const used = BigInt(state.order.nonce) < (await call(account, 'nonce()', []));
-    if (used || Number(state.order.deadline) * 1000 < Date.now()) state.order = null;
+    // What became of the signed order: used (the account's nonce moved on) or expired unused. An
+    // unused order can no longer run once its deadline has passed on chain, and any later order
+    // reuses its nonce, so at most one of them ever runs.
+    const o = state.order;
+    const used = BigInt(o.nonce) < (await call(account, 'nonce()', []));
+    if (!used && Number(o.deadline) * 1000 >= Date.now()) return; // one signed order at a time
+    const result = { kind: o.kind, nonce: o.nonce, used: used };
+    const token = o.kind === 'token' ? state.tokens.find((t) => t.nonce === o.nonce && t.bought === null) : null;
+    if (token) result.owned = used && address(await call(CFG.NFT, 'ownerOf(uint256)', [token.id])) === account;
+    journal('result', result);
+    if (token) {
+      token.bought = result.owned;
+      if (!result.owned) lastToken = 0; // nothing was bought: the day's purchase is still open
+    }
+    state.order = null;
   }
-  if (state.order) return; // one signed order at a time, until it is used or expires
   const short = async () => {
     if (BigInt(state.available) === 0n) return;
     const amount = DRAW < BigInt(state.available) ? DRAW : BigInt(state.available);
@@ -480,12 +500,12 @@ async function tick() {
       if (state.order) return;
     } else if (l) {
       lastTokenAsk = Date.now(); // one question per period, whatever the answer
-      const facts = { token: l.id, price: String(l.price), balance: state.balance, tokensBought: state.tokens.length, page: lastPage || '(no page bought yet)' };
+      const facts = { token: l.id, price: String(l.price), balance: state.balance, tokensBought: state.tokens.filter((t) => t.bought === true).length, page: lastPage || '(no page bought yet)' };
       const d = await ask('token', TOKEN_RULE, facts);
       if (d.buy) {
         lastToken = Date.now();
         state.order = await tokenOrder(account, l);
-        state.tokens = [{ at: Math.floor(Date.now() / 1000), id: l.id, seller: l.seller, price: String(l.price), nonce: state.order.nonce }, ...state.tokens].slice(0, 5);
+        state.tokens = [{ at: Math.floor(Date.now() / 1000), id: l.id, seller: l.seller, price: String(l.price), nonce: state.order.nonce, bought: null }, ...state.tokens].slice(0, 5);
       }
       return;
     }
