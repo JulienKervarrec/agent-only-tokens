@@ -821,11 +821,20 @@
     {
       "address": "0xBbcC8a20c8e8985911048180fB2E07e2A96aC3e8",
       "name": "DstackConfigIdVerifier",
-      "role": "approves the seventh program on one machine with dstack 0.6.4 (MRCONFIGID format 3, instance b3416d34…1e5b, deleted); verifier of registry 0x0ed6…141d from 23 November 2026",
+      "role": "approves the seventh program on one machine with dstack 0.6.4 (MRCONFIGID format 3, instance b3416d34…1e5b, deleted); verifier of registry 0x0ed6…141d on 23 November 2026, replaced the same day",
       "run": "seventh program on a real machine, 23 November 2026 (study 3.45)",
       "block": 62578072,
       "codeHash": "0xf7c76527b456b4d9bef920b20255294a30b32c5636b380a8c5807e2787dc707f",
       "source": "f8fee65",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0x9fcf0cD5C609d8F1484BC2f65FDFF7BA483F5036",
+      "name": "DstackDocumentVerifier",
+      "role": "approves the corrected seventh program on dstack 0.6.4 for any machine (MRCONFIGID format 3; compose hash 6287ca69…6be6); verifier of registry 0x0ed6…141d from 23 November 2026, evening",
+      "run": "corrected seventh program through the document verifier, 23 November 2026 (study 3.46)",
+      "block": 62659027,
+      "codeHash": "0x31b6902359c37cbb8c47961278d290ac210b27fde82ae085646af0751b2eec6b",
       "sourcify": "exact_match"
     }
   ],
@@ -983,6 +992,10 @@
     {
       "address": "0x8a1bc5d21864c5cf3e6267a9c9b75cf6e770c565",
       "role": "seventh program on dstack 0.6.4, 23 November 2026 (generated inside the enclave; never held ETH; machine deleted)"
+    },
+    {
+      "address": "0x54ac87c33565453711193ba0f9437fb9275aa777",
+      "role": "corrected seventh program on dstack 0.6.4, 23 November 2026 (generated inside the enclave; never held ETH; machine deleted)"
     }
   ],
   "otherChains": [

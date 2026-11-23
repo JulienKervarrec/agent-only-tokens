@@ -26,9 +26,11 @@
   "low-level-calls: TdxQuoteVerifier._approve": "ETH refund to the caller; success is checked.",
   "missing-zero-check: DualKey.act.target": "The target is part of the order both keys signed; a call to address zero does nothing and is the signers' choice.",
   "reentrancy-benign: DstackConfigIdVerifier.attest": "The only external call goes to the DCAP verifier fixed at deployment; the approval is written after it has answered.",
+  "reentrancy-benign: DstackDocumentVerifier.attest": "The only external call goes to the DCAP verifier fixed at deployment; the approval is written after it has answered.",
   "reentrancy-benign: DstackEnrollmentVerifier.attest": "The only external call goes to the DCAP verifier fixed at deployment; the approval is written after it has answered.",
   "reentrancy-benign: TdxEnrollmentVerifier.attest": "The only external call goes to the DCAP verifier fixed at deployment; the approval is written after it has answered.",
   "reentrancy-events: DstackConfigIdVerifier.attest": "The only external call goes to the DCAP verifier fixed at deployment; the approval is written after it has answered.",
+  "reentrancy-events: DstackDocumentVerifier.attest": "The only external call goes to the DCAP verifier fixed at deployment; the approval is written after it has answered.",
   "reentrancy-events: DstackEnrollmentVerifier.attest": "The only external call goes to the DCAP verifier fixed at deployment; the approval is written after it has answered.",
   "reentrancy-events: TdxEnrollmentVerifier.attest": "The only external call goes to the DCAP verifier fixed at deployment; the approval is written after it has answered.",
   "timestamp: AgentAccount.executeBySig": "Deadlines, key lifetimes and delays are counted in hours or days; a validator shifting a timestamp by seconds gains nothing.",
@@ -65,8 +67,8 @@
   "unused-return: AttestedAgentRegistry._requireSigners": "The third value of tryRecover only details an error already read from the second.",
   "unused-return: DualKey._signed": "The third value of tryRecover only details an error already read from the second.",
   "unused-state: TdxQuoteVerifier.RTMR3": {
-    "count": 2,
-    "reason": "Offset shared by the verifiers that inherit from it; two of them do not read RTMR3."
+    "count": 3,
+    "reason": "Offset shared by the verifiers that inherit from it; three of them do not read RTMR3."
   },
   "incorrect-equality: AgentAllowance.available": "It compares two period numbers, whole numbers counted from the opening; equal means the same period, as intended.",
   "timestamp: AgentAllowance.available": "Periods are counted in block time, a day or so long; a few seconds of drift by the block producer moves the boundary by as much, never the limit.",

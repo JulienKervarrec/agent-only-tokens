@@ -16,11 +16,12 @@ They are our own runs; the full record is in `examples/enclave-agent`.
 | `event-digests.hex` | The 48-byte digests of the RTMR3 events of the first two quotes |
 | `quote-other-machine.hex` | The second program on another machine. Compose hash `580353bb…7ef8`; same attributes, MRTD and RTMR0 to RTMR2 as the first three |
 | `quote-own-prelaunch.hex` | The third program under our own pre-launch script, 17 November 2026 (`examples/enclave-agent/run-2026-11-17-prelaunch`). Compose hash `024261d8…39b5`. The tests build formats 2 and 3 of `MRCONFIGID` from its values |
+| `os064-quote.hex` | (Named apart: the nightly check compares `quote*.hex` with the 0.5 images.) The seventh program on a machine with dstack OS 0.6.4, 23 November 2026 (`examples/enclave-agent/run-2026-11-23-v7`). `MRCONFIGID` in format 3; compose hash `66dfe96a…b513` |
 
-Automata's DCAP verifier accepted all five on Base Sepolia, platform level 0.
+Automata's DCAP verifier accepted all six on Base Sepolia, platform level 0.
 In the local tests a stand-in replaces it, as in `../tdx`; `../../fork` runs the
 first, the third and the fourth through the real one.
 
-All five were produced by the production image of dstack OS 0.5.12 exactly as dstack
+The first five were produced by the production image of dstack OS 0.5.12 exactly as dstack
 published it: `tools/dstack_image.py` recomputes their MRTD, RTMR1 and RTMR2 from
 `dstack-0.5.12.tar.gz` (study, section 3.20).

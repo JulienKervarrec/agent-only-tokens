@@ -48,6 +48,7 @@ they parse the output of a third party's verifier.
 | --- | --- |
 | `TdxQuoteVerifier.sol` | <!--f:lines.TdxQuoteVerifier-->122<!--/f--> |
 | `DstackConfigIdVerifier.sol` | <!--f:lines.DstackConfigIdVerifier-->70<!--/f--> |
+| `DstackDocumentVerifier.sol` | <!--f:lines.DstackDocumentVerifier-->126<!--/f--> |
 | `DstackConfigIdZkVerifier.sol` | <!--f:lines.DstackConfigIdZkVerifier-->79<!--/f--> |
 | `DstackEnrollmentVerifier.sol`, `Sha384.sol` | <!--f:lines.DstackEnrollmentVerifier-->138<!--/f-->, <!--f:lines.Sha384-->92<!--/f--> |
 | `TdxEnrollmentVerifier.sol`, `DualKey.sol` | <!--f:lines.TdxEnrollmentVerifier-->41<!--/f-->, <!--f:lines.DualKey-->72<!--/f--> |
@@ -85,9 +86,9 @@ it shows a consequence not written there.
 
 | Check | Where |
 | --- | --- |
-| <!--f:tests-->369<!--/f--> unit, fuzz and invariant tests | `test/`, `forge test` |
+| <!--f:tests-->382<!--/f--> unit, fuzz and invariant tests | `test/`, `forge test` |
 | <!--f:proofs-->13<!--/f--> symbolic proofs, the registry's also run against <!--f:proofs.broken-->12<!--/f--> registries broken on purpose | `test/halmos/`, `tools/proofs.py` |
-| Mutation testing: <!--f:mutants-->347<!--/f--> mutants, all caught but <!--f:mutants.accepted-->1<!--/f--> accepted | `tools/mutate.py`, weekly |
+| Mutation testing: <!--f:mutants-->356<!--/f--> mutants, all caught but <!--f:mutants.accepted-->1<!--/f--> accepted | `tools/mutate.py`, weekly |
 | Static analysis against a list of accepted findings | `tools/slither_check.py`, `tools/slither-accepted.json` |
 | Conformance suites that a second implementation (on Solady) passes | `test/conformance/`, `tools/conformance.py` |
 | Eight review passes and the review of a second implementation, five of them by independent AI reviewers, and what each found | Study, sections 2.3 to 2.10 and 3.33 |

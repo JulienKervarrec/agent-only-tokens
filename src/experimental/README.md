@@ -11,6 +11,7 @@ verifier, any contract that answers ERC-1271.
 | `TdxEnrollmentVerifier.sol` | Enrollment by Intel TDX attestation, fixed measurements |
 | `DstackEnrollmentVerifier.sol` | Enrollment of agents on dstack, by event-log replay |
 | `DstackConfigIdVerifier.sol` | Enrollment of agents on dstack from the quote alone, by `MRCONFIGID` (formats 1 to 3) |
+| `DstackDocumentVerifier.sol` | The same for format 3 (dstack OS 0.6): approves a program for every machine that runs it |
 | `Sha384.sol` | SHA-384, needed by the dstack verifier |
 | `DstackConfigIdZkVerifier.sol` | The same, with a second route: a RISC Zero proof that Automata's program checked the quote |
 | `DualKey.sol` | A session key held by two machines: acts only when both sign |

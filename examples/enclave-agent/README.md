@@ -558,7 +558,8 @@ Run on a real machine on 23 November 2026
 ([`run-2026-11-23-v7`](run-2026-11-23-v7/README.md)): the agent signed in twice and paid
 nothing, and once more on a machine with dstack OS 0.6.4. The program was then reviewed
 independently and corrected (a malformed request stopped it; study section 3.45): the one in
-`v7/` is later than the one that ran, kept in the run folder. The same correction was made in
-`v6/`. Compose hash:
+`v7/` is the corrected one. It ran the same evening on a machine with dstack OS 0.6.4, enrolled
+through the document verifier ([`run-2026-11-23-v7b`](run-2026-11-23-v7b/README.md)). The same
+correction was made in `v6/`, which has not run since. Compose hash:
 `python3 manifest/compose-hash.py v7/docker-compose.yml manifest/prelaunch-ours.sh --allow PHALA_AI_API_KEY`
 (add `--v3` and the key provider's identifier for the manifest of dstack OS 0.6).
