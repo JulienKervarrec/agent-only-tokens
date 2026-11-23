@@ -57,8 +57,8 @@ compares those with the 0.5 images only).
   reproduced by `compose-hash.py docker-compose.yml ../manifest/prelaunch-ours.sh --allow PHALA_AI_API_KEY --v3 <key provider id>`.
 - `MRCONFIGID` in the quote is `03` followed by 32 bytes
   (`0a2872d7caef138cec80c3e49f6cbd6abe95994a00ce1e624bd1066e42430147`): format 3, the hash of a
-  document naming the application, the compose hash, the instance and the key provider. We did
-  not reproduce that hash.
+  document naming the application, the compose hash, the instance and the key provider. Reproduced
+  since (study section 3.46).
 - The quote is genuine, platform up to date. A verifier approving the code of that quote
   (`0xBbcC8a20c8e8985911048180fB2E07e2A96aC3e8`), announced, then the key enrolled for agent 1
   (transaction `0x270a0c80e749e9132ec9286edc5880e6e1c0722a450eabe47f731dfe4523c93e`, block
