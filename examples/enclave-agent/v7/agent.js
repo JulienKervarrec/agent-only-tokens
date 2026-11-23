@@ -220,9 +220,8 @@ function challenge(asked) {
   const chains = Array.isArray(x.supportedChains) ? x.supportedChains : [];
   if (!chains.some((c) => c && c.chainId === CFG.NETWORK && c.type === 'eip191')) return null;
   if (i.domain !== SHOP.host || i.version !== '1' || !fits(i.nonce, ALNUM, 8, 64)) return null;
-  let uri;
-  try { uri = new URL(i.uri); } catch (e) { return null; }
-  if (uri.origin !== SHOP.origin || i.uri.length > 300 || /\s/.test(i.uri)) return null;
+  // The page signed for is the one page this program visits, letter for letter.
+  if (typeof i.uri !== 'string' || i.uri !== CFG.SHOP_URL) return null;
   // It must have been issued just now, and it must expire, within the hour.
   if (!isDate(i.issuedAt) || !isDate(i.expirationTime)) return null;
   const issued = Date.parse(i.issuedAt);
@@ -247,10 +246,18 @@ async function signIn(account, c) {
   const hash = keccak256(Buffer.concat([Buffer.from('\x19Ethereum Signed Message:\n' + bytes.length, 'utf8'), bytes]));
   // Signed as a message of the agent's account, never as a bare hash.
   const digest = typed('AgentAccount', CFG.CHAIN_ID, account, keccak256(Buffer.concat([MESSAGE_TYPE, hash])));
-  journal('sign-in', { domain: SHOP.host, uri: c.uri, nonce: c.nonce, expirationTime: c.expirationTime, messageSha256: sha256hex(bytes) });
+  // Every field of the message is recorded, so that its hash can be recomputed from the journal alone.
+  journal('sign-in', { domain: SHOP.host, account: who, statement: PASS_STATEMENT, uri: c.uri, chainId: String(CFG.CHAIN_ID), nonce: c.nonce, issuedAt: c.issuedAt, expirationTime: c.expirationTime, messageSha256: sha256hex(bytes) });
   const payload = { domain: SHOP.host, address: who, uri: c.uri, version: '1', chainId: CFG.NETWORK, type: 'eip191', nonce: c.nonce, issuedAt: c.issuedAt, expirationTime: c.expirationTime, signatureScheme: 'eip1271', signature: '0x' + sign(digest).toString('hex') };
   if (PASS_STATEMENT) payload.statement = PASS_STATEMENT;
-  const answer = await shop({ 'SIGN-IN-WITH-X': Buffer.from(JSON.stringify(payload), 'utf8').toString('base64') });
+  let answer;
+  try {
+    answer = await shop({ 'SIGN-IN-WITH-X': Buffer.from(JSON.stringify(payload), 'utf8').toString('base64') });
+  } catch (e) {
+    // No answer: recorded too, so that every sign-in in the journal has its outcome.
+    journal('sign-in-result', { nonce: c.nonce, status: null, served: false, pageSha256: null });
+    throw e;
+  }
   const served = answer.status === 200;
   // What was served: kept for the next question as untrusted data, never parsed or obeyed.
   if (served) lastPage = (await answer.text()).slice(0, 1000);
@@ -561,7 +568,8 @@ async function tick() {
   if (Date.now() - lastPurchase < EVERY) return;
   const { asked: terms, offer: o } = await offer();
   // The pass: an account that holds a token of the collection signs in and is served for free.
-  // One attempt per period; if the shop refuses it, the next period pays as before.
+  // One attempt per period; if the shop refuses it, the next period pays as before, or, at a
+  // shop that sells nothing, does nothing: the sign-in is tried again the period after.
   const c = challenge(terms);
   if (c && lastSignIn !== 'refused' && (await call(CFG.NFT, 'balanceOf(address)', [account])) > 0n) {
     lastPurchase = Date.now();
@@ -570,8 +578,12 @@ async function tick() {
     state.visits = [visit, ...state.visits].slice(0, 5);
     return;
   }
+  const skipped = lastSignIn === 'refused';
   lastSignIn = '';
-  if (!o) throw new Error('no acceptable offer');
+  if (!o) {
+    if (skipped) lastPurchase = Date.now();
+    throw new Error('no acceptable offer');
+  }
   if (BigInt(state.balance) >= BigInt(o.amount)) {
     // One question per period: a "no" or a failed check waits for the next period, like a purchase.
     lastPurchase = Date.now();
@@ -652,5 +664,8 @@ async function handle(url) {
 http.createServer((req, res) => {
   const done = (code, body) => { res.writeHead(code, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(body)); };
   if (req.method !== 'GET') return done(405, { error: 'GET only' });
-  handle(new URL(req.url, 'http://agent')).then((body) => done(200, body), (e) => done(400, { error: String(e.message) }));
+  // A request line that is not a path ("//") makes URL throw: answered like any other bad request.
+  let url;
+  try { url = new URL(req.url, 'http://agent'); } catch (e) { return done(400, { error: 'bad request' }); }
+  handle(url).then((body) => done(200, body), (e) => done(400, { error: String(e.message) }));
 }).listen(8080, () => { console.log('agent session key', ADDRESS); loop(); });
