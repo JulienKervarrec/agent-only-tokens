@@ -106,6 +106,8 @@ mode() { curl -fsS -X POST "http://127.0.0.1:8444/mode?to=$1" >/dev/null; }
 STUB=$(create "$(artifact out/TdxEnrollment.t.sol/DcapStub.json)")
 # dstack's socket path is fixed in the program; the stand-in needs to listen there.
 SOCK=/var/run/dstack.sock
+# A socket left by an earlier test would be taken for the new one: remove it first.
+if [ -w /var/run ]; then rm -f $SOCK; else sudo rm -f $SOCK; fi
 if [ -w /var/run ]; then node $HERE/local/dstack.mjs $SOCK & else sudo "$(command -v node)" $HERE/local/dstack.mjs $SOCK & fi
 for i in $(seq 50); do [ -S $SOCK ] && break; sleep 0.2; done
 [ -w /var/run ] || sudo chmod 666 $SOCK
