@@ -5,6 +5,8 @@
   verify_journal.py ANSWER.json --nonce 0x... --rpc URL --dcap ADDRESS --compose-hash HEX
                                                          # plus Intel's check, read-only, on chain
   ... --verifier ADDRESS                                 # plus: the same code as the registry trusts
+  ... --document APP INSTANCE KEY_PROVIDER_ID            # dstack OS 0.6 (MRCONFIGID format 3); --verifier is
+                                                         # then a DstackDocumentVerifier
 
 It recomputes the hash chain from the entries, checks that the quote's report data binds that
 head, that length and the nonce you chose, and, with --rpc, that Automata's DCAP verifier calls the
@@ -25,6 +27,8 @@ TAG = hashlib.sha256(b"agent-only-tokens.journal.v1").digest()
 SELECTOR = "38d8480a"  # verifyAndAttestOnChain(bytes)
 CODE_OF = "1e05758f"  # codeOf(bytes)
 IS_APPROVED = "ac127ce4"  # isApprovedCode(bytes32)
+IMAGE_OF = "2d9aac00"  # imageOf(bytes), DstackDocumentVerifier
+PROGRAM_OF = "caf28659"  # programOf(bytes32,bytes32,bytes), DstackDocumentVerifier
 OUT_BODY = 11  # DCAP verifier output: version(2) body type(2) tcb(1) platform(6), then the body
 
 
@@ -65,6 +69,9 @@ def main():
     ap.add_argument("--dcap")
     ap.add_argument("--compose-hash")
     ap.add_argument("--verifier")
+    ap.add_argument("--document", nargs=3, metavar=("APP_ID", "INSTANCE_ID", "KEY_PROVIDER_ID"),
+                    help="dstack OS 0.6: MRCONFIGID is the hash of a document naming these (hexadecimal); "
+                         "--verifier is then a DstackDocumentVerifier")
     ap.add_argument("--accept-level", type=int, default=0, help="highest TCB status accepted (0: up to date)")
     a = ap.parse_args()
     if a.rpc and not (a.dcap and a.compose_hash):
@@ -102,8 +109,17 @@ def main():
         sys.exit("FAIL: verified report data differs")
     if out[4] > a.accept_level:
         sys.exit("FAIL: Intel's status of the platform is %d, above the accepted %d" % (out[4], a.accept_level))
-    # dstack writes 0x01 || compose hash into MRCONFIGID (our verifiers on chain read it there).
-    if out[OUT_BODY + 184:OUT_BODY + 232] != bytes([1]) + bytes.fromhex(a.compose_hash) + bytes(15):
+    if a.document:
+        # dstack OS 0.6 (format 3): 0x03 || sha256("dstack-mr-config-v3:" 0x00 document), the
+        # document being the canonical one DstackDocumentVerifier writes on chain.
+        app, instance, provider = (v.lower().removeprefix("0x") for v in a.document)
+        document = ('{"app_id":"%s","compose_hash":"%s","init_script_hashes":[],"instance_id":"%s",'
+                    '"key_provider":"kms","key_provider_id":"%s","version":3}' % (app, a.compose_hash, instance, provider))
+        expected = bytes([3]) + hashlib.sha256(b"dstack-mr-config-v3:\0" + document.encode()).digest() + bytes(15)
+    else:
+        # dstack OS 0.5 writes 0x01 || compose hash into MRCONFIGID (our verifiers on chain read it there).
+        expected = bytes([1]) + bytes.fromhex(a.compose_hash) + bytes(15)
+    if out[OUT_BODY + 184:OUT_BODY + 232] != expected:
         sys.exit("FAIL: MRCONFIGID does not name the program %s" % a.compose_hash)
     if ans.get("eventLog"):
         mr = bytes(48)
@@ -122,7 +138,12 @@ def main():
     if a.verifier:
         # codeOf(bytes) then isApprovedCode(bytes32), on the registry's own enrollment verifier.
         opad = b"\0" * ((32 - len(out) % 32) % 32)
-        code = eth_call(a.rpc, a.verifier, "0x" + CODE_OF + (32).to_bytes(32, "big").hex() + len(out).to_bytes(32, "big").hex() + (out + opad).hex())
+        code = eth_call(a.rpc, a.verifier, "0x" + (IMAGE_OF if a.document else CODE_OF) + (32).to_bytes(32, "big").hex() + len(out).to_bytes(32, "big").hex() + (out + opad).hex())
+        if a.document:
+            # The program: that image, the compose hash and the key provider.
+            kp = bytes.fromhex(provider)
+            code = eth_call(a.rpc, a.verifier, "0x" + PROGRAM_OF + code[2:] + a.compose_hash + (96).to_bytes(32, "big").hex()
+                            + len(kp).to_bytes(32, "big").hex() + (kp + b"\0" * ((32 - len(kp) % 32) % 32)).hex())
         if int(eth_call(a.rpc, a.verifier, "0x" + IS_APPROVED + code[2:]), 16) != 1:
             sys.exit("FAIL: the verifier %s does not approve this code (%s)" % (a.verifier, code))
         print("code: %s, system image and program, approved by %s" % (code, a.verifier))

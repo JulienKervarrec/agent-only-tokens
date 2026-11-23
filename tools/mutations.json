@@ -1066,5 +1066,41 @@
     "name": "any caller counts as a venue",
     "find": "venue = agentRegistry.isVenue(caller);",
     "replace": "venue = true;"
+  },
+  {
+    "file": "src/experimental/DstackDocumentVerifier.sol",
+    "name": "the image leaves out the owner fields and RTMR0 to RTMR2",
+    "find": "abi.encode(_hashBody(output, BEFORE, BEFORE_LENGTH), _hashBody(output, AFTER, AFTER_LENGTH))",
+    "replace": "abi.encode(_hashBody(output, BEFORE, BEFORE_LENGTH))"
+  },
+  {
+    "file": "src/experimental/DstackDocumentVerifier.sol",
+    "name": "the image leaves out attributes, features and MRTD",
+    "find": "abi.encode(_hashBody(output, BEFORE, BEFORE_LENGTH), _hashBody(output, AFTER, AFTER_LENGTH))",
+    "replace": "abi.encode(_hashBody(output, AFTER, AFTER_LENGTH))"
+  },
+  {
+    "file": "src/experimental/DstackDocumentVerifier.sol",
+    "name": "the program leaves out the key provider",
+    "find": "keccak256(abi.encode(image, composeHash, keccak256(keyProviderId)))",
+    "replace": "keccak256(abi.encode(image, composeHash))"
+  },
+  {
+    "file": "src/experimental/DstackDocumentVerifier.sol",
+    "name": "the program leaves out the compose hash",
+    "find": "keccak256(abi.encode(image, composeHash, keccak256(keyProviderId)))",
+    "replace": "keccak256(abi.encode(image, keccak256(keyProviderId)))"
+  },
+  {
+    "file": "src/experimental/DstackDocumentVerifier.sol",
+    "name": "the padding of MRCONFIGID is not compared",
+    "find": "field = new bytes(48);\n        for (uint256 i; i < 48; ++i) {",
+    "replace": "field = new bytes(48);\n        for (uint256 i; i < 33; ++i) {"
+  },
+  {
+    "file": "src/experimental/DstackDocumentVerifier.sol",
+    "name": "the format byte is not compared",
+    "find": "for (uint256 i; i < 48; ++i) {\n            field[i] = output[BODY + MR_CONFIG_ID + i];\n        }",
+    "replace": "for (uint256 i; i < 48; ++i) {\n            field[i] = output[BODY + MR_CONFIG_ID + i];\n        }\n        field[0] = 0x03;"
   }
 ]
