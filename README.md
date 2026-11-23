@@ -68,7 +68,7 @@ interface IAgentRegistry {
 | `src/AgentWrapped721.sol` | Wrapper that makes any existing ERC-721 agent-only | <!--f:lines.AgentWrapped721-->80<!--/f--> |
 | `src/AgentWrappedUniV3.sol` | Non-unwrappable wrapper for Uniswap V3 liquidity positions | <!--f:lines.AgentWrappedUniV3-->98<!--/f--> |
 | `src/AgentReputationBadge.sol` | Reputation badges: agent-only and soulbound (ERC-5192). An issuer offers, the agent claims; issuers post a refundable deposit and have a daily quota | <!--f:lines.AgentReputationBadge-->218<!--/f--> |
-| `examples/enclave-agent/` | The seven agent programs, with a local end-to-end test from the fourth on. The first six ran in real TDX machines; the quotes they produced and the record of each run are in the `run-*` folders: enrollment by hardware attestation, x402 payments, an on-chain spending limit, a model's answer checked before buying, a token bought from another agent, a journal bound to a quote. The seventh (the token as a pass, `sign-in-with-x`) ran on a local chain only. `manifest/` rebuilds the manifest dstack measures, so each program's compose hash can be recomputed | |
+| `examples/enclave-agent/` | The seven agent programs, with a local end-to-end test from the fourth on. All seven ran in real TDX machines; the quotes they produced and the record of each run are in the `run-*` folders: enrollment by hardware attestation, x402 payments, an on-chain spending limit, a model's answer checked before buying, a token bought from another agent, a journal bound to a quote. The seventh (the token as a pass, `sign-in-with-x`) ran on 23 November 2026, and once more on dstack OS 0.6.4. `manifest/` rebuilds the manifest dstack measures, so each program's compose hash can be recomputed | |
 | `.github/workflows/` | `test.yml`, on every push: tests, conformance suites, the local end-to-end runs of the agent programs, gas against `snapshots/Gas.json`, figures of this documentation, symbolic proofs, Slither. `nightly.yml`: the tests against Base Sepolia, the code at every recorded address, Intel's data on chain, and the system images against our quotes. `weekly.yml`: mutation testing, and the proofs against registries broken on purpose | |
 | `tools/` | `reproduce.sh` (every check in one command), `mutate.py` (mutation testing), `proofs.py` (proofs against broken registries), `conformance.py` (conformance suites against faulty versions), `figures.py` (figures quoted in the documentation), `deployments.py` (addresses), `datasets.py` (recorded data), `slither_check.py` (Slither against the accepted findings), `collateral.py` (Intel's data on chain), `dstack_image.py` (system images against quotes), `verify_journal.py` (an agent's journal against its quote), `erc_package.py` and `monitor_page.py` | |
 | `deployments/base-sepolia.json` | Every contract deployed for the tests on Base Sepolia: address, role, block, code hash, the commit that compiles to it and its Sourcify result | |
@@ -309,9 +309,9 @@ with the reason for each (`tools/slither-accepted.json`, <!--f:slither.accepted-
 also matched `AttestedAgentRegistry.sol` and hid every finding in the
 registry; the filter is now `/test/`.
 
-**The deployed code can be read.** <!--f:deployed-->85<!--/f--> contracts were deployed on Base Sepolia
+**The deployed code can be read.** <!--f:deployed-->87<!--/f--> contracts were deployed on Base Sepolia
 for the tests. <!--f:deployed.clones-->23<!--/f--> are agent accounts, clones of an implementation;
-<!--f:deployed.verified-->62<!--/f--> of the others are verified on [Sourcify](https://sourcify.dev): <!--f:deployed.exact-->59<!--/f--> match
+<!--f:deployed.verified-->64<!--/f--> of the others are verified on [Sourcify](https://sourcify.dev): <!--f:deployed.exact-->61<!--/f--> match
 their source exactly, <!--f:deployed.match-->3<!--/f--> match on code only (their sources differed by
 comments). `deployments/base-sepolia.json` names, for each one, the commit of
 this repository that compiles to it. Example: the
@@ -438,7 +438,11 @@ checks the signature through ERC-1271 and reads on chain that the account
 holds a token. On a local chain: the agent pays, buys a token from another
 agent, then signs in and pays no more; the reference implementation of the
 extension accepts every sign-in; a replay, an agent without a token and a
-plain key are refused. Not run on a real machine. Section 3.45 of the study.
+plain key are refused. On a real machine on Base Sepolia, 23 November 2026:
+the enrolled agent signed in twice and paid nothing; a replay and a plain key
+were refused. An independent review then found that one malformed request
+stopped the agent, and the holder-only service too; corrected, with the
+lesser points it raised, and tested. Section 3.45 of the study.
 
 ## Gas
 
