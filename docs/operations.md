@@ -34,6 +34,11 @@ for the notice delay, visible to all in the meantime.
 - **The nightly checks** (`nightly.yml`) compare the code at every recorded
   address with the deployments file, and run the tests against Base Sepolia.
 - **Intel's security level**: see the procedure of study section 3.23.
+- **Look at the nightly result every day** (the badge at the top of the
+  README). In November 2026 it failed three nights before anyone looked,
+  while a registry could enroll no key (incident 6).
+- **If a registry uses a zk verifier**: the security advisories of its proof
+  system, and whether its on-chain verifier is still running.
 
 ## Incidents
 
@@ -66,6 +71,18 @@ allowances, and everyone can stop relying on the registry, before anything
 takes effect. Tokens cannot leave the registry's agents: a token's registry
 never changes. Nothing on chain stops a quorum; choose the attesters and the
 delay accordingly.
+
+**6. The proof system behind a zk verifier is found unsound, or is stopped.**
+While a soundness defect is known and the vendor's verifier still runs, a
+forged proof can enroll anyone: the attesters halt enrollments at once, then
+announce the direct verifier. Once the vendor has stopped its verifier, no
+proof is recorded any more, forged or not: enrollments and renewals are
+frozen until another verifier takes over, so announce the direct one without
+waiting. Then check that nobody was enrolled through the defective verifier
+(the registry's balance against the bonds of the agents you know, their keys
+and nonces), and revoke any such agent. This happened on 19 November 2026
+(study, section 3.28): the stop came the day our registry switched, the
+return was announced four days later, and nobody else had been enrolled.
 
 ## Attester keys
 
