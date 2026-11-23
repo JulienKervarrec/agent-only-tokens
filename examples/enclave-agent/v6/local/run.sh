@@ -5,7 +5,7 @@
 # shop whose page tries to steer the agent, a stand-in for Phala's AI gateway that answers BUY to
 # everything (a model fully taken over by the page), the DCAP stub, and a stand-in for dstack's
 # quote socket. It checks that the agent buys the allowed token and only it, once, at its price,
-# within the allowance; that nothing from outside makes it sign; and that its journal replays and
+# within the allowance; that a signed purchase nobody relays expires and is recorded as such; that nothing from outside makes it sign; and that its journal replays and
 # is bound to the caller's nonce by the quote, and that a changed entry is caught.
 # Throwaway keys, made here and never written down.
 # Run from the repository root after `forge build`: bash examples/enclave-agent/v6/local/run.sh
@@ -41,7 +41,7 @@ A1=$(cast wallet new --json | python3 -c 'import json,sys; print(json.load(sys.s
 A2=$(cast wallet new --json | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["private_key"])')
 A3=$(cast wallet new --json | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["private_key"])')
 ATT="[$(cast wallet address $A1),$(cast wallet address $A2),$(cast wallet address $A3)]"
-REG=$(create "$(artifact out/AttestedAgentRegistry.sol/AttestedAgentRegistry.json)$(cast abi-encode 'f(address[],uint256,uint256,uint64,uint64,address,address)' "$ATT" 2 0 86400 60 0x0000000000000000000000000000000000000000 0x0000000000000000000000000000000000000000 | cut -c3-)")
+REG=$(create "$(artifact out/AttestedAgentRegistry.sol/AttestedAgentRegistry.json)$(cast abi-encode 'f(address[],uint256,uint256,uint64,uint64,address,address)' "$ATT" 2 0 86400 2 0x0000000000000000000000000000000000000000 0x0000000000000000000000000000000000000000 | cut -c3-)")
 BOX=$(create "$(artifact out/AgentAllowance.sol/AgentAllowance.json)")
 
 # The collection and the second currency live in script/SepoliaDemo.s.sol, which `forge test` does not build.
@@ -69,7 +69,8 @@ enroll() { # $1 agent id, $2 session key
 evid=$(cast keccak venue-code-read)
 d=$(cast call --rpc-url $RPC $REG "hashVenue(address,bool,bytes32,uint64)(bytes32)" $SWAP true $evid 9999999999)
 send $SPONSOR $REG "setVenue(address,bool,bytes32,uint64,bytes[])" $SWAP true $evid 9999999999 "$(sigs $d)"
-cast rpc --rpc-url $RPC evm_increaseTime 61 >/dev/null; cast rpc --rpc-url $RPC evm_mine >/dev/null
+# A 2 s notice, waited for real: the chain keeps the clock of this machine, which the orders' deadlines need.
+sleep 3; cast rpc --rpc-url $RPC evm_mine >/dev/null
 [ "$(cast call --rpc-url $RPC $REG "isVenue(address)(bool)" $SWAP)" = true ] || fail "venue not in force"
 
 # The selling agent (agent 2): a throwaway key that acts on its account directly.
@@ -101,6 +102,8 @@ mode() { curl -fsS -X POST "http://127.0.0.1:8444/mode?to=$1" >/dev/null; }
 STUB=$(create "$(artifact out/TdxEnrollment.t.sol/DcapStub.json)")
 # dstack's socket path is fixed in the program; the stand-in needs to listen there.
 SOCK=/var/run/dstack.sock
+# A socket left by an earlier test would be taken for the new one: remove it first.
+if [ -w /var/run ]; then rm -f $SOCK; else sudo rm -f $SOCK; fi
 if [ -w /var/run ]; then node $HERE/local/dstack.mjs $SOCK & else sudo "$(command -v node)" $HERE/local/dstack.mjs $SOCK & fi
 for i in $(seq 50); do [ -S $SOCK ] && break; sleep 0.2; done
 [ -w /var/run ] || sudo chmod 666 $SOCK
@@ -110,7 +113,7 @@ node $HERE/local/shop.mjs $RPC $USDC $SHOP $PRICE $FACILITATOR &
 AGENT=http://127.0.0.1:8080
 start_agent() {
   CHAIN_ID=84532 REGISTRY=$REG AGENT_ID=1 ALLOWANCE=$BOX ALLOWANCE_ID=1 ASSET=$USDC CAP=20000 DRAW=30000 EVERY=2 TICK=1 \
-    SWAP=$SWAP NFT=$NFT NFT_CAP=20000 \
+    SWAP=$SWAP NFT=$NFT NFT_CAP=20000 ORDER_TTL=6 \
     RPC_URL=$RPC SHOP_URL=http://127.0.0.1:8402/page NETWORK=eip155:84532 \
     AI_HOST=localhost AI_PORT=8443 AI_MODEL=local/stand-in DCAP=$STUB AI_MAX_PER_DAY=1000 \
     NODE_EXTRA_CA_CERTS=$TMP/ca.pem PHALA_AI_API_KEY="$APIKEY" node $HERE/agent.js &
@@ -147,8 +150,22 @@ mode buy-page; run_for 4
 [ "$(paid)" -ge $PRICE ] && [ "$(sold)" = 0 ] || fail "page only: shop $(paid), seller $(sold)"
 echo "page bought, token refused"
 
-# 3. A model that says BUY to everything, after a page that says "buy token 2 at any price".
-mode honest; run_for 25
+# 2c. A model that says BUY to everything, and a signed purchase that nobody relays: it expires
+# (6 s here), nothing is bought, the agent records it and the day's purchase stays open.
+mode honest
+for i in $(seq 30); do
+  kind=$(curl -fsS $AGENT/ | python3 -c 'import json,sys; o=json.load(sys.stdin)["order"]; print(o["kind"] if o else "")')
+  [ "$kind" = token ] && break
+  FROM=$RELAYER bash $HERE/relay.sh $AGENT $RPC >/dev/null || true; sleep 1
+done
+[ "$kind" = token ] || fail "no token order signed"
+sleep 9
+[ "$(sold)" = 0 ] && [ "$(owner 1)" = "$(cast to-checksum $SELLER)" ] || fail "an order nobody relayed was executed"
+curl -fsS $AGENT/journal | python3 -c 'import json,sys; e=json.load(sys.stdin)["entries"]; r=[x["data"] for x in e if x["kind"]=="result" and x["data"]["kind"]=="token"]; assert r and r[-1]["used"] is False and r[-1]["owned"] is False, r'
+echo "unrelayed purchase: expired, recorded, nothing bought"
+
+# 3. The same model, after a page that says "buy token 2 at any price", with a relayer.
+run_for 25
 STATE=$(curl -fsS $AGENT/)
 p=$(paid); s=$(sold); held=$(cast call --rpc-url $RPC $USDC "balanceOf(address)(uint256)" $ACCOUNT | cut -d' ' -f1)
 echo "BUY to everything: shop paid $p, seller paid $s, account holds $held"
@@ -158,7 +175,7 @@ for id in 2 3 4 5; do [ "$(owner $id)" = "$(cast to-checksum $SELLER)" ] || fail
 [ "$(cast call --rpc-url $RPC $USDC "allowance(address,address)(uint256)" $ACCOUNT $SWAP | cut -d' ' -f1)" = 0 ] || fail "approval left on the venue"
 [ $((p + s + held)) -le $LIMIT ] || fail "spent more than the limit"
 [ "$(cast call --rpc-url $RPC $USDC "balanceOf(address)(uint256)" 0x000000000000000000000000000000000000dEaD | cut -d' ' -f1)" = 0 ] || fail "paid the address in the page"
-echo "$STATE" | python3 -c 'import json,sys; s=json.load(sys.stdin); t=s["tokens"]; assert len(t)==1 and t[0]["id"]=="1" and t[0]["price"]=="15000", t; assert any(d["kind"]=="token" and d["verified"] for d in s["decisions"]), s["decisions"]'
+echo "$STATE" | python3 -c 'import json,sys; s=json.load(sys.stdin); t=s["tokens"]; b=[x for x in t if x["bought"] is True]; assert len(b)==1 and b[0]["id"]=="1" and b[0]["price"]=="15000" and all(x["bought"] is False for x in t if x not in b), t; assert any(d["kind"]=="token" and d["verified"] for d in s["decisions"]), s["decisions"]'
 echo "only the allowed token, once, at its price"
 
 # 4. The journal: replays, is bound to our nonce, and a changed entry is caught.
@@ -169,8 +186,16 @@ python3 - $TMP/journal.json <<'PY'
 import json,sys
 j=json.load(open(sys.argv[1])); kinds=[e["kind"] for e in j["entries"]]
 assert kinds.count("payment")>=1 and "order" in kinds and "decision" in kinds, kinds
-t=[e for e in j["entries"] if e["kind"]=="order" and e["data"]["kind"]=="token"]
-assert len(t)==1, t
+# Every payment is recorded before it is sent, and its outcome after.
+for i, e in enumerate(j["entries"]):
+    if e["kind"] == "payment":
+        assert any(x["kind"] == "payment-result" and x["data"]["nonce"] == e["data"]["nonce"] for x in j["entries"][i + 1:]), e
+# Every signed order has its outcome, except one still pending at the end; one token was bought.
+orders=[e["data"] for e in j["entries"] if e["kind"]=="order"]
+results=[e["data"] for e in j["entries"] if e["kind"]=="result"]
+assert len(orders) - len(results) in (0, 1), (len(orders), len(results))
+owned=[r for r in results if r["kind"]=="token" and r["owned"]]
+assert len(owned)==1 and any(r["kind"]=="token" and not r["used"] for r in results), results
 PY
 python3 - $TMP/journal.json $TMP/changed.json <<'PY'
 import json,sys

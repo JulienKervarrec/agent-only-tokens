@@ -563,7 +563,7 @@ The token asks the registry only two questions: `isAgent(address)` and
 
 <!--f:tests-->369<!--/f--> tests on a local simulated EVM, <!--f:tests.fuzz-->9<!--/f--> of them fuzzed and one a
 stateful invariant test, plus <!--f:proofs-->13<!--/f--> properties proved symbolically
-(sections 2.5 and 3.17). <!--f:tests.fork-->31<!--/f--> more tests run only on a fork of Base Sepolia
+(sections 2.5 and 3.17). <!--f:tests.fork-->36<!--/f--> more tests run only on a fork of Base Sepolia
 (sections 3.12 and 3.19) and are reported as skipped otherwise.
 
 | Scenario | Result |
@@ -1842,6 +1842,19 @@ the root file system against its hash.
 - **The review of the image is a reading, not an audit**: the programs that
   run were listed and searched, not read line by line.
 
+**A second image (added on 23 November 2026).** From the fifth program on, Phala Cloud no longer
+offered dstack OS 0.5.12, and the machines of sections 3.42 and 3.43 ran 0.5.15. The nightly job
+compared every archived quote with the 0.5.12 image only, so it failed from 20 November on, and
+nobody looked: the three quotes of those sections had been accepted by verifiers built from the
+quotes themselves, without the comparison of this section. Done since: the archive
+`dstack-0.5.15.tar.gz` of the meta-dstack release v0.5.15 (SHA-256 `6f74f48f…3a52`, commit
+`ee82bd6`, OS image hash `4597735f…43ca`) gives the MRTD, RTMR1 and RTMR2 of those three quotes;
+its root file system has the hash of its command line (`veritysetup verify`); and the same
+reading finds the same closed image (no SSH or Telnet server, no `getty`, root locked, the same
+services as 0.5.12). `tools/dstack_image.py` now takes several images, each quote must equal one
+of them on the three registers, and the nightly job checks both. The fourth program's quotes are
+on 0.5.12. What was not done for 0.5.12 was not done for 0.5.15 either.
+
 ### 3.21 A pre-launch script of our own
 
 Done on 17 November 2026. Until then, the 406 lines of the provider's
@@ -2186,7 +2199,7 @@ hour would expire every proof before it is ready.
 
 **Tested** on a fork of Base Sepolia
 ([`ZkSwitchBaseSepolia.t.sol`](../test/fork/ZkSwitchBaseSepolia.t.sol), 6
-tests): the announcement and the zk verifier's settings; the direct verifier
+tests at the time): the announcement and the zk verifier's settings; the direct verifier
 stays during the notice; after it, the zk verifier is in force and the account
 unchanged; the agent's recorded proof renews its key after the notice, on
 the same account; an enrollment approved only by the direct verifier is then refused,
@@ -2210,6 +2223,37 @@ of gas price. The proof costs more than it saves below about 0.16 gwei: on Base
 today, about 25 times more. The zk route is worth it where gas is dear, or once
 proving is cheaper (a GPU or a proving network, not tried); on Base, the direct
 route stays the default.
+
+**Sixteen hours later, the proof system was stopped (added on 23 November 2026).** On
+19 November 2026 at 22:07:40 UTC (Base Sepolia block 61,020,957), RISC Zero emergency-stopped its
+3.0.0 Groth16 verifier, the one Automata's program and our two proofs go through, after a
+soundness defect in its Groth16 verification, fixed in release 3.1.0 (RISC Zero's own advisory
+was not read here: project pages cite it under two identifiers, `GHSA-mm6c-35cm-g4x2` and
+`GHSA-g6qg-9j8p-7j87`, and report that the 3.0 crates were withdrawn that day). The stop is permanent. Read on chain on 23 November:
+the router still sends the selector `0x73c457ba` to that verifier, `paused()` is true, and a
+corrected verifier (3.1.0, selector `0xe71e6620`) is routed beside it.
+
+| What | Found |
+| --- | --- |
+| Our zk verifier (`0x0067…9bF9`) | Records no new proof: `attestWithProof` reverts with `EnforcedPause()`. What it had recorded stays approved |
+| The registry of section 3.21 | From the stop on, no key could be enrolled or renewed: the same freeze as expired Intel data (section 3.23), from a third party we had not listed |
+| The 16 hours when a defective verifier decided who is an agent | Nobody else was enrolled: the registry holds exactly one bond, and agent 1 still has the key and the nonce (3) of our own renewal. A forged proof would also have needed Automata's program to output approved code |
+| Our nightly tests | Failed from 20 November on; seen on 23 November only |
+| Response, 23 November ([tx](https://sepolia.basescan.org/tx/0xab41416f671a18c18da1b2f2358e9c86bc7622385bb8622ce4a97cf49dad4deb)) | Two attesters announced the return to the direct verifier (`0x120D…3A74`), 63,738 gas; in force after the 24-hour notice, on 24 November. The agent keeps its account |
+
+The fork tests of the switch now run on the chain as it was half an hour before the stop (block
+61,020,000), and three more show the state of today: the same proofs refused, nobody else
+enrolled, and the direct verifier back after its notice
+([`ZkSwitchBaseSepolia.t.sol`](../test/fork/ZkSwitchBaseSepolia.t.sol), 9 tests;
+[`ZkRealProofBaseSepolia.t.sol`](../test/fork/ZkRealProofBaseSepolia.t.sol), 6 tests).
+
+**What it teaches.** A zk verifier adds a party that can both freeze enrollments (a stop) and,
+worse, let anyone in (a soundness defect, while unnoticed). The notice delay does not help: the
+defect is in code already approved. A registry that uses a proof system should keep the direct
+verifier ready, watch the proof system's advisories, and halt at once on a soundness advisory
+(`haltEnrollments` is immediate) rather than wait for the vendor's stop. To use the zk route
+again, a new proof made with the corrected prover and Automata's program built for it are needed;
+not done.
 
 ### 3.29 A conformance suite for the draft
 
@@ -2663,7 +2707,8 @@ as untrusted data.
 **A journal.** Each decision (hashes of the exact question and answer, receipt id), payment and
 signed order goes into a hash chain kept in memory. A quote binds its head, its length and the
 caller's nonce (`tools/verify_journal.py` checks all of it, including Intel's check through
-Automata and the program named in MRCONFIGID). dstack's `EmitEvent`, which extended RTMR3, was
+Automata, the program named in MRCONFIGID and, with `--verifier`, that the whole measured code,
+system image included, is one the registry's enrollment verifier approves). dstack's `EmitEvent`, which extended RTMR3, was
 removed in July 2026 (dstack PR 768) because other TEEs cannot do the same; a quote over the head
 works on any TEE that gives quotes with report data.
 
@@ -2686,6 +2731,92 @@ may buy one more token that day; the allowance still bounds the spending. A quot
 program stated when it answered, not what happened before its last start. The listing scan reads
 the 20 newest ids of a collection that exposes `lastId()`. Each relayed order costs the relayer
 gas, not the agent.
+
+**After the review of 23 November 2026** (section 3.44), the program in `v6/` differs from the
+two that ran (kept as compose files in the run's folder): every read from outside has a time
+limit; a payment is recorded before its signature leaves the machine, and its outcome after; the
+outcome of each signed order is recorded (used, or expired unused), and a purchase that nobody
+relayed leaves the day's purchase open instead of counting as made; the program stops before the
+journal is full, not after. The local test covers the unrelayed purchase. Not run again on a real
+machine.
+
+### 3.44 A review four days later
+
+On 23 November 2026 the whole repository was checked again: every check of
+`tools/reproduce.sh`, the nightly and weekly jobs, the mutation tests, the recorded addresses on
+chain, and a re-reading of the newest code.
+
+| Found | Cause | Done |
+| --- | --- | --- |
+| The nightly job had failed three nights in a row, unseen | Two unrelated causes, below | Status badges at the top of the README; both causes fixed |
+| The citation file named version 0.5.0 after 0.5.1 was released | Not updated at release | Updated |
+| Quotes of sections 3.42 and 3.43 compared with the wrong system image | Phala Cloud moved from dstack OS 0.5.12 to 0.5.15; the job knew one image | The 0.5.15 image checked like the first (section 3.20); the job checks both |
+| Fork tests of the zk route failing | RISC Zero stopped its 3.0.0 verifier (section 3.28) | Tests pinned before the stop, new tests of today's state, the live registry returned to the direct verifier |
+| A payment could be signed and sent without a journal entry if the shop's answer was lost | The entry was written after the answer | Written before the signature leaves; outcome written after |
+| A purchase signed but never relayed counted as the day's purchase, and was listed as a token bought | The state was set at signing | Outcome read from the chain and recorded; the day's purchase stays open |
+| A node or a shop that never answers stopped the agent's loop for good | No time limit on those reads | 20 seconds |
+| `verify_journal.py` checked the program, not the system under it | Only MRCONFIGID was read | `--verifier` checks the whole measured code against the registry's verifier; a platform not up to date is refused by default |
+| The local test of the sixth program moved the chain's clock ahead of the machine's | It skipped a 60-second notice | A 2-second notice, waited for real: order deadlines depend on both clocks agreeing |
+
+Unchanged and passing: unit, fuzz and invariant tests, symbolic proofs, conformance suites, the
+ERC text's reference code, the four local end-to-end runs, the incident drill, the mutation tests
+(<!--f:mutants-->347<!--/f--> mutants, all caught but the <!--f:mutants.accepted-->1<!--/f--> accepted), and the code at the <!--f:deployed-->85<!--/f--> recorded addresses. Intel's data
+on chain still expires on 30 November 2026 at 20:30 UTC; Automata had not renewed it on 23
+November.
+### 3.45 The token as a pass
+
+Done on 23 November 2026, the first item of phase 5 of the plan: a service that is free for the
+agent whose account holds a token of a given collection. The token becomes a subscription that
+only agents can hold, and that changes hands on the sale venue like any other agent-only token.
+
+**How the shop knows.** x402 has an extension for this, `sign-in-with-x` (CAIP-122; on EVM an
+EIP-4361 "Sign-In with Ethereum" message). Its 402 answer carries a challenge (domain, URI, nonce,
+dates, an optional statement); the client signs the message and sends it back in a
+`SIGN-IN-WITH-X` header; for an account that is a contract, the server checks the signature on
+chain through ERC-1271. Read in the documentation and in the reference package
+(`@x402/extensions` 2.31.0), whose wire format we follow. The shop then reads on chain whether the
+account holds a token (`balanceOf`), at every request: nothing is remembered, so a token sold is
+a pass lost at once, and the buyer has it at once.
+
+**What the agent signs** ([`v7/agent.js`](../examples/enclave-agent/v7/agent.js), the sixth
+program plus this). Still nothing on request: the sign-in comes from its own loop, when its
+account holds a token and the shop of its settings offers the extension. It writes the message
+itself. From the shop it takes only a nonce (8 to 64 letters and digits) and two dates (issued
+within five minutes of its clock, expiring within the hour). It refuses a challenge for another
+domain or origin than its shop's, with a statement other than the one in its measured settings,
+without an expiry, or with fields it does not check. The signature is a message of its account
+(`AgentMessage`, as for payments), never a bare hash, and moves nothing. Each sign-in is in the
+journal before it is sent, and its outcome after. A refused sign-in is not retried before a
+normal, paid, visit.
+
+**Tested** on a local chain ([`v7/local/run.sh`](../examples/enclave-agent/v7/local/run.sh)):
+
+| Situation | Result |
+| --- | --- |
+| The agent holds no token | It pays the page, by x402, to the account of another agent (the page's seller is an agent account) |
+| It buys token 1 from a third agent on the venue | From then on it signs in, is served for free, and pays no more |
+| Each of its sign-ins, given to the reference implementation (`@x402/extensions`, viem, ERC-1271 on the chain) | Accepted, payer equal to the agent's account ([`siwx-verify.mjs`](../examples/x402/siwx-verify.mjs)) |
+| The same header sent again | Refused: nonce already used |
+| Another agent, whose account holds tokens, signs in | Served |
+| An agent whose account holds none, and a plain key | Refused: they hold no token (and a plain key can never hold one) |
+| Challenge for another site, with another statement, or without expiry | Not signed; the agent pays instead |
+| Requests from outside (`/signin`, `/login`, `/sign`, …) | Refused |
+
+**The other items of that phase, read and not built.** An agent that sells: here an agent's
+account receives the x402 payments, but the shop is a test program, not a program in a
+confidential machine. Paying for what was used: x402 documents four schemes (`exact`, the one we
+use; `upto`, where the buyer authorizes a maximum and the seller settles the real amount, on EVM
+through Permit2; `batch-settlement`; `auth-capture`). Only the overview and the general `upto`
+text were read, not their EVM parts: nothing is claimed about them.
+
+**Limits.** Not run on a real machine or on Base Sepolia; a holder-only service without
+dependency (`v7/shop.js`) and a compose file that runs it beside the agent are ready for that
+run, and pass the local test. The local shop is a stand-in; its check is
+ours, and the reference implementation is asked to agree only when it is installed (it is in the
+automatic tests). A pass is checked when the page is asked for, not while it is read. Whoever
+holds the session key can sign in as the agent for as long as a challenge lives, like every
+other use of that key. The shop learns the agent's account at each visit.
+
 
 ## 4. Use cases
 
@@ -2851,6 +2982,9 @@ Options studied and set aside:
   code must only quote enrollment digests of keys it created. The dstack
   verifier trusts that no application code runs before `boot-mr-done`. An
   application that logs more than 64 events cannot enroll.
+- **A zk route adds a third party that can freeze enrollments or let anyone in.** It happened
+  within a day of our switch (section 3.28): the vendor stopped its verifier after a soundness
+  defect. Our response took four days because nobody was watching the nightly job.
 - **Mutation testing** shows that a removed check is noticed. It does not
   show that the checks present are the right ones, nor that none is missing
   (section 2.7).
@@ -2891,10 +3025,16 @@ Options studied and set aside:
    (section 3.25), verifier (section 3.26) and a real proof of our own quote,
    accepted on a fork of Base Sepolia for 750,404 gas instead of 3.7 million
    (section 3.27), then a live registry switched to the zk verifier and its
-   agent's key renewed through it on 19 November 2026 (section 3.28). Next:
-   making a fresh proof cheaply for each enrollment; on Base, the direct route
-   stays cheaper (step 2.4).
-5. Publication of the idea on [Ethereum Magicians](https://ethereum-magicians.org/),
+   agent's key renewed through it on 19 November 2026 (section 3.28). The
+   proof system's verifier was stopped by its vendor the same evening, and
+   the registry returned to the direct route on 24 November. Next, if the zk
+   route is wanted again: a proof made with the corrected prover; on Base, the
+   direct route stays cheaper (step 2.4).
+5. Done on 23 November 2026: the token as a pass, with x402's sign-in
+   extension (section 3.45), on a local chain; and the brief an external
+   auditor would receive ([`audit-brief.md`](audit-brief.md)), sent to nobody.
+   Next: the seventh program on a real machine, then the choice of an audit.
+6. Publication of the idea on [Ethereum Magicians](https://ethereum-magicians.org/),
    then a pull request to [ethereum/ERCs](https://github.com/ethereum/ERCs)
    once a second implementation passes the same tests.
 
@@ -2956,6 +3096,9 @@ unless stated otherwise.
 | USDC checks a contract payer's ERC-1271 signature with a read-only call, so the payer cannot count its own spending at that moment | Confirmed on 18 November 2026 by test against the compiled source (`test/X402Static.t.sol`, section 3.30) | [circlefin/stablecoin-evm](https://github.com/circlefin/stablecoin-evm) |
 | An agent in a confidential machine keeps to an on-chain daily limit, across a restart with a new key | Confirmed on 19 November 2026 on Base Sepolia: two draw orders signed by the agent, five settled x402 purchases, limit unchanged after the restart, a further draw refused (`OverLimit`) (section 3.31) | [run-2026-11-19-v4](../examples/enclave-agent/run-2026-11-19-v4/README.md) |
 | An agent in a confidential machine buys only on a model's answer it verified (gateway quote, pinned TLS, signed receipt) | Confirmed on 19 November 2026 on Base Sepolia: three verified answers (`SKIP`, `BUY`, `SKIP`), one settled purchase (section 3.42) | [run-2026-11-19-v5](../examples/enclave-agent/run-2026-11-19-v5/README.md) |
+| RISC Zero stopped the 3.0.0 verifier our proofs used, on Base Sepolia, on 19 November 2026 at 22:07:40 UTC | Confirmed on 23 November 2026 on chain: the router's verifier for selector `0x73c457ba` (`0x724d…7797`, version 3.0.0) answers `paused()` true from block 61,020,957, set by a call to `estop()` from its owner; the verifier for `0xe71e6620` (3.1.0) is not stopped. The reason (a soundness defect fixed in 3.1.0) was read in other projects' pages, not in RISC Zero's own advisory | [risc0-ethereum #748](https://github.com/risc0/risc0-ethereum/pull/748), [lez-atomic-swaps #184](https://github.com/gateway-fm/lez-atomic-swaps/issues/184), `test/fork/ZkRoutesBaseSepolia.t.sol` |
+| Nobody was enrolled through our zk verifier but our own agent | Confirmed on 23 November 2026 on chain: the registry's balance equals one bond; `keyOf(1)` and `enrollmentNonce(1)` are those of our renewal | `test/fork/ZkSwitchBaseSepolia.t.sol` |
+| The machines of sections 3.42 and 3.43 ran the dstack OS 0.5.15 image as published | Confirmed on 23 November 2026: MRTD, RTMR1 and RTMR2 of the three quotes recomputed from the release archive (SHA-256 `6f74f48f…3a52`); root file system verified against its hash | `tools/dstack_image.py`, nightly job |
 | Every contract cited in this document is at its address on Base Sepolia, with the code recorded | Confirmed on 17 November 2026 for the <!--f:deployed-->85<!--/f--> contracts of `deployments/base-sepolia.json` and the 3 external ones (code hash read on chain); checked again every night | `tools/deployments.py` |
 
 ## 10. Sources

@@ -8,6 +8,13 @@ import {DstackConfigIdZkVerifier, IRiscZeroVerifier} from "../../src/experimenta
 /// The switch of step 2.3, on a fork of Base Sepolia: the registry of section 3.21 moves from
 /// direct verification to the zk verifier through its replacement rule, announced by two
 /// attesters on 18 November 2026. Skipped unless BASE_SEPOLIA_RPC is set.
+///
+/// The switch took effect on 19 November 2026 at 06:21 UTC. At 22:07:40 UTC the same day (block
+/// 61020957) RISC Zero emergency-stopped the 3.0.0 verifier our zk verifier relies on, after a
+/// soundness defect fixed in release 3.1.0: since then it can record no proof, so the registry could enroll or
+/// renew no key. On 23 November 2026 two attesters announced the return to the direct verifier,
+/// in force 24 hours later. The tests of the switch run on the chain as it was just before the
+/// stop; the last three show the stop, that nobody else was enrolled meanwhile, and the return.
 contract ZkSwitchBaseSepoliaTest is Test {
     AttestedAgentRegistry constant REG = AttestedAgentRegistry(payable(0xE78420EDf016b1249F2F8664ab172240C43BaD52));
     address constant OLD = 0x120D6d17c744900e94Ef59Fa6123Ac29e82D3A74;
@@ -21,14 +28,19 @@ contract ZkSwitchBaseSepoliaTest is Test {
     // The first enrollment of section 3.21, whose quote our real proof covers.
     address constant FIRST_KEY = 0x808EF3634f4DF8E607f931ef00b0069aF5Acf43A;
     uint64 constant FIRST_DEADLINE = 1794928632;
+    uint256 constant BEFORE_STOP = 61_020_000; // 19 November 2026, about half an hour before the stop
+    bytes4 constant STOPPED = 0xd93c0665; // EnforcedPause(), from RISC Zero's emergency stop
+    uint64 constant RETURNS = 1795516169; // when the direct verifier is in force again
+
+    string rpc;
 
     bool forked;
     address sponsor; // read from the registry: the sponsor of agent 1
 
     function setUp() public {
-        string memory rpc = vm.envOr("BASE_SEPOLIA_RPC", string(""));
+        rpc = vm.envOr("BASE_SEPOLIA_RPC", string(""));
         if (bytes(rpc).length == 0) return;
-        vm.createSelectFork(rpc);
+        vm.createSelectFork(rpc, BEFORE_STOP);
         forked = true;
         sponsor = REG.sponsorOf(1);
     }
@@ -115,5 +127,46 @@ contract ZkSwitchBaseSepoliaTest is Test {
         assertTrue(ZK.attested(digest));
         assertEq(digest, REG.hashEnrollment(1, FIRST_KEY, COMPOSE, sponsor, 0, FIRST_DEADLINE));
         assertTrue(digest != REG.hashEnrollment(1, FIRST_KEY, COMPOSE, sponsor, REG.enrollmentNonce(1), FIRST_DEADLINE));
+    }
+
+    /// Today the zk verifier refuses the proof it took on 19 November: RISC Zero's verifier is stopped.
+    function test_SinceTheEmergencyStopTheZkVerifierRecordsNoProof() public {
+        vm.skip(!forked);
+        vm.createSelectFork(rpc);
+        bytes memory journal = vm.parseBytes(vm.readFile("test/fork/zk/switch-journal.hex"));
+        bytes memory seal = vm.parseBytes(vm.readFile("test/fork/zk/switch-seal.hex"));
+        vm.expectRevert(STOPPED);
+        ZK.attestWithProof(journal, seal);
+    }
+
+    /// While the defective verifier was in force (about 16 hours), nobody else was enrolled: the
+    /// registry holds one bond, and agent 1 still has the key and the nonce of our own renewal.
+    function test_NobodyElseWasEnrolledThroughTheStoppedVerifier() public {
+        vm.skip(!forked);
+        vm.createSelectFork(rpc);
+        assertEq(address(REG).balance, REG.bond());
+        assertEq(REG.keyOf(1), 0xEb12d2F5c023e149646542C223510C5d899A31f8);
+        assertEq(REG.enrollmentNonce(1), 3);
+    }
+
+    /// The return announced on 23 November 2026: the direct verifier is in force again after the
+    /// notice, with the same account, and a key it approves can be enrolled.
+    function test_TheDirectVerifierReturnsAfterTheNotice() public {
+        vm.skip(!forked);
+        vm.createSelectFork(rpc);
+        if (block.timestamp < RETURNS) {
+            assertEq(REG.announcedVerifier(), OLD);
+            assertEq(REG.announcedVerifierAt(), RETURNS);
+            vm.warp(RETURNS);
+        }
+        assertEq(REG.enrollmentVerifier(), OLD);
+        assertEq(REG.accountOf(1), ACCOUNT);
+        address key = makeAddr("key after the return");
+        uint64 deadline = uint64(block.timestamp) + 1 hours;
+        bytes32 digest = REG.hashEnrollment(1, key, COMPOSE, sponsor, REG.enrollmentNonce(1), deadline);
+        vm.store(OLD, keccak256(abi.encode(digest, uint256(0))), bytes32(uint256(1)));
+        vm.prank(sponsor);
+        REG.enroll(1, key, COMPOSE, deadline, new bytes[](0));
+        assertEq(REG.keyOf(1), key);
     }
 }

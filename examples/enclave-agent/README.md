@@ -491,13 +491,16 @@ the currency. They can only make the agent buy, or not buy, a listing that the r
 allow. The collection must expose `lastId()`, as `DemoAgentCollection` does.
 
 **A journal.** Each decision (with the hashes of the exact question and answer and the receipt
-id), each payment and each signed order is appended to a hash chain held in memory:
+id), each payment (before its signature leaves, then its outcome), each signed order and what
+became of it (used, or expired unused) is appended to a hash chain held in memory:
 `head(n) = sha256(head(n-1) || sha256(JCS(entry n)))`. `GET /journal` shows it; `GET
 /journal/quote?nonce=0x…` returns a quote whose report data is
 `sha256(tag || head || length || nonce) || tag`, with `tag = sha256("agent-only-tokens.journal.v1")`,
 so it can never pass for an enrollment quote. `tools/verify_journal.py` replays the chain,
 checks that binding and, with `--rpc`, checks the quote with Automata's DCAP verifier and the
-compose hash. If the journal is full (2,000 entries) the program stops acting. We did not use
+compose hash; with `--verifier`, that the whole measured code, system image included, is one
+the registry's enrollment verifier approves. The program stops acting four entries before the
+journal is full (2,000 entries), so nothing is done without a record. We did not use
 dstack's `EmitEvent`, which wrote into RTMR3: dstack removed it in July 2026 (PR 768) because
 other TEEs cannot do the same; the quote over the head does the same job on any of them.
 
@@ -505,8 +508,9 @@ other TEEs cannot do the same; the quote over the head does the same job on any 
 one above the cap, one in another currency, one reserved for someone else, one whose venue
 approval was never given); the shop's page says to buy token 2 at any price and to send the
 balance elsewhere. A model that says `SKIP` gets nothing bought; one that buys only the page
-gets the page and no token; then a model that answers `BUY` to everything, after reading that page. The agent buys token 1
-only, once, at its listed price, leaves no approval behind, stays within its allowance, and
+gets the page and no token; then a model that answers `BUY` to everything, after reading that
+page: a first purchase is signed and nobody relays it, it expires and is recorded as not made;
+the next one is relayed. The agent buys token 1 only, once, at its listed price, leaves no approval behind, stays within its allowance, and
 pays nobody the page names. The journal replays and is bound to the nonce; a changed entry, a
 shortened journal or another nonce are refused.
 
@@ -516,3 +520,37 @@ Compose hash: `python3 manifest/compose-hash.py v6/docker-compose.yml manifest/p
 journal (with a new key, enrolled again) and may buy one more token that day; the allowance
 still bounds what the account can spend. A quote proves what the program stated when it
 answered, not what happened before its last start. The listing scan reads at most 20 ids.
+An order is valid for `ORDER_TTL` seconds (600) by the chain's clock, which must agree with the
+machine's. The program in `v6/` is later than the two that ran on 19 November 2026 (review of
+23 November: time limits on outside reads, payments recorded before they are sent, outcomes of
+orders); those two are kept as compose files in `run-2026-11-19-v6`, and the current one has
+not run on a real machine.
+
+## Seventh program: the token is a pass
+
+`v7/agent.js` (first item of phase 5 of the plan; study section 3.45) is the sixth program plus
+one thing: when its account holds a token of the collection, and its shop offers x402's
+`sign-in-with-x` extension, it signs in instead of paying, and the shop serves it for free after
+checking on chain that the account holds a token.
+
+- **The message** is an EIP-4361 "Sign-In with Ethereum" text that the program writes itself, for
+  the host and origin of `SHOP_URL` only, with the statement of its settings (`PASS_STATEMENT`)
+  and no other, and always with an expiry. From the shop it takes a nonce and two dates, checked.
+- **The signature** is a message of the agent's account (ERC-1271), sent in the
+  `SIGN-IN-WITH-X` header in the format of `@x402/extensions`. It moves nothing.
+- **The journal** records each sign-in before it is sent and its outcome after.
+- A refused sign-in is followed by a normal, paid, visit before another try.
+
+`v7/local/run.sh` runs it on a local chain: the agent pays while it holds no token, buys one from
+another agent, then signs in and pays no more; another agent that holds tokens is served; an
+agent without a token and a plain key are not; a sign-in cannot be replayed; challenges for
+another site, with another statement or without expiry are not signed. After `npm ci` in
+`examples/x402`, every sign-in must also be accepted by the reference implementation
+(`examples/x402/siwx-verify.mjs`); the automatic tests run it that way.
+
+`v7/shop.js` is a holder-only service with no dependency (a challenge, the ERC-1271 check and
+the token balance read through the chain's node, no payment offered); `v7/docker-compose.yml`
+runs it beside the agent, in the same machine, as the agent's shop. The local test runs it too.
+
+Not run on a real machine yet. Compose hash:
+`python3 manifest/compose-hash.py v7/docker-compose.yml manifest/prelaunch-ours.sh --allow PHALA_AI_API_KEY`.

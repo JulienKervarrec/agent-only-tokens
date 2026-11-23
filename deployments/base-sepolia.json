@@ -641,7 +641,7 @@
     {
       "address": "0xE78420EDf016b1249F2F8664ab172240C43BaD52",
       "name": "AttestedAgentRegistry",
-      "role": "registry requiring that verifier",
+      "role": "registry of the third program started by our own pre-launch script: direct verifier 0x120D…3A74, then zk verifier 0x0067…9bF9 from 19 November 2026, then the direct verifier again from 24 November 2026 (announced on 23 November, after RISC Zero stopped its 3.0.0 verifier)",
       "run": "our own pre-launch script, 17 November 2026 (study 3.21)",
       "block": 59998605,
       "codeHash": "0xdc77874e50affee55de9c4f74bcc6775907cd94cc320d68cb0d90ff0d77f17cd",
@@ -669,7 +669,7 @@
     {
       "address": "0x00679dc263Cc311905F3814C485795C2A0A19bF9",
       "name": "DstackConfigIdZkVerifier",
-      "role": "zk verifier announced for registry 0xE784…aD52: same approved code, RISC Zero proofs of Automata's DCAP program, maximum proof age 3 hours",
+      "role": "zk verifier of registry 0xE784…aD52 from 19 to 24 November 2026: same approved code, RISC Zero proofs of Automata's DCAP program, maximum proof age 3 hours; records no proof since RISC Zero stopped its 3.0.0 verifier on 19 November 2026",
       "run": "switch to the zk verifier, 18 November 2026 (study 3.28)",
       "block": 60287218,
       "codeHash": "0xff5521408778b9d75fb8d4b21ee6a23c2cdead2dcca813af02c75c9c7b331138",

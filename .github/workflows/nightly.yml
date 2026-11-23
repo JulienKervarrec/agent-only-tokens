@@ -17,8 +17,8 @@ jobs:
     env:
       BASE_SEPOLIA_RPC: https://sepolia.base.org
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
       - run: npm ci
@@ -44,18 +44,25 @@ jobs:
     name: dstack image against our quotes
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      # The production image that ran our agents (dstack OS 0.5.12), as dstack published it.
-      - name: Download the image
+      - uses: actions/checkout@v5
+      # The production images that ran our agents (dstack OS 0.5.12, then 0.5.15 from the fifth
+      # program on), as dstack published them.
+      - name: Download the images
         run: |
-          curl -sSfL -o /tmp/dstack.tar.gz https://github.com/Dstack-TEE/meta-dstack/releases/download/v0.5.12/dstack-0.5.12.tar.gz
-          echo "e3037d99d99ec963bbe43929856c1e46e7197a1178da5867024c4b68064eb176  /tmp/dstack.tar.gz" | sha256sum -c
-          tar -xzf /tmp/dstack.tar.gz -C /tmp
-      - name: MRTD, RTMR1 and RTMR2 of every quote we archived
-        run: python3 tools/dstack_image.py /tmp/dstack-0.5.12 test/experimental/phala/quote*.hex examples/enclave-agent/run-*/quote*.hex
-      - name: The root file system matches the hash in the measured command line
+          fetch() {
+            curl -sSfL -o /tmp/dstack-$1.tar.gz https://github.com/Dstack-TEE/meta-dstack/releases/download/v$1/dstack-$1.tar.gz
+            echo "$2  /tmp/dstack-$1.tar.gz" | sha256sum -c
+            tar -xzf /tmp/dstack-$1.tar.gz -C /tmp
+          }
+          fetch 0.5.12 e3037d99d99ec963bbe43929856c1e46e7197a1178da5867024c4b68064eb176
+          fetch 0.5.15 6f74f48f6d7aaf6fd17b952cd556f6709a70a5eb5c36086e3478b9bafa723a52
+      - name: MRTD, RTMR1 and RTMR2 of every quote we archived equal one of the two images
+        run: python3 tools/dstack_image.py /tmp/dstack-0.5.12 /tmp/dstack-0.5.15 test/experimental/phala/quote*.hex examples/enclave-agent/run-*/quote*.hex
+      - name: Each root file system matches the hash in its measured command line
         run: |
           sudo apt-get install -y -qq cryptsetup-bin
-          hash=$(python3 -c "import json,re;print(re.search(r'dstack.rootfs_hash=(\w+)',json.load(open('/tmp/dstack-0.5.12/metadata.json'))['cmdline'])[1])")
-          size=$(python3 -c "import json,re;print(re.search(r'dstack.rootfs_size=(\d+)',json.load(open('/tmp/dstack-0.5.12/metadata.json'))['cmdline'])[1])")
-          veritysetup verify /tmp/dstack-0.5.12/rootfs.img.verity /tmp/dstack-0.5.12/rootfs.img.verity "$hash" --hash-offset="$size"
+          for v in 0.5.12 0.5.15; do
+            hash=$(python3 -c "import json,re,sys;print(re.search(r'dstack.rootfs_hash=(\w+)',json.load(open(sys.argv[1]))['cmdline'])[1])" /tmp/dstack-$v/metadata.json)
+            size=$(python3 -c "import json,re,sys;print(re.search(r'dstack.rootfs_size=(\d+)',json.load(open(sys.argv[1]))['cmdline'])[1])" /tmp/dstack-$v/metadata.json)
+            veritysetup verify /tmp/dstack-$v/rootfs.img.verity /tmp/dstack-$v/rootfs.img.verity "$hash" --hash-offset="$size"
+          done

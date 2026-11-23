@@ -205,6 +205,13 @@ at $1,810 (break-even g ≈ 0.86 / (3.0×10⁶ × 1,810 × 10⁻⁹)). At the 0.
 read on Base on 18 November 2026, the proof costs about 25 times what it
 saves; the route pays where gas is dear.
 
+It also adds a dependency. Sixteen hours after that registry's switch took
+effect, on 19 November 2026, RISC Zero stopped its 3.0.0 verifier for good
+after a soundness defect: our verifier could record no further proof, and the
+registry no key, until its attesters returned it to the direct route, which
+took the 24-hour notice (study, section 3.28). While such a defect is
+unknown, a forged proof could enroll anyone.
+
 ## 6. Bounding what a misled agent can spend
 
 Signing is not deciding. Our fourth agent program cannot be asked to sign: its
@@ -273,7 +280,9 @@ lifetime, and since an unrecognised holder's tokens do not move, every token
 of every collection using the registry stops, and a borrower who cannot repay
 loses its pledge. A halt by the attesters has the same effect. On Base
 mainnet, on 18 November 2026, the data that checks a TDX quoting enclave was
-missing or out of date (`QEIDVE`), so our quotes were refused there.
+missing or out of date (`QEIDVE`), so our quotes were refused there. A
+registry on the zero-knowledge route also rests on the proof system's
+verifier, which its vendor can stop: ours was, within a day (section 5).
 
 **What is not done.** Nothing has been audited by a person; everything ran on a
 test network; the language model behind an agent's decisions (three runs,

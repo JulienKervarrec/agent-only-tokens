@@ -20,6 +20,10 @@ interface IZkEntrypoint {
     function zkVerifier(uint8 zkCoProcessor) external view returns (address);
 }
 
+interface IEmergencyStop {
+    function paused() external view returns (bool);
+}
+
 /// Phase 2 feasibility: what a zero-knowledge enrollment could rely on, on Base Sepolia.
 /// Skipped unless BASE_SEPOLIA_RPC is set (see test/fork/zk/README.md for the proof's origin).
 contract ZkRoutesBaseSepoliaTest is Test {
@@ -73,5 +77,14 @@ contract ZkRoutesBaseSepoliaTest is Test {
             assertEq(AUTOMATA.programIdentifier(kind), bytes32(0));
             assertEq(AUTOMATA.zkVerifier(kind), address(0));
         }
+    }
+
+    /// Since 19 November 2026 the verifier Automata's proofs went through (3.0.0) is stopped for
+    /// good, and a corrected one (3.1.0, selector 0xe71e6620) is routed: the zk route of this
+    /// repository needs a new proof, made with the corrected prover, and a program built for it.
+    function test_TheCorrectedVerifierIsRoutedAndTheOldOneStopped() public {
+        vm.skip(!forked);
+        assertTrue(IEmergencyStop(RISC0_ROUTER.getVerifier(0x73c457ba)).paused());
+        assertFalse(IEmergencyStop(RISC0_ROUTER.getVerifier(0xe71e6620)).paused());
     }
 }
