@@ -5,6 +5,13 @@
 plan). Nothing has been submitted: that is step 4.6, and the decision to make
 the project public is Julien's.
 
+**Status after the review of 23 November 2026.** The proposal was written
+before that review and still speaks of "agents". The review concluded that the
+registry shows which program holds a key, not that an AI does
+([`../paper.md`](../paper.md), section 2), and that the part most worth
+proposing may be the pull rule alone. The proposal is kept here as written; it
+would be renamed and reduced before any submission.
+
 To build the files to submit:
 
     python3 tools/erc_package.py OUT --check

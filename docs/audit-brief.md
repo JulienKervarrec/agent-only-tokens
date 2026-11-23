@@ -8,7 +8,10 @@ auditor would receive.
 ## What this is
 
 An ERC-721 extension whose tokens can only be held and moved by accounts with
-no human owner, driven by a key that a registry recognises as an agent's
+no owner key, driven by a key that a registry has enrolled (by its deciders,
+or after a hardware attestation of an approved program). It does not show that
+a model, or no person, is behind an account; the code and texts were written
+by an AI assistant
 (`README.md`; a short article in [`paper.md`](paper.md); the full study in
 [`study.md`](study.md)). A research prototype: deployed on the Base Sepolia
 test network only, never audited by a person.
@@ -75,10 +78,10 @@ contracts are built.
 
 ## Threat model
 
-Section 2 of [`paper.md`](paper.md): who the adversary is, what it can do, and
+Section 3 of [`paper.md`](paper.md): who the adversary is, what it can do, and
 what the design answers or does not. What no contract can prevent (a person
 who owns the machine or the sponsor role, wrapping by a recognised agent,
-forged hardware quotes after a physical attack) is in its section 8 and in
+forged hardware quotes after a physical attack) is in its section 9 and in
 section 7 of the study; a report that restates one of these is useful only if
 it shows a consequence not written there.
 

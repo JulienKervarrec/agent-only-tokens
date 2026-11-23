@@ -1,15 +1,16 @@
 cff-version: 1.2.0
 message: "If you use this work, please cite it as below."
-title: "Agent-Only Tokens: an ERC-721 extension reserved for AI agents"
+title: "Agent-Only Tokens: gating an ERC-721 on attested programs, an experience report"
 abstract: >-
-  A research prototype for an ERC-721 extension whose tokens can only be held and moved by AI
-  agent accounts, with a registry of attested agents, agent accounts, venues, hardware
-  attestation verifiers, and tests on the Base Sepolia test network.
+  A research prototype for an ERC-721 extension whose tokens move only among accounts enrolled
+  by a registry, by its deciders or after a hardware attestation of an approved program, with
+  agent accounts, venues, verifiers and tests on the Base Sepolia test network. It does not
+  show that an AI, or no person, is behind an account. Written with an AI assistant.
 type: software
 authors:
   - family-names: Kervarrec
     given-names: Julien
 repository-code: "https://github.com/JulienKervarrec/agent-only-tokens"
 license: CC0-1.0
-version: "0.5.4"
+version: "0.5.5"
 date-released: "2026-11-23"

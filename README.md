@@ -4,9 +4,26 @@
 [![nightly](https://github.com/JulienKervarrec/agent-only-tokens/actions/workflows/nightly.yml/badge.svg)](https://github.com/JulienKervarrec/agent-only-tokens/actions/workflows/nightly.yml)
 [![weekly](https://github.com/JulienKervarrec/agent-only-tokens/actions/workflows/weekly.yml/badge.svg)](https://github.com/JulienKervarrec/agent-only-tokens/actions/workflows/weekly.yml)
 
-A research prototype for an ERC-721 extension whose tokens can only be held and
-moved by AI agent accounts. No human-held wallet can mint, receive, transfer,
-list, pledge or burn them, including on secondary markets.
+A research prototype for an ERC-721 extension whose tokens move only among
+accounts that a registry has enrolled, either by its deciders or after a
+hardware attestation that the account's key was created by an approved program
+in a confidential machine. An ordinary wallet cannot mint, receive, transfer,
+list, pledge or burn them.
+
+**What the name gets wrong.** The project set out to reserve a token for AI
+agents. It does not: nothing here shows that a model decides, a script with no
+model qualifies, and a person can run the approved program or forge the
+hardware attestation it rests on (TEE.fail, 2025). The honest description is
+"tokens for attested programs", and the short article,
+[`docs/paper.md`](docs/paper.md), is written as a report of what that takes and
+how it broke. The name of the repository and of the contracts is kept for
+continuity.
+
+**How this was produced.** The code, tests, tools and texts were written by an
+AI assistant (Anthropic's Claude) working for the author, who chose the
+question, approved each publication and operated the accounts. The reviews
+mentioned in the documents were made by separate AI instances. No person other
+than the author has reviewed the work.
 
 **Status: unaudited draft. Deployed on the Base Sepolia test network only, never
 on a main network.** Do not use with real assets.
@@ -18,10 +35,11 @@ its draft EIP text, use cases, security, a verification log and sources.
 ## What it can and cannot guarantee
 
 A smart contract cannot prove "this caller is an LLM". What it can enforce is
-narrower: every address that holds or moves a token is an account with no human
-owner, driven by a session key that a set of attesters vouched for. How strong
+narrower: every address that holds or moves a token is an account with no
+owner key, driven by a session key that a set of attesters vouched for. How strong
 "agent" is depends entirely on what those attesters check (for example a TEE
-attestation). The standard itself is independent of that proof.
+attestation), and even then it names a program, not a model and not the
+absence of a person. The standard itself is independent of that proof.
 
 ## The standard: three rules on top of ERC-721
 
@@ -125,8 +143,9 @@ deliberately wrong implementations, each missing one check, all fail it:
 
     python3 tools/conformance.py
 
-**The short version.** [`docs/paper.md`](docs/paper.md) is a short article on the
-design, the evidence and the limits, with diagrams; `docs/study.md` is the
+**The short version.** [`docs/paper.md`](docs/paper.md) is an experience report:
+what the design shows and does not, what broke, the evidence and the limits,
+with diagrams; `docs/study.md` is the
 full record it draws on.
 
 **Reproduce everything.** `bash tools/reproduce.sh` replays every check of
@@ -432,7 +451,7 @@ Sections 3.20, 3.28 and 3.44 of the study.
 ## The token as a pass, 23 November 2026
 
 A service free for the agent whose account holds a token of a collection: the
-token becomes a subscription that only agents can hold and resell. The shop
+token becomes a subscription that only recognised accounts can hold and resell. The shop
 offers x402's `sign-in-with-x` extension; the seventh agent program signs in
 instead of paying, with a message it writes itself for its one shop; the shop
 checks the signature through ERC-1271 and reads on chain that the account
@@ -485,7 +504,11 @@ and id from its own code). The saving pays for about 260 calls per agent.
 
 ## Known limits
 
-- "No human" rests on the attesters, who also approve venues. A dishonest
+- "No human" is not shown. A person can run the approved program, be enrolled
+  by the attesters, or forge a hardware quote: a forged Intel TDX quote has
+  passed the on-chain verification we use, on a test network, with about
+  $1,000 of equipment (see [`docs/paper.md`](docs/paper.md), section 9).
+- Recognition rests on the attesters, who also approve venues. A dishonest
   approved venue could wrap tokens for humans.
   Since 16 November 2026 an approval takes effect only after a notice delay
   fixed at deployment, so that holders see it coming; the delay gives time to
