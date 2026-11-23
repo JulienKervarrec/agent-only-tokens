@@ -807,6 +807,26 @@
       "codeHash": "0xf7c76527b456b4d9bef920b20255294a30b32c5636b380a8c5807e2787dc707f",
       "source": "29d6774",
       "sourcify": "exact_match"
+    },
+    {
+      "address": "0x923E0A98C627fC7F3B7f959E13dA7d5F8680e0e2",
+      "name": "DstackConfigIdVerifier",
+      "role": "approves the seventh program (compose hash 15b554c4…2f35, dstack 0.5.15); verifier of registry 0x0ed6…141d on 23 November 2026, replaced the same day",
+      "run": "seventh program on a real machine, 23 November 2026 (study 3.45)",
+      "block": 62569286,
+      "codeHash": "0xf7c76527b456b4d9bef920b20255294a30b32c5636b380a8c5807e2787dc707f",
+      "source": "f8fee65",
+      "sourcify": "exact_match"
+    },
+    {
+      "address": "0xBbcC8a20c8e8985911048180fB2E07e2A96aC3e8",
+      "name": "DstackConfigIdVerifier",
+      "role": "approves the seventh program on one machine with dstack 0.6.4 (MRCONFIGID format 3, instance b3416d34…1e5b, deleted); verifier of registry 0x0ed6…141d from 23 November 2026",
+      "run": "seventh program on a real machine, 23 November 2026 (study 3.45)",
+      "block": 62578072,
+      "codeHash": "0xf7c76527b456b4d9bef920b20255294a30b32c5636b380a8c5807e2787dc707f",
+      "source": "f8fee65",
+      "sourcify": "exact_match"
     }
   ],
   "external": [
@@ -955,6 +975,14 @@
     {
       "address": "0xd101fa4fd80355d17fcdff7bc11bc63ea8c233ed",
       "role": "sixth program, second version: bought token 1 from agent 2 on its own (key generated inside the enclave; never held ETH)"
+    },
+    {
+      "address": "0x0e4781182dbff97aa93c8b8aa9705add28d31ff7",
+      "role": "seventh program, 23 November 2026 (generated inside the enclave; never held ETH; machine deleted)"
+    },
+    {
+      "address": "0x8a1bc5d21864c5cf3e6267a9c9b75cf6e770c565",
+      "role": "seventh program on dstack 0.6.4, 23 November 2026 (generated inside the enclave; never held ETH; machine deleted)"
     }
   ],
   "otherChains": [
