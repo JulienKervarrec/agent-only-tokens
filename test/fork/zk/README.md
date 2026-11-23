@@ -23,6 +23,13 @@ DCAP v1.1 program (image id `0xcc80…9695`) checked our own dstack quote at
 [`research/zk-proof`](../../../research/zk-proof/README.md); accepted by the
 live RISC Zero router of Base Sepolia. Used by `ZkRealProofBaseSepolia.t.sol`.
 
+Since 19 November 2026 at 22:07:40 UTC (Base Sepolia block 61,020,957) that
+router refuses both of our proofs: RISC Zero stopped its 3.0.0 verifier for
+good after a soundness defect fixed in 3.1.0. The tests that show them
+accepted run on the chain as it was at block 61,020,000; others show them
+refused today. A proof for the corrected verifier (selector `e71e6620`) needs
+the corrected prover and a program built for it; not made.
+
 ## The agent's second proof (step 2.3)
 
 `switch-seal.hex` and `switch-journal.hex`: a real proof of the quote the
