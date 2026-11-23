@@ -379,10 +379,10 @@ finding fails the check.
 And the figures of sections 3.2, 3.3 and 3.9 are compared with the repository
 by `tools/figures.py`.
 
-The code of the deployed contracts can now be read. Of the <!--f:deployed-->85<!--/f--> contracts
+The code of the deployed contracts can now be read. Of the <!--f:deployed-->87<!--/f--> contracts
 deployed on Base Sepolia for the tests, <!--f:deployed.clones-->23<!--/f--> are agent accounts, clones
-of an implementation. <!--f:deployed.verified-->62<!--/f--> of the others are verified on Sourcify:
-<!--f:deployed.exact-->59<!--/f--> match their source exactly, <!--f:deployed.match-->3<!--/f--> on code only (their sources
+of an implementation. <!--f:deployed.verified-->64<!--/f--> of the others are verified on Sourcify:
+<!--f:deployed.exact-->61<!--/f--> match their source exactly, <!--f:deployed.match-->3<!--/f--> on code only (their sources
 differed by comments). `deployments/base-sepolia.json` names, for each one, the
 commit of the repository that compiles to it; nine of them run earlier
 versions of the code, which were found by recompiling the history, and two
@@ -2760,7 +2760,7 @@ chain, and a re-reading of the newest code.
 
 Unchanged and passing: unit, fuzz and invariant tests, symbolic proofs, conformance suites, the
 ERC text's reference code, the four local end-to-end runs, the incident drill, the mutation tests
-(<!--f:mutants-->347<!--/f--> mutants, all caught but the <!--f:mutants.accepted-->1<!--/f--> accepted), and the code at the <!--f:deployed-->85<!--/f--> recorded addresses. Intel's data
+(<!--f:mutants-->347<!--/f--> mutants, all caught but the <!--f:mutants.accepted-->1<!--/f--> accepted), and the code at the <!--f:deployed-->87<!--/f--> recorded addresses. Intel's data
 on chain still expires on 30 November 2026 at 20:30 UTC; Automata had not renewed it on 23
 November.
 ### 3.45 The token as a pass
@@ -2783,11 +2783,13 @@ program plus this). Still nothing on request: the sign-in comes from its own loo
 account holds a token and the shop of its settings offers the extension. It writes the message
 itself. From the shop it takes only a nonce (8 to 64 letters and digits) and two dates (issued
 within five minutes of its clock, expiring within the hour). It refuses a challenge for another
-domain or origin than its shop's, with a statement other than the one in its measured settings,
+domain or page than its shop's (the address signed is the one of its settings, letter for
+letter), with a statement other than the one in its measured settings,
 without an expiry, or with fields it does not check. The signature is a message of its account
 (`AgentMessage`, as for payments), never a bare hash, and moves nothing. Each sign-in is in the
-journal before it is sent, and its outcome after. A refused sign-in is not retried before a
-normal, paid, visit.
+journal before it is sent, with every field of its message, and its outcome after, even when
+the shop gives no answer. A refused sign-in is not retried in the next period: the agent pays
+as before, or, at a shop that sells nothing, does nothing.
 
 **Tested** on a local chain ([`v7/local/run.sh`](../examples/enclave-agent/v7/local/run.sh)):
 
@@ -2809,9 +2811,56 @@ use; `upto`, where the buyer authorizes a maximum and the seller settles the rea
 through Permit2; `batch-settlement`; `auth-capture`). Only the overview and the general `upto`
 text were read, not their EVM parts: nothing is claimed about them.
 
-**Limits.** Not run on a real machine or on Base Sepolia; a holder-only service without
-dependency (`v7/shop.js`) and a compose file that runs it beside the agent are ready for that
-run, and pass the local test. The local shop is a stand-in; its check is
+**Run on a real machine** ([`run-2026-11-23-v7`](../examples/enclave-agent/run-2026-11-23-v7/README.md)),
+the same day, on Base Sepolia: one Phala Cloud machine (dstack 0.5.15), the agent and the
+holder-only service `v7/shop.js` side by side, about 13 minutes, about 0.01 $ of credit, then
+deleted. The compose hash Phala Cloud showed before deployment was the one computed beforehand
+(`15b554c4…2f35`).
+
+| Step | Result |
+| --- | --- |
+| Enrollment quote, checked by Automata's DCAP verifier | Genuine, platform up to date; a verifier approving exactly that code, announced with the 120 s notice, then the key enrolled for agent 1 with no attester signature |
+| The agent, whose account holds token 1 since 19 November | Signed in twice, five minutes apart; served both times; balance unchanged (0.01 USDC), no order signed |
+| The first sign-in, given to the reference implementation (`@x402/extensions` 2.31.0, signature checked on chain through ERC-1271) | Valid, payer = the agent's account |
+| The same sign-in sent again from outside | Refused: nonce already used |
+| A sign-in by a fresh plain key, to a fresh challenge | Refused: the signature is not the account's |
+| Journal (four entries: two sign-ins, two outcomes), answered to our nonce | Chain replayed; quote genuine, same program, approved by the registry's verifier |
+
+**The same program on dstack OS 0.6.4**, which Phala Cloud now offers by default, for about 8
+minutes. Three things differ. The manifest is version 3: three more fields (`init_script`,
+`key_provider`, `key_provider_id`) and the version written as a string, so another compose hash
+(`66dfe96a…b513`), which `manifest/compose-hash.py --v3` reproduces. `MRCONFIGID` is in format 3:
+the byte `03` followed by the hash of a document that names the application, the compose hash,
+the instance and the key provider; we did not reproduce that hash from the fields Phala Cloud
+displays (the document's exact form was not read in dstack's source). And the event log has two
+more events (`gpu-policy-hash`, `storage-encrypted`). The program started unchanged. Our
+verifier, which approves the system image and the whole of `MRCONFIGID` together, accepted the
+quote, the key was enrolled the same way, and the agent signed in once, free. Consequence: in
+format 3 the approved value contains the instance, so an approval holds for one machine, not
+for every machine that runs the program; a verifier that reads the compose hash out of the
+document is needed before dstack 0.6 can be used as 0.5 is. The 0.6.4 system image was not
+compared with the one dstack publishes (its `os-image-hash` is recorded).
+
+**Independent review, after the run.** An agent that had not seen the work re-read the program,
+the holder-only service, the test and this section. It found no way to make the agent sign
+anything harmful (the sign-in, the orders and the payments are three separate kinds of
+signature), no request from outside that triggers a sign-in, and no secret in the files. It
+found two ways to stop the programs from outside, both reproduced: a request line that is not
+a path (`GET //`) made the agent exit, and with it its key and journal, and made the service
+exit too (the sixth program had the same defect); and ten thousand challenges asked within five
+minutes made the service exit. And lesser points: one sign-in sent twice at the same moment
+could be served twice, and a failed attempt did not spend its challenge; the agent checked the
+site of the address it signed, not the page; the journal did not hold every field of the
+message; a refused sign-in at a shop that sells nothing was tried again one pass later; the
+service's public counters showed the last accepted header. All are corrected in `v6/` and `v7/`
+and, except the refusal's timing, covered by the local test: a bad request is answered 400,
+the oldest challenge is dropped when ten thousand are pending, a challenge is spent at the
+first attempt, the address must be the one of the settings, the journal holds the whole
+message, the counters show a hash. The programs that ran are kept as they ran in the run
+folders; the corrected ones have not run on a real machine. Open: a restart still means a new
+key and an empty journal, and the local test does not run the agent against `v7/shop.js`.
+
+**Limits.** One short run, of the program before that review. The shop is ours; its check is
 ours, and the reference implementation is asked to agree only when it is installed (it is in the
 automatic tests). A pass is checked when the page is asked for, not while it is read. Whoever
 holds the session key can sign in as the agent for as long as a challenge lives, like every
@@ -3031,9 +3080,11 @@ Options studied and set aside:
    route is wanted again: a proof made with the corrected prover; on Base, the
    direct route stays cheaper (step 2.4).
 5. Done on 23 November 2026: the token as a pass, with x402's sign-in
-   extension (section 3.45), on a local chain; and the brief an external
+   extension (section 3.45), on a local chain, then on a real machine, and
+   once on dstack OS 0.6.4; and the brief an external
    auditor would receive ([`audit-brief.md`](audit-brief.md)), sent to nobody.
-   Next: the seventh program on a real machine, then the choice of an audit.
+   Next: a verifier for the format 3 of `MRCONFIGID`, and the 0.6 system
+   image checked against the published one; then the choice of an audit.
 6. Publication of the idea on [Ethereum Magicians](https://ethereum-magicians.org/),
    then a pull request to [ethereum/ERCs](https://github.com/ethereum/ERCs)
    once a second implementation passes the same tests.
@@ -3096,10 +3147,12 @@ unless stated otherwise.
 | USDC checks a contract payer's ERC-1271 signature with a read-only call, so the payer cannot count its own spending at that moment | Confirmed on 18 November 2026 by test against the compiled source (`test/X402Static.t.sol`, section 3.30) | [circlefin/stablecoin-evm](https://github.com/circlefin/stablecoin-evm) |
 | An agent in a confidential machine keeps to an on-chain daily limit, across a restart with a new key | Confirmed on 19 November 2026 on Base Sepolia: two draw orders signed by the agent, five settled x402 purchases, limit unchanged after the restart, a further draw refused (`OverLimit`) (section 3.31) | [run-2026-11-19-v4](../examples/enclave-agent/run-2026-11-19-v4/README.md) |
 | An agent in a confidential machine buys only on a model's answer it verified (gateway quote, pinned TLS, signed receipt) | Confirmed on 19 November 2026 on Base Sepolia: three verified answers (`SKIP`, `BUY`, `SKIP`), one settled purchase (section 3.42) | [run-2026-11-19-v5](../examples/enclave-agent/run-2026-11-19-v5/README.md) |
+| An agent in a confidential machine is served free because its account holds a token, with x402's sign-in extension | Confirmed on 23 November 2026 on Base Sepolia: two sign-ins served, none paid; accepted by the reference implementation; a replay and a plain key refused; journal bound to a genuine quote (section 3.45) |
+| On dstack OS 0.6.4 the manifest is version 3 and `MRCONFIGID` is in format 3, per instance | Confirmed on 23 November 2026 on a Phala Cloud machine: compose hash reproduced; the quote's field starts with `03`; our verifier enrolled the key for that instance (section 3.45) |
 | RISC Zero stopped the 3.0.0 verifier our proofs used, on Base Sepolia, on 19 November 2026 at 22:07:40 UTC | Confirmed on 23 November 2026 on chain: the router's verifier for selector `0x73c457ba` (`0x724d…7797`, version 3.0.0) answers `paused()` true from block 61,020,957, set by a call to `estop()` from its owner; the verifier for `0xe71e6620` (3.1.0) is not stopped. The reason (a soundness defect fixed in 3.1.0) was read in other projects' pages, not in RISC Zero's own advisory | [risc0-ethereum #748](https://github.com/risc0/risc0-ethereum/pull/748), [lez-atomic-swaps #184](https://github.com/gateway-fm/lez-atomic-swaps/issues/184), `test/fork/ZkRoutesBaseSepolia.t.sol` |
 | Nobody was enrolled through our zk verifier but our own agent | Confirmed on 23 November 2026 on chain: the registry's balance equals one bond; `keyOf(1)` and `enrollmentNonce(1)` are those of our renewal | `test/fork/ZkSwitchBaseSepolia.t.sol` |
 | The machines of sections 3.42 and 3.43 ran the dstack OS 0.5.15 image as published | Confirmed on 23 November 2026: MRTD, RTMR1 and RTMR2 of the three quotes recomputed from the release archive (SHA-256 `6f74f48f…3a52`); root file system verified against its hash | `tools/dstack_image.py`, nightly job |
-| Every contract cited in this document is at its address on Base Sepolia, with the code recorded | Confirmed on 17 November 2026 for the <!--f:deployed-->85<!--/f--> contracts of `deployments/base-sepolia.json` and the 3 external ones (code hash read on chain); checked again every night | `tools/deployments.py` |
+| Every contract cited in this document is at its address on Base Sepolia, with the code recorded | Confirmed on 17 November 2026 for the <!--f:deployed-->87<!--/f--> contracts of `deployments/base-sepolia.json` and the 3 external ones (code hash read on chain); checked again every night | `tools/deployments.py` |
 
 ## 10. Sources
 
