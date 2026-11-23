@@ -60,6 +60,7 @@ interface IAgentRegistry {
 | `src/experimental/DstackEnrollmentVerifier.sol` | Enrollment verifier for agents on dstack: replays the RTMR3 event log and identifies the code by its base image and compose hash | <!--f:lines.DstackEnrollmentVerifier-->138<!--/f--> |
 | `src/experimental/Sha384.sol` | SHA-384, needed to replay TDX registers; the EVM has no precompile for it | <!--f:lines.Sha384-->92<!--/f--> |
 | `src/experimental/DstackConfigIdVerifier.sol` | Simpler enrollment verifier for agents on dstack: reads the compose hash in the quote itself (`MRCONFIGID`), with no event log and no SHA-384 | <!--f:lines.DstackConfigIdVerifier-->70<!--/f--> |
+| `src/experimental/DstackDocumentVerifier.sol` | The same for dstack OS 0.6, where `MRCONFIGID` is the hash of a document that names the machine: approves a program for every machine that runs it. Deployed on Base Sepolia; one machine enrolled through it | <!--f:lines.DstackDocumentVerifier-->126<!--/f--> |
 | `src/AgentSwap.sol` | Fixed-price sale between agents; events announce each listing and sale | <!--f:lines.AgentSwap-->64<!--/f--> |
 | `src/AgentLoan.sol` | Collateralised loan between agents; repayments wait in the venue for the lender; events announce each offer and each step | <!--f:lines.AgentLoan-->120<!--/f--> |
 | `src/AgentStaking.sol` | Staking of agent-only NFTs for ERC-20 rewards (Synthetix-style accounting, one NFT = one unit) | <!--f:lines.AgentStaking-->130<!--/f--> |
@@ -99,7 +100,7 @@ The hardware verifiers and SHA-384 are newer and less reviewed than the
 standard; they live in `src/experimental`, with their tests and fixtures in
 `test/experimental`. Nothing in the standard depends on them.
 
-<!--f:tests-->369<!--/f--> tests run locally; <!--f:tests.fork-->36<!--/f--> more run only against Base
+<!--f:tests-->382<!--/f--> tests run locally; <!--f:tests.fork-->38<!--/f--> more run only against Base
 Sepolia and are reported as skipped without an RPC address. They cover: classic ERC-721 behaviour between agents,
 refusal of humans as holder, recipient, minter or approved operator, refusal
 of unsolicited tokens and of unapproved wrapper contracts, sale, loan (repaid
@@ -153,7 +154,7 @@ browser, from a web host or a local copy.
 `examples/x402` runs the same payment outside Foundry, through the x402
 reference facilitator and the standard x402 client (see "x402 payments" below).
 
-<!--f:tests.experimental-->77<!--/f--> tests cover enrollment by hardware attestation and SHA-384 (see
+<!--f:tests.experimental-->90<!--/f--> tests cover enrollment by hardware attestation and SHA-384 (see
 "Enrollment by hardware attestation" below). They use a real Intel TDX quote
 (`test/experimental/tdx`), a real dstack quote with its event log
 (`test/experimental/dstack`) and four quotes from our own machines
@@ -165,7 +166,7 @@ was run on Base Sepolia (see "Test on Base Sepolia" below).
 delay and enrollment halt" below), and <!--f:tests.Guards-->21<!--/f--> more were written for the checks
 that systematic mutation testing found untested (see "Fifth pass" below).
 
-<!--f:tests.fuzz-->9<!--/f--> tests are fuzzed over 512 random inputs each. One is a stateful invariant
+<!--f:tests.fuzz-->11<!--/f--> tests are fuzzed over 512 random inputs each. One is a stateful invariant
 test: two agents, a human and an unapproved contract perform 128 runs of 100
 random actions (mint, approve, transfer, list, buy, lend, repay, claim,
 stake, unstake, freeze), and after every action no token may be held by, or approved for,
@@ -281,9 +282,9 @@ Until this pass, mutation testing ran on a list of checks picked by hand, and
 that list lived outside the repository. `tools/mutate.py` now builds the list
 from the code: it disables every `if (...) revert` guard of `src/` in turn
 (each alternative of an `a || b` guard separately), removes every
-unconditional revert, and applies the <!--f:mutants.listed-->178<!--/f--> changes written in
+unconditional revert, and applies the <!--f:mutants.listed-->184<!--/f--> changes written in
 `tools/mutations.json` (a state update dropped, a field left out of a signed
-digest, a comparison weakened). That makes <!--f:mutants-->347<!--/f--> mutants.
+digest, a comparison weakened). That makes <!--f:mutants-->356<!--/f--> mutants.
 
 **Result of the first run: 63 mutants went unnoticed.** The sentence "each
 added line has a test that fails without it" was true of the hand-picked list
@@ -304,14 +305,14 @@ only.
 Every mutant is now caught or explained, and the list is replayed every week.
 
 Slither also joined the automated checks, against a list of accepted findings
-with the reason for each (`tools/slither-accepted.json`, <!--f:slither.accepted-->67<!--/f--> names for
-<!--f:slither.findings-->69<!--/f--> findings): a new finding fails the check. One trap found on the way: the path filter `test`
+with the reason for each (`tools/slither-accepted.json`, <!--f:slither.accepted-->69<!--/f--> names for
+<!--f:slither.findings-->72<!--/f--> findings): a new finding fails the check. One trap found on the way: the path filter `test`
 also matched `AttestedAgentRegistry.sol` and hid every finding in the
 registry; the filter is now `/test/`.
 
-**The deployed code can be read.** <!--f:deployed-->87<!--/f--> contracts were deployed on Base Sepolia
+**The deployed code can be read.** <!--f:deployed-->88<!--/f--> contracts were deployed on Base Sepolia
 for the tests. <!--f:deployed.clones-->23<!--/f--> are agent accounts, clones of an implementation;
-<!--f:deployed.verified-->64<!--/f--> of the others are verified on [Sourcify](https://sourcify.dev): <!--f:deployed.exact-->61<!--/f--> match
+<!--f:deployed.verified-->65<!--/f--> of the others are verified on [Sourcify](https://sourcify.dev): <!--f:deployed.exact-->62<!--/f--> match
 their source exactly, <!--f:deployed.match-->3<!--/f--> match on code only (their sources differed by
 comments). `deployments/base-sepolia.json` names, for each one, the commit of
 this repository that compiles to it. Example: the
@@ -442,7 +443,9 @@ plain key are refused. On a real machine on Base Sepolia, 23 November 2026:
 the enrolled agent signed in twice and paid nothing; a replay and a plain key
 were refused. An independent review then found that one malformed request
 stopped the agent, and the holder-only service too; corrected, with the
-lesser points it raised, and tested. Section 3.45 of the study.
+lesser points it raised, and tested. The corrected program ran the same
+evening on dstack OS 0.6.4, approved before its machine existed by a verifier
+that names no machine. Sections 3.45 and 3.46 of the study.
 
 ## Gas
 
