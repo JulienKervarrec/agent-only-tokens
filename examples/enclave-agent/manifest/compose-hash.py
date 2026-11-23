@@ -5,6 +5,7 @@
     python3 compose-hash.py ../v3/docker-compose.yml
     python3 compose-hash.py ../v3/docker-compose.yml prelaunch-ours.sh
     python3 compose-hash.py ../v5/docker-compose.yml prelaunch-ours.sh --allow PHALA_AI_API_KEY
+    python3 compose-hash.py ../v7/docker-compose.yml prelaunch-ours.sh --allow PHALA_AI_API_KEY --v3 KEY_PROVIDER_ID
 
 The compose hash is the SHA-256 of the manifest (app-compose.json) that Phala Cloud builds
 from the compose file, a pre-launch script (its default one unless another is given) and
@@ -13,6 +14,12 @@ below are those of our runs of 16 November 2026 (Phala KMS, public logs, no envi
 variable accepted unless named with --allow: an encrypted secret the machine may receive,
 whose name, not value, is measured). Another setting, or another version of the pre-launch
 script, gives another hash.
+
+With --v3 and the identifier of the key provider (hexadecimal, shown by Phala Cloud before
+deployment), the manifest is the version 3 that Phala Cloud builds for dstack OS 0.6, seen on
+23 November 2026: three more fields. There the machine's MRCONFIGID is no longer the compose
+hash alone (format 3: the hash of a document that also names the application, the instance and
+the key provider), so only the compose hash is printed.
 """
 import hashlib
 import json
@@ -25,6 +32,11 @@ allowed = []
 while "--allow" in args:
     i = args.index("--allow")
     allowed.append(args[i + 1])
+    del args[i:i + 2]
+v3 = None
+if "--v3" in args:
+    i = args.index("--v3")
+    v3 = args[i + 1]
     del args[i:i + 2]
 read = lambda path: pathlib.Path(path).read_bytes().decode("utf-8")
 
@@ -47,8 +59,11 @@ manifest = {
     "storage_fs": "ext4",
     "tproxy_enabled": True,
 }
+if v3 is not None:
+    manifest.update({"init_script": [], "key_provider": "kms", "key_provider_id": v3, "manifest_version": "3"})
 raw = json.dumps(manifest, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 compose_hash = hashlib.sha256(raw).hexdigest()
 print("manifest bytes:", len(raw))
 print("compose hash:  ", compose_hash)
-print("MRCONFIGID:    ", "01" + compose_hash + "00" * 15)
+if v3 is None:
+    print("MRCONFIGID:    ", "01" + compose_hash + "00" * 15)
